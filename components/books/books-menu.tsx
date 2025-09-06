@@ -24,6 +24,7 @@ interface BooksMenuProps {
   activeTab?: string; // Active tab for highlighting
   success?: boolean; // Success state for delete operation
   error?: string; // Error message for delete operation
+  className?: string; // Additional CSS classes
 }
 
 export function BooksMenu({
@@ -34,6 +35,10 @@ export function BooksMenu({
   onDelete,
   onAddChapter,
   hideEdit = false, // Default to false for backward compatibility
+  activeTab,
+  success = false,
+  error,
+  className = "",
 }: BooksMenuProps) {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
@@ -76,12 +81,16 @@ export function BooksMenu({
         }
       } else {
         // Fallback to direct API call if onDelete is not provided
-        const response = await fetch(`/api/books/${bookId}`, {
+        const response = await fetch(`/api/books/by-slug/${slug}`, {
           method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData?.error || 'Failed to delete book';
           throw new Error(errorMessage);
         }
@@ -100,8 +109,9 @@ export function BooksMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
+        <Button variant="ghost" size="icon" className={className}>
           <MoreVertical className="h-4 w-4" />
+          <span className="sr-only">More options</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">

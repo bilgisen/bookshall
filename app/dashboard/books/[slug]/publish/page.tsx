@@ -114,8 +114,8 @@ export default function PublishPage() {
         }));
       }
       
-      // Call the publish API
-      const response = await fetch(`/api/books/${book.id}/publish`, {
+      // Call the publish API with the new route structure
+      const response = await fetch(`/api/books/by-slug/${params.slug}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

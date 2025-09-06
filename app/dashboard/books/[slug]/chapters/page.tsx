@@ -1,206 +1,96 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Book } from "@/types/book";
-import { BooksMenu } from "@/components/books/books-menu";
-import { Separator } from "@/components/ui/separator";
-import { ChapterTreeArborist } from "@/components/chapters/ChapterTreeArborist";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChapterHeader } from '@/components/chapters/chapter-header';
+import { ChapterTreeArborist } from '@/components/chapters/ChapterTreeArborist';
+import { authClient } from '@/lib/auth-client';
 
-interface PageProps {
-  params: { slug: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
+interface BookDetails {
+  id: string;
+  title: string;
+  slug: string;
 }
 
-// Separate component for the book header section
-function BookHeader({ book, slug }: { book: Book & { id: string }; slug: string }) {
-  return (
-    <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-          {book.title}
-        </h1>
-        {book.author && (
-          <p className="text-muted-foreground">{book.author}</p>
-        )}
+export default function BookChaptersPage() {
+  const { slug } = useParams();
+  const { data: session } = authClient.useSession();
+  
+  // Fetch book details
+  const { data: book, isLoading: isLoadingBook } = useQuery({
+    queryKey: ['book', slug],
+    queryFn: async () => {
+      const response = await fetch(`/api/books/by-slug/${slug}`);
+      if (!response.ok) throw new Error('Failed to fetch book');
+      return response.json();
+    },
+    enabled: !!slug && !!session?.user,
+  });
+
+  // Handle loading state
+  if (isLoadingBook || !session) {
+    return (
+      <div className="container mx-auto py-8 space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-6 w-48" />
+        <div className="space-y-2 mt-4">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
       </div>
-      <div className="flex-shrink-0">
-        <BooksMenu slug={slug} bookId={book.id} />
+    );
+  }
+
+  if (!book) {
+    return (
+      <div className="container mx-auto py-8">
+        <p>Book not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8 px-8 space-y-6">
+      <ChapterHeader 
+        title="Chapters" 
+        bookName={book.title} 
+      />
+      
+      <div className="p-0">
+        <ChapterTreeArborist 
+          bookSlug={slug as string}
+          onSelectChapter={(chapter) => {
+            // Handle chapter selection
+            console.log('Selected chapter:', chapter);
+          }}
+          onViewChapter={(chapter) => {
+            // Handle view chapter
+            window.open(`/dashboard/books/${slug}/chapters/${chapter.id}`, '_blank');
+          }}
+          onEditChapter={(chapter) => {
+            // Handle edit chapter
+            window.location.href = `/dashboard/books/${slug}/chapters/${chapter.id}/edit`;
+          }}
+          onDeleteChapter={async (chapter) => {
+            // Handle delete chapter
+            if (confirm('Are you sure you want to delete this chapter?')) {
+              try {
+                const response = await fetch(`/api/chapters/${chapter.id}`, {
+                  method: 'DELETE',
+                });
+                if (!response.ok) throw new Error('Failed to delete chapter');
+                // Refresh the list
+                window.location.reload();
+              } catch (error) {
+                console.error('Error deleting chapter:', error);
+                alert('Failed to delete chapter');
+              }
+            }
+          }}
+        />
       </div>
     </div>
   );
-}
-
-/**
- * Book detail page component that displays a single book and its chapters
- * @param params - The route parameters containing the book slug
- */
-export default function BookDetailPage({ params, searchParams }: PageProps) {
-  const { user, isLoading: isAuthLoading, getToken } = useAuth();
-  const router = useRouter();
-  const { slug } = params;
-  const [book, setBook] = useState<Book & { id: string } | null>(null);
-  const [isBookLoading, setIsBookLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isAuthLoading && !user) {
-      router.push('/signin');
-    }
-  }, [user, isAuthLoading, router]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsBookLoading(true);
-        const token = await getToken();
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-        
-        console.log(`Fetching book with slug: ${slug}`);
-        const bookResponse = await fetch(`/api/books/by-slug/${slug}`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          cache: 'no-store'
-        });
-        
-        if (!bookResponse.ok) {
-          const errorData = await bookResponse.text();
-          console.error('Book fetch error:', bookResponse.status, errorData);
-          throw new Error(`Failed to fetch book: ${bookResponse.status} ${bookResponse.statusText}`);
-        }
-        
-        const bookData = await bookResponse.json();
-        console.log('Book data loaded:', bookData);
-        setBook(bookData);
-        
-      } catch (err) {
-        console.error('Error in fetchData:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load book data');
-      } finally {
-        setIsBookLoading(false);
-      }
-    };
-    
-    if (slug && typeof slug === 'string') {
-      fetchData();
-    } else {
-      console.error('Invalid slug parameter:', slug);
-      router.push('/dashboard/books');
-    }
-  }, [slug, getToken, router]);
-
-  if (isAuthLoading || isBookLoading) {
-    return (
-      <div className="container mx-auto w-full p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !book) {
-    return (
-      <div className="container mx-auto w-full p-6">
-        <div className="text-red-500 text-center py-8">
-          {error || 'Book not found'}
-        </div>
-      </div>
-    );
-  }
-  
-  // Format publication year if available
-  const publishYear = book.publishYear 
-    ? new Date(book.publishYear).getFullYear()
-    : null;
-
-  return (
-      <div className="container mx-auto w-full p-6">
-        {/* Header Section */}
-        <div className="flex flex-col space-y-2 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Chapters of {book.title}</h1>
-              <p className="text-muted-foreground">
-                You can change the order and hierarchy of chapters using drag-and-drop.
-              </p>
-            </div>
-            <BooksMenu slug={slug} bookId={book.id} />
-          </div>
-          <Separator className="my-4" />
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Chapter Tree (2/3) */}
-          <div className="lg:col-span-2">
-            <ChapterTreeArborist 
-              bookSlug={slug}
-              onViewChapter={(chapter) => {
-                router.push(`/dashboard/books/${slug}/chapters/${chapter.id}`);
-              }}
-              onEditChapter={(chapter) => {
-                router.push(`/dashboard/books/${slug}/chapters/${chapter.id}/edit`);
-              }}
-              onDeleteChapter={async (chapter) => {
-                if (!confirm(`Are you sure you want to delete "${chapter.title}"?`)) {
-                  return;
-                }
-                
-                try {
-                  const token = await getToken();
-                  if (!token) {
-                    throw new Error('No authentication token found');
-                  }
-                  
-                  console.log(`Deleting chapter ${chapter.id}`);
-                  const response = await fetch(`/api/chapters/${chapter.id}`, {
-                    method: 'DELETE',
-                    headers: { 
-                      'Authorization': `Bearer ${token}`,
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  
-                  if (!response.ok) {
-                    const errorData = await response.text();
-                    console.error('Delete chapter error:', response.status, errorData);
-                    throw new Error(errorData || 'Failed to delete chapter');
-                  }
-                  
-                  console.log('Chapter deleted successfully, refreshing...');
-                  router.refresh();
-                  
-                } catch (error) {
-                  console.error('Error in onDeleteChapter:', error);
-                  alert(error instanceof Error ? error.message : 'An error occurred while deleting the chapter');
-                }
-              }}
-            />
-          </div>
-          
-          {/* Right Column - Book Info (1/3) */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-6">
-              <BookInfo 
-                book={{
-                  id: book.id,
-                  title: book.title,
-                  author: book.author,
-                  publisher: book.publisher,
-                  coverImageUrl: book.coverImageUrl
-                }}
-                showEditButton={false}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
 }

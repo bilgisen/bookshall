@@ -9,6 +9,7 @@ import {
   jsonb,
   AnyPgColumn,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -189,7 +190,7 @@ export const userPreferences = pgTable("user_preferences", {
 
 /** books */
 export const books = pgTable("books", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey().notNull().$defaultFn(() => crypto.randomUUID()),
   userId: text("userId")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
@@ -211,12 +212,8 @@ export const books = pgTable("books", {
   language: text("language").default("tr"),
   coverImageUrl: text("coverImageUrl"), // NOTE: intentionally NOT a FK to media.url (avoids circular)
   epubUrl: text("epubUrl"),
-  isPublished: boolean("isPublished").default(false).notNull(),
-  isFeatured: boolean("isFeatured").default(false).notNull(),
-  viewCount: integer("viewCount").default(0).notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-  publishedAt: timestamp("publishedAt", { withTimezone: true }),
 });
 
 /** media */
@@ -227,7 +224,7 @@ export const media = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    bookId: integer("bookId").references(() => books.id, { onDelete: "cascade" }),
+    bookId: text("bookId").references(() => books.id, { onDelete: "cascade" }),
     url: text("url").notNull(),
     name: text("name").notNull(),
     mimeType: text("mimeType").notNull(),
@@ -246,25 +243,22 @@ export const media = pgTable(
 
 /** chapters - self-referential (AnyPgColumn to avoid TS circular errors) */
 export const chapters = pgTable("chapters", {
-  id: serial("id").primaryKey(),
-  bookId: integer("bookId")
+  id: text("id").primaryKey().notNull().$defaultFn(() => crypto.randomUUID()),
+  bookId: text("bookId")
     .notNull()
     .references(() => books.id, { onDelete: "cascade" }),
-  parentChapterId: integer("parentChapterId").references(
+  parentChapterId: text("parentChapterId").references(
     (): AnyPgColumn => chapters.id,
     { onDelete: "set null" },
   ),
   title: text("title").notNull(),
-  content: jsonb("content").notNull(),
-  excerpt: text("excerpt"),
+  content: text("content").notNull(), 
   order: integer("order").default(0).notNull(),
   level: integer("level").default(1).notNull(),
-  isDraft: boolean("isDraft").default(false).notNull(),
   wordCount: integer("wordCount").default(0).notNull(),
   readingTime: integer("readingTime"),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-  publishedAt: timestamp("publishedAt", { withTimezone: true }),
 });
 
 /* ============================

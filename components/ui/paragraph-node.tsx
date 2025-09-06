@@ -2,9 +2,9 @@
 
 import * as React from 'react';
 
-import type { PlateElementProps } from '@platejs/core/react';
+import type { PlateElementProps } from 'platejs/react';
 
-import { PlateElement } from '@platejs/core/react';
+import { PlateElement } from 'platejs/react';
 
 import { cn } from '@/lib/utils';
 

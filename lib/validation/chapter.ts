@@ -2,14 +2,26 @@ import { z } from 'zod';
 
 export const chapterFormSchema = z.object({
   id: z.number().optional(),
+  uuid: z.string().uuid().optional(),
   bookId: z.number().min(1, 'Book ID is required'),
   parentChapterId: z.number().nullable().optional(),
   title: z.string().min(1, 'Title is required').max(255, 'Title is too long'),
-  content: z.any(), // Will be validated by Plate editor
-  excerpt: z.string().max(500, 'Excerpt is too long').optional(),
+  content: z.union([
+    z.string().min(1, 'Content is required'),
+    z.object({
+      type: z.string(),
+      content: z.array(z.any()).optional(),
+      text: z.string().optional(),
+      attrs: z.record(z.any()).optional(),
+      marks: z.array(z.any()).optional()
+    })
+  ]).transform(val => typeof val === 'string' ? val : JSON.stringify(val)),
   order: z.number().int().min(0).default(0),
   level: z.number().int().min(1).default(1),
-  isDraft: z.boolean().default(false),
+  wordCount: z.number().int().min(0).default(0),
+  readingTime: z.number().int().min(0).nullable().optional(),
+  createdAt: z.date().or(z.string()).optional(),
+  updatedAt: z.date().or(z.string()).optional(),
 });
 
 export type ChapterFormValues = z.infer<typeof chapterFormSchema>;

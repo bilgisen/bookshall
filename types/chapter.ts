@@ -7,6 +7,7 @@ export type Chapter = DbChapter & {
 
 export type ChapterTreeItem = {
   id: number;
+  uuid: string;
   title: string;
   level: number;
   order: number;
@@ -16,23 +17,47 @@ export type ChapterTreeItem = {
 
 export type ChapterFormValues = {
   id?: number;
+  uuid?: string;
   bookId: number;
   parentChapterId: number | null;
   title: string;
-  content: any; // Plate editor content
-  excerpt?: string;
+  content: string;
   order: number;
   level: number;
-  isDraft: boolean;
-};
-
-export type ChapterContent = {
-  type: string;
-  children: any[];
+  wordCount: number;
+  readingTime?: number | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 };
 
 export type ChapterBreadcrumb = {
   id: number;
+  uuid: string;
   title: string;
   level: number;
+};
+
+export type ReorderPatch = {
+  id: string;
+  order: number;
+  level: number;
+  parentChapterId: string | null;
+};
+
+export type ReorderChaptersInput = {
+  bookId: string;
+  patches: ReorderPatch[];
+};
+
+export type ChapterWithBook = Chapter & {
+  book: {
+    id: number;
+    title: string;
+    slug: string;
+    author?: string | null;
+    coverImageUrl?: string | null;
+    language: string;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+  };
 };

@@ -5,8 +5,8 @@ export type BookGenre = 'FICTION' | 'NON_FICTION' | 'SCIENCE_FICTION' | 'FANTASY
   'CHILDREN' | 'YOUNG_ADULT' | 'COOKBOOK' | 'TRAVEL' | 'HUMOR' | 'POETRY' |
   'BUSINESS' | 'TECHNOLOGY' | 'SCIENCE' | 'PHILOSOPHY' | 'RELIGION' | 'OTHER';
 
-export interface Book extends Omit<DBBook, 'userId' | 'createdAt' | 'updatedAt' | 'publishedAt' | 'created_at' | 'updated_at'> {
-  // Core fields
+export interface Book {
+  // Core fields from DB schema
   id: number;
   userId: string;
   title: string;
@@ -17,20 +17,26 @@ export interface Book extends Omit<DBBook, 'userId' | 'createdAt' | 'updatedAt' 
   contributor: string | null;
   translator: string | null;
   
-  // Optional fields
-  subtitle: string | null;
-  description: string | null;
+  // Publishing Information
   publisher: string | null;
   publisherWebsite: string | null;
   publishYear: number | null;
   isbn: string | null;
+  
+  // Book Metadata
+  subtitle: string | null;
+  description: string | null;
   language: string;
   genre: BookGenre | null;
   series: string | null;
   seriesIndex: number | null;
   tags: string[] | null;
+  
+  // Media
   coverImageUrl: string | null;
   epubUrl: string | null;
+  
+  // Status flags
   isPublished: boolean;
   isFeatured: boolean;
   viewCount: number;
@@ -39,9 +45,10 @@ export interface Book extends Omit<DBBook, 'userId' | 'createdAt' | 'updatedAt' 
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
-  // Snake case aliases for backward compatibility
-  created_at: string;
-  updated_at: string;
+  
+  // Legacy fields (for backward compatibility)
+  created_at?: string;
+  updated_at?: string;
 };
 
 // Chapter type

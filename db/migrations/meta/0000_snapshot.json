@@ -1,5 +1,5 @@
 {
-  "id": "893d1ba9-a913-45e8-8ae3-4e01ae0e9431",
+  "id": "900a6f00-4b93-4e96-96fb-178abf2435b0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -236,27 +236,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "isPublished": {
-          "name": "isPublished",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "isFeatured": {
-          "name": "isFeatured",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "viewCount": {
-          "name": "viewCount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp with time zone",
@@ -270,12 +249,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "publishedAt": {
-          "name": "publishedAt",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -318,6 +291,13 @@
           "primaryKey": true,
           "notNull": true
         },
+        "uuid": {
+          "name": "uuid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "bookId": {
           "name": "bookId",
           "type": "integer",
@@ -338,15 +318,9 @@
         },
         "content": {
           "name": "content",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "excerpt": {
-          "name": "excerpt",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "order": {
           "name": "order",
@@ -361,13 +335,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 1
-        },
-        "isDraft": {
-          "name": "isDraft",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "wordCount": {
           "name": "wordCount",
@@ -395,12 +362,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "publishedAt": {
-          "name": "publishedAt",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -433,7 +394,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "chapters_uuid_unique": {
+          "name": "chapters_uuid_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "uuid"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

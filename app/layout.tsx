@@ -1,24 +1,24 @@
 import { Toaster } from "@/components/ui/sonner";
 import type { Metadata } from "next";
 import { ThemeProvider } from "../components/provider";
+import { Providers } from "../providers";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 export const metadata: Metadata = {
-  title: "Next.js Starter Kit - Launch Your SAAS",
+  title: "BooksHall - Book Management Platform",
   description:
-    "A modern, full-stack Next.js starter kit with authentication, payments, and dashboard. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
+    "Transform your book into a stunning digital and audio version with our intuitive platform. Experience high standards, user-friendly interface, AI-powered content editor, and much more for global platforms.",
   openGraph: {
-    title: "Next.js Starter Kit",
-    description:
-      "A modern, full-stack Next.js starter kit with authentication, payments, and dashboard. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-    url: "nextstarter.xyz",
-    siteName: "Next.js Starter Kit",
+    title: "BooksHall - Book Management Platform",
+    description: "Transform your book into a stunning digital and audio version with our intuitive platform. Experience high standards, user-friendly interface, AI-powered content editor, and much more for global platforms.",
+    url: "BooksHall.com",
+    siteName: "BooksHall - Book Management Platform",
     images: [
       {
         url: "https://jdj14ctwppwprnqu.public.blob.vercel-storage.com/nsk-w9fFwBBmLDLxrB896I4xqngTUEEovS.png",
         width: 1200,
         height: 630,
-        alt: "Next.js Starter Kit",
+        alt: "BooksHall - Book Management Platform",
       },
     ],
     locale: "en-US",
@@ -33,18 +33,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-[-apple-system,BlinkMacSystemFont]antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          forcedTheme="dark"
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster />
-          <Analytics />
-        </ThemeProvider>
+      <body >
+        <Providers>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            forcedTheme="dark"
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster />
+            <Analytics />
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

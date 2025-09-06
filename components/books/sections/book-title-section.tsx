@@ -5,17 +5,20 @@ import { useFormContext } from "react-hook-form"; // Add this import
 import { FormField } from "@/components/ui/form-field";
 
 export function BookTitleSection() {
-  const { register } = useFormContext(); // Get register from context
+  const { register, formState: { errors } } = useFormContext();
 
   return (
     <div className="space-y-4">
       <FormField 
-        {...register("title")} // Add register
-        label="Title" 
+        {...register("title", { required: true })}
+        label="Title"
+        error={errors.title?.message as string}
+        required
       />
       <FormField 
-        {...register("subtitle")} // Add register
-        label="Subtitle" 
+        {...register("subtitle")}
+        label="Subtitle"
+        error={errors.subtitle?.message as string}
       />
     </div>
   );

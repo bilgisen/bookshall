@@ -1,6 +1,6 @@
 'use client';
 
-import { type PlateElementProps, PlateElement } from '@platejs/core/react';
+import { type PlateElementProps, PlateElement } from 'platejs/react';
 
 export function BlockquoteElement(props: PlateElementProps) {
   return (

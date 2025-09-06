@@ -1,72 +1,288 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { BookHeader } from "@/components/books/book-header";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
+import { Loader2 } from "lucide-react";
 
-async function getBook(slug: string) {
-  const res = await fetch(`/api/books/${slug}`, {
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error("Failed to fetch book");
-  return res.json();
+interface Book {
+  id: string;
+  slug: string;
+  title: string;
+  author: string;
+  publisher: string;
+  description?: string;
+  isbn?: string;
+  language?: string;
+  coverImageUrl?: string;
+  subtitle?: string;
+  series?: string;
+  seriesIndex?: number | null;
+  publishYear?: number | null;
+  contributors?: Array<{ name: string }>;
+  translators?: Array<{ name: string }>;
+  genre?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+async function getBook(slug: string): Promise<Book> {
+  try {
+    const res = await fetch(`/api/books/by-slug/${slug}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await res.json();
+    
+    if (!res.ok) {
+      console.error('Error fetching book:', data);
+      throw new Error(data.error || 'Failed to fetch book');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getBook:', error);
+    throw error;
+  }
 }
 
 export default function ViewBookPage() {
   const router = useRouter();
   const { slug } = useParams<{ slug: string }>();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
-  // Client-side auth check
+  // Client-side auth check with authClient
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/session');
-        if (!response.ok) {
+        const { data: session } = await authClient.getSession();
+        if (!session?.user) {
           router.push('/sign-in');
+          return false;
         }
+        setIsCheckingAuth(false);
+        return true;
       } catch (error) {
         console.error('Auth check failed:', error);
         router.push('/sign-in');
+        return false;
       }
     };
     
     checkAuth();
   }, [router]);
 
-  const { data, isLoading, error } = useQuery({
+  const { data: book, isLoading, error } = useQuery<Book | null>({
     queryKey: ["book", slug],
-    queryFn: () => getBook(slug as string),
-    enabled: !!slug,
+    queryFn: async () => {
+      if (isCheckingAuth || !slug) return null;
+      
+      try {
+        const { data: session } = await authClient.getSession();
+        if (!session?.user) {
+          router.push('/sign-in');
+          return null;
+        }
+
+        const response = await fetch(`/api/books/by-slug/${encodeURIComponent(slug)}`, {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          if (response.status === 403) {
+            toast.error("You don't have permission to view this book");
+            router.push('/dashboard/books');
+            return null;
+          }
+          if (response.status === 404) {
+            throw new Error("Book not found");
+          }
+          throw new Error("Failed to fetch book");
+        }
+        
+        const bookData = await response.json();
+        
+        // Check if current user is the owner of the book
+        if (bookData.userId !== session.user.id) {
+          toast.error("You don't have permission to view this book");
+          router.push('/dashboard/books');
+          return null;
+        }
+        
+        return bookData;
+      } catch (err) {
+        console.error('Error fetching book:', err);
+        throw err;
+      }
+    },
+    retry: 1,
+    enabled: !!slug && !isCheckingAuth,
   });
 
-  if (isLoading) return <div className="flex items-center justify-center h-64">Loading...</div>;
+  if (isLoading || isCheckingAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
   
   if (error) {
-    toast.error("Failed to load book");
-    return <div className="text-center py-10">Error loading book. Please try again.</div>;
+    return (
+      <div className="container mx-auto p-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Error loading book</h2>
+          <p className="text-muted-foreground mb-4">
+            {error.message || 'An error occurred while loading the book.'}
+          </p>
+          <Button onClick={() => router.push('/dashboard/books')}>
+            Back to Books
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!book) {
+    return (
+      <div className="container w-full p-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Book not found</h2>
+          <p className="text-muted-foreground mb-4">
+            The book you're looking for doesn't exist or has been removed.
+          </p>
+          <Button onClick={() => router.push('/dashboard/books')}>
+            Back to Books
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <BookHeader title={data.title} description="Book details overview" />
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-4">
-          <p><strong>Author:</strong> {data.author}</p>
-          <p><strong>Publisher:</strong> {data.publisher}</p>
-          <p><strong>Year:</strong> {data.year}</p>
-          <p><strong>ISBN:</strong> {data.isbn}</p>
-          <p><strong>Description:</strong> {data.description}</p>
+    <div className="flex flex-col min-h-screen p-8">
+      {/* Full-width header */}
+      <div>
+        <div className="container mx-auto">
+          <BookHeader 
+            title={book.title} 
+            description={book.description}
+            slug={book.slug}
+          />
         </div>
-        <aside>
-          {data.coverUrl && (
-            <img
-              src={data.coverUrl}
-              alt="Book Cover"
-              className="rounded border object-cover w-full"
-            />
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-8">
+        <div className="md:col-span-2 space-y-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">Author</h3>
+              <p>{book.author}</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">Publisher</h3>
+              <p>{book.publisher}</p>
+            </div>
+            {book.publishYear && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Publication Year</h3>
+                <p>{book.publishYear}</p>
+              </div>
+            )}
+            {book.isbn && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">ISBN</h3>
+                <p>{book.isbn}</p>
+              </div>
+            )}
+            {book.language && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Language</h3>
+                <p>{book.language.toUpperCase()}</p>
+              </div>
+            )}
+            {book.series && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Series</h3>
+                <p>{book.series}{book.seriesIndex ? ` #${book.seriesIndex}` : ''}</p>
+              </div>
+            )}
+            {book.genre && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Genre</h3>
+                <p>{book.genre.replace(/_/g, ' ')}</p>
+              </div>
+            )}
+          </div>
+
+          {book.description && (
+            <div className="pt-4 border-t">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">Description</h3>
+              <p className="whitespace-pre-line">{book.description}</p>
+            </div>
           )}
+
+          {((book.contributors && book.contributors.length > 0) || (book.translators && book.translators.length > 0)) && (
+            <div className="pt-4 border-t">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">Credits</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {book.contributors && book.contributors.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium">Contributors</h4>
+                    <ul className="mt-1 space-y-1">
+                      {book.contributors.map((person, index) => (
+                        <li key={index} className="text-sm">{person.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {book.translators && book.translators.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium">Translators</h4>
+                    <ul className="mt-1 space-y-1">
+                      {book.translators.map((person, index) => (
+                        <li key={index} className="text-sm">{person.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <aside className="space-y-4">
+          {book.coverImageUrl ? (
+            <div className="border rounded-lg overflow-hidden">
+              <img
+                src={book.coverImageUrl}
+                alt={`Cover of ${book.title}`}
+                className="w-full h-auto max-h-[400px] object-contain"
+              />
+            </div>
+          ) : (
+            <div className="border rounded-lg h-[400px] flex items-center justify-center bg-muted/50">
+              <span className="text-muted-foreground">No cover image</span>
+            </div>
+          )}
+          
+          <div className="text-sm text-muted-foreground">
+            <p>Created: {new Date(book.createdAt).toLocaleDateString()}</p>
+            <p>Last updated: {new Date(book.updatedAt).toLocaleDateString()}</p>
+          </div>
         </aside>
       </div>
     </div>

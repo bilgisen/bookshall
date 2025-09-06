@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "pub-6f0cf05705c7412b93a792350f3b3aa5.r2.dev",
+        hostname: "pub-3cfc29e59e5243f4917194e2466f5fa0.r2.dev",
       },
       {
         protocol: "https",
@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "storage.bookshall.com",
       },
     ],
   },
