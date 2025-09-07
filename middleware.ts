@@ -5,6 +5,9 @@ import { getSessionCookie } from "better-auth/cookies";
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'https://bookshall.com',
+  'https://www.bookshall.com',
+  
   // Add production domains here
 ];
 

@@ -184,7 +184,7 @@ export async function POST(
       try {
         // Try to parse as JSON first
         parsedContent = JSON.parse(content);
-      } catch (e) {
+      } catch {
         // If it's not valid JSON, treat it as HTML content
         parsedContent = {
           type: 'doc',

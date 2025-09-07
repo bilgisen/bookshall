@@ -1,73 +1,49 @@
-import { createPlugins, withProps } from '@platejs/core/react';
-import { createDndPlugin } from '@platejs/dnd';
-import { createAIEditorPlugin } from './ai/plugin';
+import { Extension } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import { Underline } from '@tiptap/extension-underline';
+import { Link } from '@tiptap/extension-link';
+import { Placeholder } from '@tiptap/extension-placeholder';
 
-// Import plate plugins
-import {
-  createBoldPlugin,
-  createItalicPlugin,
-  createUnderlinePlugin,
-  createStrikethroughPlugin,
-  createHeadingPlugin,
-  createParagraphPlugin,
-  createBlockquotePlugin,
-  createCodeBlockPlugin,
-  createHorizontalRulePlugin,
-  createLinkPlugin,
-  createListPlugin,
-  createImagePlugin,
-  createTablePlugin,
-  createTodoListPlugin,
-  ELEMENT_H1,
-  ELEMENT_H2,
-  ELEMENT_H3,
-  ELEMENT_H4,
-  ELEMENT_H5,
-  ELEMENT_H6,
-} from '@platejs/core';
-
-// Import components
-import { withDraggables } from './draggable/with-draggables';
-
-export const plugins = createPlugins(
-  [
-    // Basic marks
-    createBoldPlugin(),
-    createItalicPlugin(),
-    createUnderlinePlugin(),
-    createStrikethroughPlugin(),
-    
-    // Block elements
-    createParagraphPlugin(),
-    createHeadingPlugin(),
-    createBlockquotePlugin(),
-    createCodeBlockPlugin(),
-    createHorizontalRulePlugin(),
-    createLinkPlugin(),
-    createListPlugin(),
-    createImagePlugin(),
-    createTablePlugin(),
-    createTodoListPlugin(),
-    
-    // AI Editor
-    createAIEditorPlugin(),
-    
-    // DnD
-    createDndPlugin({
-      options: {
-        enableScroller: true,
+// Only use extensions that are already installed
+export const plugins = [
+  StarterKit.configure({
+    heading: {
+      levels: [1, 2, 3, 4, 5, 6],
+    },
+    bulletList: {
+      HTMLAttributes: {
+        class: 'list-disc pl-4',
       },
-    }),
-  ],
-  {
-    components: withDraggables({
-      // Add draggable components here
-      [ELEMENT_H1]: withProps(HeadingElement, { variant: 'h1' }),
-      [ELEMENT_H2]: withProps(HeadingElement, { variant: 'h2' }),
-      [ELEMENT_H3]: withProps(HeadingElement, { variant: 'h3' }),
-      [ELEMENT_H4]: withProps(HeadingElement, { variant: 'h4' }),
-      [ELEMENT_H5]: withProps(HeadingElement, { variant: 'h5' }),
-      [ELEMENT_H6]: withProps(HeadingElement, { variant: 'h6' }),
-    }),
-  }
-);
+    },
+    orderedList: {
+      HTMLAttributes: {
+        class: 'list-decimal pl-4',
+      },
+    },
+  }),
+  Underline,
+  Link.configure({
+    openOnClick: false,
+    HTMLAttributes: {
+      class: 'text-blue-500 underline hover:text-blue-700',
+    },
+  }),
+  Placeholder.configure({
+    placeholder: 'Start writing here...',
+  }),
+];
+
+// Custom AI Editor extension
+const AIEditor = Extension.create({
+  name: 'aiEditor',
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Enter': () => {
+        // Handle AI completion
+        return true;
+      },
+    };
+  },
+});
+
+export { AIEditor };

@@ -210,6 +210,7 @@ export const books = pgTable("books", {
   tags: text("tags").array(),
   description: text("description"),
   language: text("language").default("tr"),
+  isPublished: boolean("isPublished").default(false),
   coverImageUrl: text("coverImageUrl"), // NOTE: intentionally NOT a FK to media.url (avoids circular)
   epubUrl: text("epubUrl"),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
@@ -244,6 +245,7 @@ export const media = pgTable(
 /** chapters - self-referential (AnyPgColumn to avoid TS circular errors) */
 export const chapters = pgTable("chapters", {
   id: text("id").primaryKey().notNull().$defaultFn(() => crypto.randomUUID()),
+  uuid: text("uuid").unique().notNull().$defaultFn(() => crypto.randomUUID()),
   bookId: text("bookId")
     .notNull()
     .references(() => books.id, { onDelete: "cascade" }),
@@ -255,6 +257,7 @@ export const chapters = pgTable("chapters", {
   content: text("content").notNull(), 
   order: integer("order").default(0).notNull(),
   level: integer("level").default(1).notNull(),
+  isDraft: boolean("isDraft").default(true),
   wordCount: integer("wordCount").default(0).notNull(),
   readingTime: integer("readingTime"),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),

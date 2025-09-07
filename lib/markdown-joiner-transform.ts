@@ -1,5 +1,16 @@
 import type { TextStreamPart, ToolSet } from 'ai';
 
+type ProviderMetadata = {
+  [key: string]: unknown;
+};
+
+type TextChunk = {
+  text: string;
+  type: 'text-delta';
+  id?: string;
+  providerMetadata?: ProviderMetadata;
+};
+
 /**
  * Transform chunks like [**,bold,**] to [**bold**] make the md deserializer
  * happy.
@@ -11,24 +22,32 @@ export const markdownJoinerTransform =
   () => {
     const joiner = new MarkdownJoiner();
 
-    return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
+    return new TransformStream<TextStreamPart<TOOLS> | TextChunk, TextStreamPart<TOOLS> | TextChunk>({
       async flush(controller) {
         const remaining = joiner.flush();
         if (remaining) {
           controller.enqueue({
-            textDelta: remaining,
+            text: remaining,
             type: 'text-delta',
-          } as TextStreamPart<TOOLS>);
+          });
         }
       },
       async transform(chunk, controller) {
         if (chunk.type === 'text-delta') {
-          const processedText = joiner.processText(chunk.textDelta);
+          let text = '';
+          
+          if ('textDelta' in chunk && chunk.textDelta !== undefined && chunk.textDelta !== null) {
+            text = String(chunk.textDelta);
+          } else if ('text' in chunk && chunk.text !== undefined && chunk.text !== null) {
+            text = String(chunk.text);
+          }
+          
+          const processedText = text ? joiner.processText(text) : '';
           if (processedText) {
             controller.enqueue({
               ...chunk,
-              textDelta: processedText,
-            });
+              text: processedText,
+            } as TextChunk);
             await delay(joiner.delayInMs);
           }
         } else {

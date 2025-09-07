@@ -10,7 +10,7 @@ export async function checkAuth() {
     }
     const session = await response.json();
     return { user: session?.user };
-  } catch (error) {
+  } catch {
     return { user: null };
   }
 }
@@ -18,7 +18,6 @@ export async function checkAuth() {
 export async function requireAuth() {
   const { user } = await checkAuth();
   if (!user) {
-    // This will be handled by the client component
     throw new Error('Authentication required');
   }
   return { user };
@@ -34,7 +33,7 @@ export function useRequireAuth(redirectPath = '/sign-in') {
         router.push(redirectPath);
       }
       return { user };
-    } catch (error) {
+    } catch {
       router.push(redirectPath);
       return { user: null };
     }

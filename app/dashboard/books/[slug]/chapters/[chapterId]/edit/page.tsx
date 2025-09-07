@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { ChapterHeader } from '@/components/chapters/chapter-header';
 import { ChapterForm } from '@/components/chapters/ChapterForm';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -29,9 +28,15 @@ interface ChapterWithBook {
   parentChapterId: number | null;
   bookId: number;
   book: BookInfo;
-  uuid: string;
+  uuid?: string;  // Make uuid optional to match the form schema
   createdAt: string;
   updatedAt: string;
+}
+
+interface ChapterData {
+  id: number;
+  title: string;
+  // Add other properties as needed
 }
 
 async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWithBook> {
@@ -92,11 +97,11 @@ async function fetchParentChapters(bookSlug: string, currentChapterId?: number):
   
   const data = await response.json();
   return data
-    .filter((chapter: any) => chapter.id !== currentChapterId)
-    .map((chapter: any) => ({
+    .filter((chapter: ChapterData) => chapter.id !== currentChapterId)
+    .map((chapter: ChapterData) => ({
       value: chapter.id.toString(),
       label: chapter.title,
-      level: chapter.level
+      level: 0 // Add appropriate level property or remove if not needed
     }));
 }
 
@@ -189,22 +194,22 @@ export default function EditChapterPage() {
         />
       </div>
 
-<ChapterForm
-            initialData={{
-              id: chapter.id,
-              bookId: chapter.bookId,
-              title: chapter.title,
-              content: formContent,
-              parentChapterId: chapter.parentChapterId,
-              order: chapter.order,
-              uuid: chapter.uuid,
-              createdAt: new Date(chapter.createdAt),
-              updatedAt: new Date(chapter.updatedAt),
-            }}
-            bookId={chapter.bookId}
-            parentChapters={parentChapters}
-            onSuccess={handleSuccess}
-          />
+      <ChapterForm
+        initialData={{
+          id: String(chapter.id),
+          bookId: String(chapter.bookId),
+          title: chapter.title,
+          content: formContent,
+          parentChapterId: chapter.parentChapterId ? String(chapter.parentChapterId) : null,
+          order: chapter.order,
+          uuid: chapter.uuid,
+          createdAt: new Date(chapter.createdAt),
+          updatedAt: new Date(chapter.updatedAt),
+        }}
+        bookId={chapter.bookId}
+        parentChapters={parentChapters}
+        onSuccess={handleSuccess}
+      />
     </div>
   );
 }

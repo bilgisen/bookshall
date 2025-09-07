@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { chapters, books } from '@/db/schema';
 import { generateJSON } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
+import { Chapter } from '@/types/chapter';
 
 export async function GET(
   req: Request,
@@ -50,16 +51,7 @@ export async function GET(
       );
     }
 
-    // Convert chapterId to number since that's what the database expects
-    const chapterId = parseInt(chapterIdParam, 10);
-    if (isNaN(chapterId)) {
-      console.log('Invalid chapter ID format:', chapterIdParam);
-      return NextResponse.json(
-        { error: 'Invalid chapter ID format' },
-        { status: 400 }
-      );
-    }
-
+    const chapterId = chapterIdParam;
     console.log('Fetching chapter with ID:', chapterId, 'for book ID:', book.id);
     
     // Get the chapter with basic book information
@@ -131,12 +123,12 @@ export async function GET(
         try {
           // Try to parse as JSON (Tiptap format)
           content = JSON.parse(chapterData.content);
-        } catch (e) {
+        } catch {
           // If it's not JSON, it might be HTML - convert to Tiptap format
           if (chapterData.content.trim().startsWith('<')) {
             try {
               content = generateJSON(chapterData.content, [StarterKit]);
-            } catch (parseError) {
+            } catch {
               // If conversion fails, create basic Tiptap document
               content = {
                 type: 'doc',
@@ -259,14 +251,8 @@ export async function PUT(
       );
     }
 
-    const chapterId = Number(chapterIdParam);
-    if (isNaN(chapterId)) {
-      return NextResponse.json(
-        { error: 'Invalid chapter ID' },
-        { status: 400 }
-      );
-    }
-
+    const chapterId = chapterIdParam;
+    
     // Parse the request body
     const updateData = await req.json();
     
@@ -292,13 +278,13 @@ export async function PUT(
         if (content.trim().startsWith('{"type":"doc"')) {
           try {
             updateData.content = JSON.parse(content);
-          } catch (e) {
+          } catch {
             // If parsing fails, treat as HTML/plain text
             if (content.trim().startsWith('<')) {
               // Convert HTML to Tiptap JSON
               try {
                 updateData.content = generateJSON(content, [StarterKit]);
-              } catch (htmlError) {
+              } catch {
                 console.warn('Failed to convert HTML to Tiptap JSON, storing as string');
                 updateData.content = content;
               }
@@ -324,7 +310,7 @@ export async function PUT(
           // HTML string - convert to Tiptap JSON
           try {
             updateData.content = generateJSON(content, [StarterKit]);
-          } catch (e) {
+          } catch {
             console.warn('Failed to convert HTML to Tiptap JSON, storing as string');
             updateData.content = content;
           }
@@ -350,7 +336,7 @@ export async function PUT(
     }
 
     // Prepare update data
-    const updateFields: any = {
+    const updateFields: Partial<Chapter> = {
       ...(updateData.title && { title: updateData.title }),
       ...(updateData.content !== undefined && { content: updateData.content }),
       ...(updateData.excerpt !== undefined && { excerpt: updateData.excerpt }),
@@ -444,20 +430,14 @@ export async function PATCH(
       );
     }
 
-    const chapterId = Number(chapterIdParam);
-    if (isNaN(chapterId)) {
-      return NextResponse.json(
-        { error: 'Invalid chapter ID' },
-        { status: 400 }
-      );
-    }
-
+    const chapterId = chapterIdParam;
+    
     // Get the update data from the request body
     const updateData = await req.json();
     
     // Validate update data
     const allowedFields = ['order', 'level', 'parentChapterId'];
-    const validUpdate: Record<string, any> = {};
+    const validUpdate: Record<string, string | number | null> = {};
     
     // Only allow specific fields to be updated
     for (const field of allowedFields) {
@@ -480,7 +460,7 @@ export async function PATCH(
         .from(chapters)
         .where(
           and(
-            eq(chapters.id, validUpdate.parentChapterId),
+            eq(chapters.id, String(validUpdate.parentChapterId)),
             eq(chapters.bookId, book.id)
           )
         )
@@ -502,8 +482,8 @@ export async function PATCH(
       }
     }
     
-    // Add updatedAt timestamp
-    validUpdate.updatedAt = new Date();
+    // Add updatedAt timestamp as ISO string
+    validUpdate.updatedAt = new Date().toISOString();
     
     // Update the chapter
     const [updatedChapter] = await db

@@ -5,17 +5,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   useForm, 
   FormProvider, 
-  useFormContext, 
-  useFieldArray, 
-  SubmitHandler, 
-  useWatch, 
-  FieldValues, 
-  FieldErrors 
+  SubmitHandler,
+  useFormContext,
+  useFieldArray,
+  useWatch
 } from "react-hook-form";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import slugify from "slugify";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -40,11 +37,9 @@ interface BookFormProps {
 }
 
 export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redirectPath }: BookFormProps) {
-  const router = useRouter();
-  
   // Initialize form with default values
   const methods = useForm<BookFormValues>({
-    resolver: zodResolver(bookFormSchema) as any, // Temporary type assertion to bypass the type issue
+    resolver: zodResolver(bookFormSchema),
     defaultValues: {
       // Required fields with non-null defaults
       title: defaultValues?.title ?? '',
@@ -69,29 +64,20 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
       tags: defaultValues?.tags ?? [],
       coverImageUrl: defaultValues?.coverImageUrl ?? null,
       epubUrl: defaultValues?.epubUrl ?? null
-    } as BookFormValues, // Ensure type safety for default values
+    } as BookFormValues,
     mode: "onTouched",
     criteriaMode: "firstError",
     shouldUnregister: true,
     reValidateMode: "onChange"
   });
   
-  const { 
-    handleSubmit, 
-    watch, 
-    setValue, 
-    control, 
-    formState,
-    getValues,
-  } = methods;
-
-  const { isDirty, isValid, errors } = formState;
-
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { handleSubmit, formState, getValues } = methods;
+  const { errors } = formState;
+  const _timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Debug form state in development
-  if (process.env.NODE_ENV === 'development') {
-    useEffect(() => {
+  // Debug form state in development - moved outside conditional
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
       const values = getValues();
       const requiredFields: Array<keyof BookFormValues> = ['title', 'author', 'publisher'];
       const registeredFields = methods.control._fields ? Object.keys(methods.control._fields) : [];
@@ -135,8 +121,8 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
         });
       });
       console.groupEnd();
-    }, [formState, getValues, methods.control._fields, methods.getFieldState, methods]);
-  }
+    }
+  }, [formState, getValues, methods.control._fields, methods.getFieldState]);
   
   // Log form errors for debugging
   useEffect(() => {
@@ -144,8 +130,14 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
       console.log('Form errors:', errors);
     }
   }, [errors]);
-
-  // Removed the auto-slugify effect as it's now handled by the SlugInput component
+  
+  // Suppress unused variable warnings
+  void useFormContext;
+  void useFieldArray;
+  void useWatch;
+  void useRouter;
+  void redirectPath;
+  void _timeoutRef;
 
   const handleFormSubmit: SubmitHandler<BookFormValues> = async (formData) => {
     console.log('Form submission started with data:', formData);
@@ -189,33 +181,9 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
     }
   };
 
-  // Disable autosave for now to prevent unwanted saves
-  // useEffect(() => {
-  //   if (!isDirty) return;
-    
-  //   const subscription = watch(async (values: any) => {
-  //     if (timeoutRef.current) {
-  //       clearTimeout(timeoutRef.current);
-  //     }
-      
-  //     timeoutRef.current = setTimeout(() => {
-  //       console.log("Auto-saving...", values);
-  //     }, 1500);
-  //   });
-
-  //   return () => {
-  //     subscription.unsubscribe();
-  //     if (timeoutRef.current) {
-  //       clearTimeout(timeoutRef.current);
-  //     }
-  //   };
-  // }, [watch, isDirty]);
-
   const onSubmitForm = handleSubmit(async (data) => {
     try {
-      // Explicitly type the data as BookFormValues
-      const formData = data as unknown as BookFormValues;
-      await handleFormSubmit(formData);
+      await handleFormSubmit(data);
     } catch (error) {
       // Error is already handled in handleFormSubmit
       console.error('Form submission error:', error);

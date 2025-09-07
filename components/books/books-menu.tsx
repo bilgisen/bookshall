@@ -10,34 +10,27 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Loader2 } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 
 interface BooksMenuProps {
   slug: string;  // Book slug for navigation
-  bookId: string; // Book ID for API calls
+  bookId?: string; // Book ID for direct operations
   onView?: () => void;
   onEdit?: () => void;
   onDelete?: () => Promise<{ success: boolean; error?: string }>;
   onAddChapter?: () => void;
   hideEdit?: boolean; // New prop to hide Edit Book menu item
-  activeTab?: string; // Active tab for highlighting
-  success?: boolean; // Success state for delete operation
-  error?: string; // Error message for delete operation
   className?: string; // Additional CSS classes
 }
 
 export function BooksMenu({
   slug,
-  bookId,
   onView,
   onEdit,
   onDelete,
   onAddChapter,
   hideEdit = false, // Default to false for backward compatibility
-  activeTab,
-  success = false,
-  error,
   className = "",
 }: BooksMenuProps) {
   const router = useRouter();

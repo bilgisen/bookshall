@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { BookForm } from '@/components/books/book-form';
 import { BookHeader } from '@/components/books/book-header';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
 import type { Book } from '@/types/book';
+import { BOOK_GENRES, BookGenreType } from '@/lib/validation/book';
 import type { BookFormValues } from '@/lib/validation/book';
 
 // API Response Types
@@ -18,9 +20,12 @@ interface ApiResponse<T> {
   error?: string;
 }
 
-interface BookResponse extends Book {
-  slug: string;
+interface BookResponse extends Omit<Book, 'createdAt' | 'updatedAt' | 'created_at' | 'updated_at'> {
+  // Add back the required fields from Book
+  createdAt: string;
   updatedAt: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Regex to validate URL-friendly slugs
@@ -36,6 +41,33 @@ export default function EditBookPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Initialize form with proper types
+  const form = useForm<BookFormValues>({
+    defaultValues: {
+      title: '',
+      author: '',
+      slug: '',
+      language: 'tr',
+      isPublished: false,
+      isFeatured: false,
+      subtitle: null,
+      description: null,
+      publisher: null,
+      publisherWebsite: null,
+      publishYear: null,
+      isbn: null,
+      contributor: null,
+      translator: null,
+      genre: null,
+      series: null,
+      seriesIndex: null,
+      tags: [],
+      coverImageUrl: null,
+      epubUrl: null
+    }
+  });
+  
   
   // Validate slug format
   useEffect(() => {
@@ -97,33 +129,68 @@ export default function EditBookPage() {
         // The API returns the book directly, not wrapped in a data property
         const bookData = responseData as BookResponse;
         
-        // Transform book data to match BookFormValues type with proper type safety
-        const formValues: BookFormValues = {
-          title: bookData.title || '',
-          author: bookData.author || '',
-          publisher: bookData.publisher || '',
-          slug: bookData.slug || '',
-          language: bookData.language || 'tr',
-          isPublished: bookData.isPublished || false,
-          isFeatured: bookData.isFeatured || false,
-          
-          // Optional fields with proper null handling
-          subtitle: bookData.subtitle || undefined,
-          description: bookData.description || undefined,
-          publisherWebsite: bookData.publisherWebsite || undefined,
-          publishYear: bookData.publishYear || undefined,
-          isbn: bookData.isbn || undefined,
-          contributor: bookData.contributor || null,
-          translator: bookData.translator || null,
-          genre: bookData.genre || undefined,
-          series: bookData.series || undefined,
-          seriesIndex: bookData.seriesIndex || undefined,
-          tags: Array.isArray(bookData.tags) ? bookData.tags : [],
-          coverImageUrl: bookData.coverImageUrl || undefined,
-          epubUrl: bookData.epubUrl || undefined
+        // Create a proper Book object with all required fields
+        const book: Book = {
+          ...bookData,
+          // Ensure we have all required Book fields
+          createdAt: bookData.createdAt || new Date().toISOString(),
+          updatedAt: bookData.updatedAt || new Date().toISOString(),
+          created_at: bookData.created_at || bookData.createdAt,
+          updated_at: bookData.updated_at || bookData.updatedAt,
+          // Add any other required fields with defaults if needed
+          viewCount: bookData.viewCount || 0,
+          publishedAt: bookData.publishedAt || null
         };
         
-        setBook(bookData);
+        // Set the book data
+        setBook(book);
+        
+        // Map BookResponse to BookFormValues with exact type matching
+        const formValues: BookFormValues = {
+          // Required fields
+          title: bookData.title || '',
+          author: bookData.author || '',
+          slug: bookData.slug || '',
+          language: bookData.language || 'tr',
+          
+          // Status flags
+          isPublished: Boolean(bookData.isPublished),
+          isFeatured: Boolean(bookData.isFeatured),
+          
+          // Optional fields
+          subtitle: bookData.subtitle || null,
+          description: bookData.description || null,
+          publisher: bookData.publisher || null,
+          publisherWebsite: bookData.publisherWebsite || null,
+          
+          // Numeric fields
+          publishYear: typeof bookData.publishYear === 'number' ? bookData.publishYear : null,
+          
+          // String fields
+          isbn: bookData.isbn || null,
+          contributor: bookData.contributor || null,
+          translator: bookData.translator || null,
+          
+          // Genre - must be one of the valid values or undefined
+          genre: bookData.genre && BOOK_GENRES.includes(bookData.genre as BookGenreType)
+            ? (bookData.genre as BookGenreType)
+            : undefined,
+            
+          series: bookData.series || null,
+          seriesIndex: typeof bookData.seriesIndex === 'number' ? bookData.seriesIndex : null,
+          
+          // Array field - ensure it's an array of strings
+          tags: Array.isArray(bookData.tags) 
+            ? bookData.tags.filter((tag): tag is string => typeof tag === 'string')
+            : [],
+            
+          // Media URLs
+          coverImageUrl: bookData.coverImageUrl || null,
+          epubUrl: bookData.epubUrl || null
+        };
+        
+        // Reset form with new values
+        form.reset(formValues);
       } catch (error) {
         console.error('Error fetching book:', error);
         toast.error('Failed to load book data');
@@ -136,7 +203,7 @@ export default function EditBookPage() {
     if (slug && isAuthorized) {
       fetchBook();
     }
-  }, [slug, router, isAuthorized]);
+  }, [slug, router, isAuthorized, form]);
 
   const handleSubmit = async (formData: BookFormValues) => {
     if (isSubmitting) return;

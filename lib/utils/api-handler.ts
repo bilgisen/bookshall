@@ -86,7 +86,7 @@ export function createApiHandler<
       }
       
       // Handle other errors
-      const status = error instanceof Error && 'status' in error ? (error as any).status : 500;
+      const status = error instanceof Error && 'status' in error ? (error as { status: number }).status : 500;
       const message = error instanceof Error ? error.message : 'An unknown error occurred';
       
       return NextResponse.json(
@@ -110,9 +110,9 @@ export function createApiHandler<
 }
 
 // Helper function to standardize API responses
-export const apiResponse = <T = any>(
+export const apiResponse = <T = unknown>(
   data: T,
-  status: number = 200,
+  status = 200,
   headers: Record<string, string> = {}
 ) => {
   return new Response(JSON.stringify(data), {

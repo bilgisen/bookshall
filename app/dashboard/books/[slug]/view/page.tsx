@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BookHeader } from "@/components/books/book-header";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
 import { Loader2 } from "lucide-react";
 
@@ -30,29 +30,6 @@ interface Book {
   tags?: string[];
   createdAt: string;
   updatedAt: string;
-}
-
-async function getBook(slug: string): Promise<Book> {
-  try {
-    const res = await fetch(`/api/books/by-slug/${slug}`, {
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await res.json();
-    
-    if (!res.ok) {
-      console.error('Error fetching book:', data);
-      throw new Error(data.error || 'Failed to fetch book');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error in getBook:', error);
-    throw error;
-  }
 }
 
 export default function ViewBookPage() {
@@ -103,7 +80,7 @@ export default function ViewBookPage() {
         
         if (!response.ok) {
           if (response.status === 403) {
-            toast.error("You don't have permission to view this book");
+            toast.error("You don&#39;t have permission to view this book");
             router.push('/dashboard/books');
             return null;
           }
@@ -117,7 +94,7 @@ export default function ViewBookPage() {
         
         // Check if current user is the owner of the book
         if (bookData.userId !== session.user.id) {
-          toast.error("You don't have permission to view this book");
+          toast.error("You don&#39;t have permission to view this book");
           router.push('/dashboard/books');
           return null;
         }
@@ -162,7 +139,7 @@ export default function ViewBookPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">Book not found</h2>
           <p className="text-muted-foreground mb-4">
-            The book you're looking for doesn't exist or has been removed.
+            The book you&#39;re looking for doesn&#39;t exist or has been removed.
           </p>
           <Button onClick={() => router.push('/dashboard/books')}>
             Back to Books
@@ -267,9 +244,11 @@ export default function ViewBookPage() {
         <aside className="space-y-4">
           {book.coverImageUrl ? (
             <div className="border rounded-lg overflow-hidden">
-              <img
+              <Image
                 src={book.coverImageUrl}
                 alt={`Cover of ${book.title}`}
+                width={400}
+                height={400}
                 className="w-full h-auto max-h-[400px] object-contain"
               />
             </div>

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
 import { books, chapters } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth';
 // Helper function to build the where clause
 const whereClause = (id: string, userId: string) => {
   return and(
-    eq(books.id, id), // No need to parse UUID as number
+    eq(books.id, id),
     eq(books.userId, userId)
   );
 };
@@ -29,7 +29,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    // params'i await et
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
     }
@@ -98,7 +99,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    // params'i await et
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
     }
@@ -197,7 +199,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    // params'i await et
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
     }

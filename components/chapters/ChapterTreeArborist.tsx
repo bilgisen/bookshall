@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { Tree, NodeRendererProps } from 'react-arborist';
+import { Tree, NodeRendererProps, NodeApi } from 'react-arborist';
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 interface Chapter {
   id: string;
   title: string;
+  name?: string; // Added for tree compatibility
   order: number;
   parentChapterId: string | null;
   children?: Chapter[];
@@ -23,8 +24,10 @@ interface Chapter {
   updatedAt?: string;
   publishedAt?: string | null;
   excerpt?: string | null;
-  content?: any;
+  content?: unknown;
   bookId?: string;
+  isOpen?: boolean; // Added for tree compatibility
+  isLeaf?: boolean; // Added for tree compatibility
 }
 
 interface ChapterTreeArboristProps {
@@ -54,8 +57,8 @@ export function ChapterTreeArborist({
         credentials: 'include'
       });
       if (!response.ok) {
-        const error = await response.text();
-        console.error('Error fetching chapters:', error);
+        const errorText = await response.text();
+        console.error('Error fetching chapters:', errorText);
         throw new Error('Failed to fetch chapters');
       }
       return response.json();
@@ -66,7 +69,7 @@ export function ChapterTreeArborist({
   const treeData = useMemo(() => {
     if (!data?.tree) return [];
     
-    const transformChapters = (chapters: Chapter[]): any[] => {
+    const transformChapters = (chapters: Chapter[]): Chapter[] => {
       return chapters.map(chapter => {
         // Ensure children is always an array and properly transformed
         const children = Array.isArray(chapter.children) 
@@ -87,7 +90,8 @@ export function ChapterTreeArborist({
         
         return {
           id,
-          name: title || 'Untitled Chapter',
+          title, // Keep the original title
+          name: title || 'Untitled Chapter', // Add name for tree compatibility
           isDraft,
           level,
           order,
@@ -109,8 +113,9 @@ export function ChapterTreeArborist({
 
   const handleMove = useCallback(async (args: {
     dragIds: string[];
-    dragNodes: any[];
+    dragNodes: NodeApi<Chapter>[];
     parentId: string | null;
+    parentNode: NodeApi<Chapter> | null;
     index: number;
   }) => {
     try {
@@ -120,7 +125,7 @@ export function ChapterTreeArborist({
       if (!data?.tree) return;
       
       // Find the chapter being moved in the current tree
-      const findChapterInTree = (chapters: any[], id: string): any => {
+      const findChapterInTree = (chapters: Chapter[], id: string): Chapter | null => {
         for (const chapter of chapters) {
           if (chapter.id === id) return chapter;
           if (chapter.children?.length) {
@@ -162,9 +167,9 @@ export function ChapterTreeArborist({
       });
       
       if (!response.ok) {
-        const error = await response.text();
-        console.error('API Error:', error);
-        throw new Error(`Failed to update chapter order: ${error}`);
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        throw new Error(`Failed to update chapter order: ${errorText}`);
       }
       
       // Get the updated chapter data
@@ -182,51 +187,7 @@ export function ChapterTreeArborist({
     }
   }, [bookSlug, refetch, data]);
 
-  const handleCreate = useCallback(async (parentId: string | null) => {
-    try {
-      // First, get the book ID
-      const bookResponse = await fetch(`/api/books/by-slug/${bookSlug}`, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
-      
-      if (!bookResponse.ok) {
-        throw new Error('Failed to fetch book details');
-      }
-      
-      const book = await bookResponse.json();
-      
-      // Create the new chapter
-      const response = await fetch(`/api/books/by-slug/${bookSlug}/chapters`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: 'New Chapter',
-          parentId: parentId === 'root' ? null : parentId,
-          bookId: book.id,
-          content: '',
-          order: 0 // This will be updated by the reorder API
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create chapter');
-      }
-      
-      // Refresh the chapter list
-      await refetch();
-    } catch (error) {
-      console.error('Error creating chapter:', error);
-      // Optionally show an error message to the user
-    }
-  }, [bookSlug, refetch]);
-
-  const ChapterNode = ({ node, style, dragHandle }: NodeRendererProps<any>) => {
+  const ChapterNode = ({ node, style, dragHandle }: NodeRendererProps<Chapter>) => {
     const chapter = node.data;
     const isSelected = selectedChapterId === chapter.id;
     
@@ -239,7 +200,7 @@ export function ChapterTreeArborist({
       >
         <div className="flex items-center flex-1">
           <GripVertical className="w-4 h-4 text-gray-400 mr-2" />
-          <span className="truncate">{chapter.name}</span>
+          <span className="truncate">{chapter.name || chapter.title}</span>
           {chapter.isDraft && (
             <span className="ml-2 text-xs text-gray-500">(Draft)</span>
           )}
@@ -254,7 +215,7 @@ export function ChapterTreeArborist({
                 e.stopPropagation();
                 onViewChapter({
                   ...chapter,
-                  title: chapter.name, // Map back to expected property name
+                  title: chapter.name || chapter.title, // Ensure title is present
                   children: undefined // Remove children to avoid circular references
                 });
               }}
@@ -271,7 +232,7 @@ export function ChapterTreeArborist({
                 e.stopPropagation();
                 onEditChapter({
                   ...chapter,
-                  title: chapter.name, // Map back to expected property name
+                  title: chapter.name || chapter.title, // Ensure title is present
                   children: undefined // Remove children to avoid circular references
                 });
               }}
@@ -289,7 +250,7 @@ export function ChapterTreeArborist({
                 if (confirm('Are you sure you want to delete this chapter?')) {
                   await onDeleteChapter({
                     ...chapter,
-                    title: chapter.name, // Map back to expected property name
+                    title: chapter.name || chapter.title, // Ensure title is present
                     children: undefined // Remove children to avoid circular references
                   });
                 }

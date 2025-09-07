@@ -1,5 +1,36 @@
 import type { Book, Chapter } from '@/db/schema';
 
+// Type definitions for Tiptap JSON structure
+interface TiptapMark {
+  type: string;
+  attrs?: Record<string, unknown>;
+}
+
+interface TiptapNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: TiptapNode[];
+  text?: string;
+  marks?: TiptapMark[];
+}
+
+interface TiptapDocument {
+  type: 'doc';
+  content: TiptapNode[];
+}
+
+// Type guard for TiptapDocument
+function isTiptapDocument(content: unknown): content is TiptapDocument {
+  return (
+    typeof content === 'object' &&
+    content !== null &&
+    'type' in content &&
+    content.type === 'doc' &&
+    'content' in content &&
+    Array.isArray(content.content)
+  );
+}
+
 /**
 
 /**
@@ -25,48 +56,35 @@ interface BookWithChapters extends Book {
  * Generates HTML content for a single chapter
  */
 export function generateChapterHTML(chapter: Chapter, children: Chapter[] = [], book: BookWithChapters): string {
-  const { title, content, level = 1, order = 0, id } = chapter;
+  const { title, content, level = 1, id } = chapter;
   // Use the chapter's level directly so top-level chapters render as <h1>, matching pandoc --epub-chapter-level=1
   const headingLevel = Math.min((level || 1), 6); // Ensure we don't go beyond h6
   // Use globally unique id based on DB id to avoid duplicate anchors across chapters
   const chapterId = `ch-${id}`;
   
-  // Find parent chapter if exists
-  const parentChapter = chapter.parentChapterId 
-    ? book.chapters?.find(c => c.id === chapter.parentChapterId)
-    : null;
-  
-  // Generate chapter metadata
-  const metadata: ChapterMetadata = {
-    book: book.title,
-    chapter_id: chapterId,
-    parent_chapter: parentChapter ? `ch-${String(parentChapter.order || 0).padStart(3, '0')}` : undefined,
-    order: order || 0,
-    level: level || 1,
-    title_tag: `h${headingLevel}`,
-    title: title || 'Untitled Chapter'
-  };
-  
   // Parse the content if it's a stringified JSON
   let contentHtml = '';
   if (typeof content === 'string') {
     try {
-      const parsedContent = JSON.parse(content);
-      // If the content has a root property with children, it's Lexical editor state
-      if (parsedContent?.root?.children) {
-        // Convert Lexical state to HTML
-        contentHtml = convertLexicalToHTML(parsedContent);
+      const parsedContent = JSON.parse(content) as TiptapDocument;
+      // If the content has a type property and it's 'doc', it's Tiptap editor state
+      if (parsedContent?.type === 'doc') {
+        // Convert Tiptap JSON to HTML
+        contentHtml = convertTiptapToHTML(parsedContent);
       } else {
         // If it's a simple string, wrap it in a paragraph
         contentHtml = `<p>${content}</p>`;
       }
-    } catch (e) {
+    } catch {
       // If parsing fails, use the content as a simple string
       contentHtml = `<p>${content}</p>`;
     }
+  } else if (isTiptapDocument(content)) {
+    // If content is already a Tiptap object, convert it
+    contentHtml = convertTiptapToHTML(content) || '<p>No content available</p>';
   } else if (content) {
-    // If content is already an object, try to render it
-    contentHtml = convertLexicalToHTML(content) || '<p>No content available</p>';
+    // Fallback for other content types
+    contentHtml = `<p>${String(content)}</p>`;
   }
 
   // Generate the chapter content with proper heading
@@ -96,6 +114,105 @@ export function generateChapterHTML(chapter: Chapter, children: Chapter[] = [], 
 }
 
 /**
+ * Simple conversion from Tiptap JSON to HTML
+ */
+function convertTiptapToHTML(content: TiptapDocument | null | undefined): string {
+  if (!content || !content.content) return '';
+  
+  let html = '';
+  
+  for (const node of content.content || []) {
+    switch (node.type) {
+      case 'paragraph':
+        if (node.content) {
+          html += `<p>${convertTiptapContentToText(node.content)}</p>`;
+        } else {
+          html += '<p></p>';
+        }
+        break;
+      case 'heading':
+        const level = (node.attrs && typeof node.attrs === 'object' && 'level' in node.attrs)
+          ? Number(node.attrs.level) || 1
+          : 1;
+        const headingTag = `h${Math.min(Math.max(1, level), 6)}`;
+        if (node.content) {
+          html += `<${headingTag}>${convertTiptapContentToText(node.content)}</${headingTag}>`;
+        } else {
+          html += `<${headingTag}></${headingTag}>`;
+        }
+        break;
+      case 'bulletList':
+        if (node.content) {
+          html += '<ul>';
+          for (const item of node.content) {
+            if (item.type === 'listItem' && item.content) {
+              html += `<li>${convertTiptapContentToText(item.content)}</li>`;
+            }
+          }
+          html += '</ul>';
+        }
+        break;
+      case 'orderedList':
+        if (node.content) {
+          html += '<ol>';
+          for (const item of node.content) {
+            if (item.type === 'listItem' && item.content) {
+              html += `<li>${convertTiptapContentToText(item.content)}</li>`;
+            }
+          }
+          html += '</ol>';
+        }
+        break;
+      case 'blockquote':
+        if (node.content) {
+          html += `<blockquote>${convertTiptapContentToText(node.content)}</blockquote>`;
+        }
+        break;
+      default:
+        if (node.content) {
+          html += convertTiptapContentToText([node]);
+        }
+        break;
+    }
+  }
+  
+  return html;
+}
+
+/**
+ * Convert Tiptap content array to HTML text
+ */
+function convertTiptapContentToText(nodes: TiptapNode[] | undefined): string {
+  if (!nodes || !Array.isArray(nodes)) return '';
+  
+  return nodes.map(node => {
+    if (node.type === 'text') {
+      let text = node.text || '';
+      if (node.marks) {
+        for (const mark of node.marks) {
+          switch (mark.type) {
+            case 'bold':
+              text = `<strong>${text}</strong>`;
+              break;
+            case 'italic':
+              text = `<em>${text}</em>`;
+              break;
+            case 'link':
+              const href = mark.attrs?.href || '#';
+              text = `<a href="${href}">${text}</a>`;
+              break;
+          }
+        }
+      }
+      return text;
+    } else if (node.content) {
+      return convertTiptapContentToText(node.content);
+    }
+    return '';
+  }).join('');
+}
+
+/**
  * Generates a complete HTML document with the provided chapter content
  */
 export function generateCompleteChapterHTML(chapter: Chapter, children: Chapter[], book: BookWithChapters): string {
@@ -122,9 +239,9 @@ export function generateCompleteChapterHTML(chapter: Chapter, children: Chapter[
       
       // If there's a parent chapter, add its ID to metadata
       if (chapter.parentChapterId) {
-        const parentChapter = book.chapters?.find(c => c.id === chapter.parentChapterId);
-        if (parentChapter) {
-          metadata.parent_chapter = `ch-${String(parentChapter.order || 0).padStart(3, '0')}`;
+        const parent = book.chapters?.find(c => c.id === chapter.parentChapterId);
+        if (parent) {
+          metadata.parent_chapter = `ch-${String(parent.order || 0).padStart(3, '0')}`;
         }
       }
       
@@ -145,9 +262,9 @@ export function generateCompleteChapterHTML(chapter: Chapter, children: Chapter[
   
   // If there's a parent chapter, add its ID to metadata
   if (chapter.parentChapterId) {
-    const parentChapter = book.chapters?.find(c => c.id === chapter.parentChapterId);
-    if (parentChapter) {
-      metadata.parent_chapter = `ch-${String(parentChapter.order || 0).padStart(3, '0')}`;
+    const parent = book.chapters?.find(c => c.id === chapter.parentChapterId);
+    if (parent) {
+      metadata.parent_chapter = `ch-${String(parent.order || 0).padStart(3, '0')}`;
     }
   }
   

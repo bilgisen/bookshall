@@ -1,22 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useGetChapter, useUpdateChapter, useDeleteChapter } from '@/hooks/useChapterApi';
-import type {  ChapterFormValues } from '@/types/chapter';
+import type { ChapterFormValues } from '@/types/chapter';
 
 export function ChapterDetails() {
-  const router = useRouter();
   const { chapterId } = useParams<{ chapterId: string }>();
-  
-  interface ChapterFormData {
-    title: string;
-    content: string;
-  }
 
   const [formData, setFormData] = useState<Pick<ChapterFormValues, 'title' | 'content'>>({
     title: '',
@@ -60,10 +54,10 @@ export function ChapterDetails() {
     
     try {
       // Parse content if it's a JSON string, otherwise use as-is
-      let content: any = formData.content;
+      let content: string | object = formData.content;
       try {
-        content = JSON.parse(formData.content);
-      } catch (e) {
+        content = JSON.parse(formData.content) as object;
+      } catch {
         // If it's not valid JSON, use it as a string
         content = formData.content;
       }
@@ -104,9 +98,10 @@ export function ChapterDetails() {
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return (
       <div className="p-8 text-center text-red-500">
-        Error loading chapter: {error instanceof Error ? error.message : 'Unknown error'}
+        Error loading chapter: {errorMessage}
       </div>
     );
   }

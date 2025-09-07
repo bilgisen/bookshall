@@ -7,12 +7,6 @@ import { ChapterHeader } from '@/components/chapters/chapter-header';
 import { ChapterTreeArborist } from '@/components/chapters/ChapterTreeArborist';
 import { authClient } from '@/lib/auth-client';
 
-interface BookDetails {
-  id: string;
-  title: string;
-  slug: string;
-}
-
 export default function BookChaptersPage() {
   const { slug } = useParams();
   const { data: session } = authClient.useSession();

@@ -16,36 +16,54 @@ export function BookAuthorSection() {
       <h2 className="text-lg font-semibold">Authors & Team</h2>
 
       <FormField
+        name="author"
         label="Author"
-        {...register("author", { required: "Author is required" })}
         error={errors.author?.message as string}
-        placeholder="Main Author"
         required
-      />
+      >
+        <input
+          {...register("author", { required: "Author is required" })}
+          placeholder="Main Author"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </FormField>
 
       <FormField
+        name="publisher"
         label="Publisher"
-        {...register("publisher", { required: "Publisher is required" })}
         error={errors.publisher?.message as string}
-        placeholder="Publisher Name"
         required
-      />
+      >
+        <input
+          {...register("publisher", { required: "Publisher is required" })}
+          placeholder="Publisher Name"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </FormField>
 
-      {/* Contributor */}
       <FormField
+        name="contributor"
         label="Contributor (Optional)"
-        {...register("contributor")}
         error={errors.contributor?.message as string}
-        placeholder="Contributor Name"
-      />
+      >
+        <input
+          {...register("contributor")}
+          placeholder="Contributor Name"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </FormField>
 
-      {/* Translator */}
       <FormField
+        name="translator"
         label="Translator (Optional)"
-        {...register("translator")}
         error={errors.translator?.message as string}
-        placeholder="Translator Name"
-      />
+      >
+        <input
+          {...register("translator")}
+          placeholder="Translator Name"
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </FormField>
     </section>
   );
 }

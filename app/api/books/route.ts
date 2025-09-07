@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db/drizzle";
 import { books } from "@/db/schema";
 import slugify from "slugify";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 // GET /api/books - Get all books for the authenticated user
 export async function GET(req: Request) {

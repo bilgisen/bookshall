@@ -55,9 +55,10 @@ export function ImageUploadField({
       setProgress(100);
       onChange(data.url);
       toast.success("Image uploaded successfully");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload error:", error);
-      toast.error(error.message || "Failed to upload image");
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload image";
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
       setProgress(0);

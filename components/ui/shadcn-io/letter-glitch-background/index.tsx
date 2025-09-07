@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, forwardRef } from "react";
+import React, { useRef, useEffect, forwardRef, useCallback } from "react";
 import { cn } from '@/lib/utils';
 
 // Custom props interface
@@ -21,7 +21,23 @@ export interface LetterGlitchBackgroundProps
     React.ComponentPropsWithoutRef<'div'> {}
 
 export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBackgroundProps>((props, ref) => {
-  // Custom props'ları ayıklıyoruz
+  // Refs
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const context = useRef<CanvasRenderingContext2D | null>(null);
+  const lastGlitchTime = useRef<number>(Date.now());
+  const letters = useRef<Array<{
+    char: string;
+    color: string;
+    targetChar: string;
+    targetColor: string;
+    colorProgress: number;
+  }>>([]);
+  const canvasSize = useRef({ width: 0, height: 0 });
+  const gridSize = useRef({ columns: 0, rows: 0 });
+
+  // Custom props
   const {
     className,
     glitchColors = ["#2b4539", "#61dca3", "#61b3dc"],
@@ -32,22 +48,8 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     fontSize = 16,
     charWidth = 10,
     charHeight = 20,
-    ...divProps // Kalan tüm div props'ları
+    ...divProps
   } = props;
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const letters = useRef<
-    {
-      char: string;
-      color: string;
-      targetColor: string;
-      colorProgress: number;
-    }[]
-  >([]);
-  const grid = useRef({ columns: 0, rows: 0 });
-  const context = useRef<CanvasRenderingContext2D | null>(null);
-  const lastGlitchTime = useRef(Date.now());
 
   const lettersAndSymbols = [
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
@@ -57,17 +59,36 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     "4", "5", "6", "7", "8", "9",
   ];
 
-  const getRandomChar = () => {
-    return lettersAndSymbols[
-      Math.floor(Math.random() * lettersAndSymbols.length)
-    ];
-  };
+  const getRandomChar = useCallback(() => {
+    return lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
+  }, []);
 
-  const getRandomColor = () => {
+  const drawLetters = useCallback(() => {
+    const ctx = context.current;
+    if (!ctx) return;
+
+    const { width, height } = canvasSize.current;
+    const { columns, rows } = gridSize.current;
+    const charWidth = width / columns;
+    const charHeight = height / rows;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = `${fontSize}px monospace`;
+    ctx.textBaseline = "top";
+
+    letters.current.forEach((letter, index) => {
+      const x = (index % columns) * charWidth;
+      const y = Math.floor(index / columns) * charHeight;
+      ctx.fillStyle = letter.color;
+      ctx.fillText(letter.char, x, y);
+    });
+  }, [fontSize]);
+
+  const getRandomColor = useCallback(() => {
     return glitchColors[Math.floor(Math.random() * glitchColors.length)];
-  };
+  }, [glitchColors]);
 
-  const hexToRgb = (hex: string) => {
+  const hexToRgb = useCallback((hex: string) => {
     const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
     hex = hex.replace(shorthandRegex, (m, r, g, b) => {
       return r + r + g + g + b + b;
@@ -81,9 +102,9 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
           b: parseInt(result[3], 16),
         }
       : null;
-  };
+  }, []);
 
-  const interpolateColor = (
+  const interpolateColor = useCallback((
     start: { r: number; g: number; b: number },
     end: { r: number; g: number; b: number },
     factor: number
@@ -94,26 +115,27 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
       b: Math.round(start.b + (end.b - start.b) * factor),
     };
     return `rgb(${result.r}, ${result.g}, ${result.b})`;
-  };
+  }, []);
 
-  const calculateGrid = (width: number, height: number) => {
+  const calculateGrid = useCallback((width: number, height: number) => {
     const columns = Math.ceil(width / charWidth);
     const rows = Math.ceil(height / charHeight);
     return { columns, rows };
-  };
+  }, [charWidth, charHeight]);
 
-  const initializeLetters = (columns: number, rows: number) => {
-    grid.current = { columns, rows };
+  const initializeLetters = useCallback((columns: number, rows: number) => {
+    gridSize.current = { columns, rows };
     const totalLetters = columns * rows;
     letters.current = Array.from({ length: totalLetters }, () => ({
       char: getRandomChar(),
       color: getRandomColor(),
+      targetChar: getRandomChar(),
       targetColor: getRandomColor(),
       colorProgress: 1,
     }));
-  };
+  }, [getRandomChar, getRandomColor]);
 
-  const resizeCanvas = () => {
+  const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const parent = canvas.parentElement;
@@ -132,31 +154,13 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
       context.current.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
+    canvasSize.current = { width: rect.width, height: rect.height };
     const { columns, rows } = calculateGrid(rect.width, rect.height);
     initializeLetters(columns, rows);
     drawLetters();
-  };
+  }, [calculateGrid, initializeLetters, drawLetters]);
 
-  const drawLetters = () => {
-    if (!context.current || letters.current.length === 0) return;
-    const ctx = context.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const { width, height } = canvas.getBoundingClientRect();
-    
-    ctx.clearRect(0, 0, width, height);
-    ctx.font = `${fontSize}px monospace`;
-    ctx.textBaseline = "top";
-
-    letters.current.forEach((letter, index) => {
-      const x = (index % grid.current.columns) * charWidth;
-      const y = Math.floor(index / grid.current.columns) * charHeight;
-      ctx.fillStyle = letter.color;
-      ctx.fillText(letter.char, x, y);
-    });
-  };
-
-  const updateLetters = () => {
+  const updateLetters = useCallback(() => {
     if (!letters.current || letters.current.length === 0) return;
 
     const updateCount = Math.max(1, Math.floor(letters.current.length * 0.05));
@@ -175,9 +179,9 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
         letters.current[index].colorProgress = 0;
       }
     }
-  };
+  }, [getRandomChar, getRandomColor, smooth]);
 
-  const handleSmoothTransitions = () => {
+  const handleSmoothTransitions = useCallback(() => {
     let needsRedraw = false;
     letters.current.forEach((letter) => {
       if (letter.colorProgress < 1) {
@@ -200,9 +204,9 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     if (needsRedraw) {
       drawLetters();
     }
-  };
+  }, [hexToRgb, interpolateColor, drawLetters]);
 
-  const animate = () => {
+  const animate = useCallback(() => {
     const now = Date.now();
     if (now - lastGlitchTime.current >= glitchSpeed) {
       updateLetters();
@@ -215,7 +219,22 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     }
 
     animationRef.current = requestAnimationFrame(animate);
-  };
+  }, [glitchSpeed, smooth, updateLetters, drawLetters, handleSmoothTransitions]);
+
+  const handleResize = useCallback(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    resizeCanvas();
+    animate();
+  }, [resizeCanvas, animate]);
+
+  const debouncedResize = useCallback(() => {
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = setTimeout(handleResize, 100);
+  }, [handleResize]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -225,28 +244,18 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     resizeCanvas();
     animate();
 
-    let resizeTimeout: NodeJS.Timeout;
-
-    const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-        }
-        resizeCanvas();
-        animate();
-      }, 100);
-    };
-
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", debouncedResize);
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      window.removeEventListener("resize", handleResize);
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
+      window.removeEventListener("resize", debouncedResize);
     };
-  }, [glitchSpeed, smooth, fontSize, charWidth, charHeight]);
+  }, [animate, debouncedResize, resizeCanvas]);
 
   return (
     <div

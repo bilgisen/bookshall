@@ -65,8 +65,8 @@ export default function NewBookPage() {
         series: data.series?.trim(),
         seriesIndex: data.seriesIndex ? Number(data.seriesIndex) : null,
         publishYear: data.publishYear ? Number(data.publishYear) : null,
-        contributors: data.contributors || [],
-        translators: data.translators || []
+        contributor: data.contributor || null,
+        translator: data.translator || null
       };
 
       console.log('Sending book data to API:', bookData);

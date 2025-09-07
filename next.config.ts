@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  eslint: {
+    // Production build'de ESLint hatalarını ignore etme (önerilmez)
+    // ignoreDuringBuilds: true,
+    
+    // Veya sadece belirli kuralları devre dışı bırak
+    // ignoreDuringBuilds: false,
+  },
   images: {
     remotePatterns: [
       {

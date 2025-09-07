@@ -4,7 +4,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { ChapterHeader } from '@/components/chapters/chapter-header';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
@@ -12,6 +11,7 @@ import { ArrowLeft, Edit, BookOpen, Calendar, Clock, FileText, Bookmark } from '
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { generateHTML } from '@tiptap/html';
+import { JSONContent } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
@@ -106,22 +106,9 @@ const tiptapExtensionsForRendering = [
   }),
 ];
 
-// Remove the old tiptapExtensions array and parseChapterContent function
-// as they are not used with the new generateHTML approach
-
-// ... (BookInfo and ChapterWithBook interfaces remain the same)
-
-// ... (fetchChapter function remains the same)
-
 export default function ChapterViewPage() {
   const router = useRouter();
-  // Fix the params access warning by awaiting params
   const params = useParams();
-  // Use React.use if this were a sync component needing params immediately,
-  // but since we use it in the queryFn which is async, awaiting params is appropriate.
-  // However, for client components, React.use is often preferred if you need the value synchronously.
-  // Let's assume the query handles it correctly for now, but note the potential issue.
-  // A more robust fix would involve restructuring how params are used.
   const slug = params?.slug as string;
   const chapterId = params?.chapterId as string;
 
@@ -185,9 +172,6 @@ export default function ChapterViewPage() {
       return failureCount < 1;
     }
   });
-
-  // ... (isLoading and isError rendering remain mostly the same,
-  // but ensure router usage is consistent if needed)
 
   if (isLoading) {
     return (
@@ -261,8 +245,8 @@ export default function ChapterViewPage() {
       />
 
       {/* Chapter Content */}
-      <div className="overflow-hidden border rounded-lg bg-card text-card-foreground shadow-sm"> {/* Added Card-like styling */}
-        <div className="p-6"> {/* Added padding like CardContent */}
+      <div className="overflow-hidden border rounded-lg bg-card text-card-foreground shadow-sm">
+        <div className="p-6">
           {chapter.content ? (
             <div className="tiptap-content w-full max-w-none">
               {(() => {
@@ -307,11 +291,11 @@ export default function ChapterViewPage() {
                     try {
                       // Use the correctly configured extensions array
                       // Ensure contentToRender is properly typed as JSONContent
-                      const htmlContent = generateHTML(contentToRender as any, tiptapExtensionsForRendering);
+                      const htmlContent = generateHTML(contentToRender as JSONContent, tiptapExtensionsForRendering);
 
                       return (
                         <div
-                          className="w-full prose dark:prose-invert max-w-none" // Added prose classes for basic styling
+                          className="w-full prose dark:prose-invert max-w-none"
                           dangerouslySetInnerHTML={{ __html: htmlContent }}
                         />
                       );
@@ -337,9 +321,6 @@ export default function ChapterViewPage() {
                   return (
                     <div className="text-destructive p-4 bg-destructive/10 rounded">
                       Error rendering content. Please try again or contact support.
-                      {/* Optionally, display the raw content for debugging:
-                      <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(chapter.content, null, 2)}</pre>
-                      */}
                     </div>
                   );
                 }
@@ -370,7 +351,7 @@ export default function ChapterViewPage() {
               <Bookmark className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">No content yet</h3>
               <p className="text-muted-foreground text-sm mt-1">
-                This chapter doesn't have any content yet. Click 'Edit' to get started.
+                This chapter doesn&#39;t have any content yet. Click &#39;Edit&#39; to get started.
               </p>
             </div>
           )}

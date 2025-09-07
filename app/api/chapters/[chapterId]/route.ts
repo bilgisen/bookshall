@@ -1,32 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
-import { chapters, books } from '@/db/schema';
+import { chapters } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { z } from 'zod';
 
-// Schema for chapter ID parameter (numeric ID)
-const chapterIdSchema = z.object({
-  chapterId: z.string().transform((val) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num)) throw new Error('Invalid chapter ID: must be a number');
-    return num;
-  }),
-});
-
-// Schema for updating a chapter
-const updateChapterSchema = z.object({
-  title: z.string().min(1, 'Title is required').optional(),
-  content: z.string().optional(),
-  order: z.number().int().min(0).optional(),
-  level: z.number().int().min(1).max(6).optional(),
-  parent_chapter_id: z.number().int().positive('Invalid parent chapter ID').nullable().optional(),
-  is_published: z.boolean().optional(),
-  slug: z.string().optional(),
-  book_id: z.number().int().positive('Invalid book ID').optional(),
-});
-
-type UpdateChapterInput = z.infer<typeof updateChapterSchema>;
 
 export async function GET(
   request: Request,
@@ -53,7 +30,7 @@ export async function GET(
       .from(chapters)
       .where(
         and(
-          eq(chapters.id, parseInt(chapterId)),
+          eq(chapters.id, chapterId),
           // Add user check if chapters table has userId
           // eq(chapters.userId, response.user.id)
         )
@@ -104,7 +81,7 @@ export async function PATCH(
     const [chapter] = await db
       .select()
       .from(chapters)
-      .where(eq(chapters.id, parseInt(chapterId)))
+      .where(eq(chapters.id, chapterId))
       .limit(1);
 
     if (!chapter) {
@@ -120,7 +97,7 @@ export async function PATCH(
         ...body,
         updatedAt: new Date(),
       })
-      .where(eq(chapters.id, parseInt(chapterId)))
+      .where(eq(chapters.id, chapterId))
       .returning();
 
     return NextResponse.json(updatedChapter);
@@ -159,7 +136,7 @@ export async function DELETE(
     const [chapter] = await db
       .select()
       .from(chapters)
-      .where(eq(chapters.id, parseInt(chapterId)))
+      .where(eq(chapters.id, chapterId))
       .limit(1);
 
     if (!chapter) {
@@ -169,10 +146,18 @@ export async function DELETE(
       );
     }
 
-    const [deletedChapter] = await db
+    // Delete the chapter and capture the result
+    const deleteResult = await db
       .delete(chapters)
-      .where(eq(chapters.id, parseInt(chapterId)))
+      .where(eq(chapters.id, chapterId))
       .returning();
+
+    if (deleteResult.length === 0) {
+      return NextResponse.json(
+        { error: 'Failed to delete chapter' }, 
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

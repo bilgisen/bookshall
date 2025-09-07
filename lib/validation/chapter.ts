@@ -1,10 +1,13 @@
 import { z } from 'zod';
 
 export const chapterFormSchema = z.object({
-  id: z.number().optional(),
+  id: z.union([z.string(), z.number()]).transform(String).optional(),
   uuid: z.string().uuid().optional(),
-  bookId: z.number().min(1, 'Book ID is required'),
-  parentChapterId: z.number().nullable().optional(),
+  bookId: z.union([z.string(), z.number()]).transform(String),
+  parentChapterId: z.union([z.string(), z.number()])
+    .transform(val => val === null ? null : String(val))
+    .nullable()
+    .optional(),
   title: z.string().min(1, 'Title is required').max(255, 'Title is too long'),
   content: z.union([
     z.string().min(1, 'Content is required'),
@@ -12,7 +15,7 @@ export const chapterFormSchema = z.object({
       type: z.string(),
       content: z.array(z.any()).optional(),
       text: z.string().optional(),
-      attrs: z.record(z.any()).optional(),
+      attrs: z.record(z.string(), z.any()).optional(),
       marks: z.array(z.any()).optional()
     })
   ]).transform(val => typeof val === 'string' ? val : JSON.stringify(val)),

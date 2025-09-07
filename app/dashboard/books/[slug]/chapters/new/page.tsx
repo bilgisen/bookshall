@@ -13,7 +13,7 @@ export default function NewChapterPage() {
   const router = useRouter();
   const params = useParams<{ slug: string }>();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
-  const [book, setBook] = useState<Book & { id: string } | null>(null);
+  const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
@@ -109,7 +109,7 @@ export default function NewChapterPage() {
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">Book not found</h2>
           <p className="text-muted-foreground mb-4">
-            The book you're trying to add a chapter to doesn't exist or you don't have permission to access it.
+            The book you&apos;re trying to add a chapter to doesn&apos;t exist or you don&apos;t have permission to access it.
           </p>
           <button 
             onClick={() => router.push('/dashboard/books')}
@@ -131,8 +131,7 @@ export default function NewChapterPage() {
       
       
         <ChapterForm 
-          bookId={book.id}
-          slug={slug}
+          bookId={Number(book.id)}
           parentChapters={[]} // You might want to fetch parent chapters if needed
           onSuccess={handleSuccess}
         />

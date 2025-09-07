@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { BooksMenu } from "@/components/books/books-menu";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ export function BookHeader({
   title,
   description,
   slug,
-  onEdit,
   showEditButton = true,
 }: BookHeaderProps) {
   return (
@@ -47,7 +46,6 @@ export function BookHeader({
           )}
           <BooksMenu 
             slug={slug || ""} 
-            bookId={slug || ""} 
             hideEdit 
             className="ml-2"
           />

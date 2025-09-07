@@ -26,24 +26,24 @@ export default function Integrations() {
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <IntegrationCard
-              title="Next.js"
-              description="The React framework for production with App Router, Server Components, and built-in optimizations."
+              title="ePub"
+              description="Create dynamic, reflowable digital books perfect for every e-reader."
               link="https://nextjs.org"
             >
               <Nextjs />
             </IntegrationCard>
 
             <IntegrationCard
-              title="Better Auth"
-              description="Modern authentication library with session management, OAuth providers, and security features."
-              link="https://better-auth.com"
+              title="Audiobook"
+              description="Transform your text into an engaging listen-anywhere audio experience"
+              link="#"
             >
               <BetterAuth />
             </IntegrationCard>
 
             <IntegrationCard
-              title="Neon Postgres"
-              description="Serverless PostgreSQL database with branching, autoscaling, and modern developer experience."
+              title="PDF"
+              description="Generate pixel-perfect, printable documents with a fixed, professional layout."
               link="https://neon.tech"
             >
               <NeonPostgres />
@@ -58,8 +58,8 @@ export default function Integrations() {
             </IntegrationCard>
 
             <IntegrationCard
-              title="Tailwind CSS"
-              description="Utility-first CSS framework for rapid UI development with consistent design tokens."
+              title="DOC"
+              description="Export easily editable documents, perfect for collaboration and review."
               link="https://tailwindcss.com"
             >
               <TailwindCSS />
