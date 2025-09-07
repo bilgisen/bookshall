@@ -1,13 +1,12 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, Control } from 'react-hook-form';
 import type * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -26,7 +25,9 @@ import { toast } from 'sonner';
 import type { InferInsertModel } from 'drizzle-orm';
 import { chapters } from '@/db/schema';
 
-type DbChapter = InferInsertModel<typeof chapters>;
+type DbChapter = InferInsertModel<typeof chapters> & {
+  uuid?: string;
+};
 
 interface BaseChapterFormProps {
   initialData?: DbChapter | null;
@@ -52,10 +53,9 @@ type ChapterFormProps = NewChapterFormProps | EditChapterFormProps;
 export function ChapterForm({ 
   initialData, 
   bookId, 
-  slug,
   parentChapters,
   onSuccess 
-}: ChapterFormProps) {
+}: Omit<ChapterFormProps, 'slug'>) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -77,24 +77,71 @@ export function ChapterForm({
     return content;
   }, [initialData?.content]);
 
-  const form = useForm<ChapterFormValues>({
-    resolver: zodResolver(chapterFormSchema) as any, // Temporary type assertion
+  // Create base values with proper string types for IDs
+  const defaultValues: Omit<ChapterFormValues, 'uuid' | 'parentChapterId' | 'bookId'> & {
+    parentChapterId?: string | null;
+    bookId: string;
+    uuid?: string;
+  } = {
+    title: initialData?.title ?? '',
+    content: formContent,
+    parentChapterId: initialData?.parentChapterId ? String(initialData.parentChapterId) : null,
+    order: initialData?.order ?? 0,
+    level: initialData?.level ?? 1,
+    bookId: String(bookId),
+    wordCount: initialData?.wordCount ?? 0,
+    readingTime: initialData?.readingTime ?? null,
+  };
+  
+  // Add uuid if it exists in the initial data
+  if (initialData && 'uuid' in initialData && initialData.uuid) {
+    defaultValues.uuid = String(initialData.uuid);
+  }
+
+  // Define form values type from schema
+  type FormValues = z.infer<typeof chapterFormSchema>;
+  
+  // Initialize form with proper typing
+  const form = useForm<FormValues>({
+    // Use type assertion to handle the resolver type
+    // @ts-expect-error - Type inference issue between react-hook-form and zod
+    resolver: zodResolver(chapterFormSchema),
     defaultValues: {
-      title: initialData?.title ?? '',
-      content: formContent,
-      parentChapterId: initialData?.parentChapterId ?? null,
-      order: initialData?.order ?? 0,
-      level: initialData?.level ?? 1,
-      bookId: bookId,
-      wordCount: initialData?.wordCount ?? 0,
-      readingTime: initialData?.readingTime ?? null,
-      uuid: initialData?.uuid ?? '',
+      bookId: defaultValues.bookId ? String(defaultValues.bookId) : '',
+      parentChapterId: defaultValues.parentChapterId ? String(defaultValues.parentChapterId) : null,
+      title: defaultValues.title || '',
+      // Handle both string and object content types
+      content: (() => {
+        if (!defaultValues.content) return '';
+        if (typeof defaultValues.content === 'string') return defaultValues.content;
+        return JSON.stringify(defaultValues.content);
+      })(),
+      order: Number(defaultValues.order) || 0,
+      level: Number(defaultValues.level) || 1,
+      wordCount: Number(defaultValues.wordCount) || 0,
+      readingTime: defaultValues.readingTime ? Number(defaultValues.readingTime) : null,
+      id: defaultValues.id ? String(defaultValues.id) : undefined,
+      uuid: defaultValues.uuid,
     },
   });
+  
+  // Get form control with proper typing
+  const { control, handleSubmit } = form as unknown as {
+    control: Control<FormValues>;
+    handleSubmit: (onSubmit: (data: FormValues) => void) => (e?: React.FormEvent<HTMLFormElement>) => void;
+  };
+  
+  // Wrap the async submit handler to match the expected type
+  const handleFormSubmit = (data: FormValues) => {
+    onSubmit(data).catch(console.error);
+  };
 
-  const handleSubmit: SubmitHandler<ChapterFormValues> = async (data) => {
+  // Handle form submission with proper typing
+  const onSubmit = async (formValues: FormValues) => {
     try {
       setIsLoading(true);
+
+      // Form values are already properly typed, no need for a separate formData object
 
       // Get the session
       const { data: session } = await authClient.getSession();
@@ -110,17 +157,19 @@ export function ChapterForm({
         throw new Error('Could not determine book slug from URL');
       }
 
-      // Prepare chapter data - send content as is (Tiptap JSON or HTML string)
-      const chapterData = {
-        title: data.title,
-        content: data.content, // Let the API handle the format conversion
-        parentChapterId: data.parentChapterId || null,
-        order: data.order || 0,
-        level: data.level || 1,
-        wordCount: data.wordCount || 0,
-        readingTime: data.readingTime || null,
-        bookId: data.bookId,
-        uuid: data.uuid,
+      // Prepare chapter data with proper types
+      const chapterPayload = {
+        title: String(formValues.title),
+        content: formValues.content, // Let the API handle the format conversion
+        parentChapterId: formValues.parentChapterId || null,
+        order: Number(formValues.order) || 0,
+        level: Number(formValues.level) || 1,
+        wordCount: Number(formValues.wordCount) || 0,
+        readingTime: formValues.readingTime ? Number(formValues.readingTime) : null,
+        bookId: String(formValues.bookId),
+        uuid: formValues.uuid,
+        // Include any additional fields required by the API
+        ...(formValues.id && { id: String(formValues.id) }),
       };
 
       const bookSlug = urlSlug || (initialData ? `book-${bookId}` : '');
@@ -129,18 +178,18 @@ export function ChapterForm({
         throw new Error('Book slug is required for creating new chapters');
       }
       
-      const apiUrl = initialData
-        ? `/api/books/by-slug/${bookSlug}/chapters/${initialData.id}`
-        : `/api/books/by-slug/${bookSlug}/chapters`;
+      const apiUrl = formValues.id 
+        ? `/api/books/${urlSlug}/chapters/${formValues.id}`
+        : `/api/books/${urlSlug}/chapters`;
 
       const response = await fetch(apiUrl, {
-        method: initialData ? 'PUT' : 'POST',
+        method: initialData ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Cookie': `session=${session.session.id}`
+          'Authorization': `Bearer ${session.session.id}`
         },
         credentials: 'include',
-        body: JSON.stringify(chapterData),
+        body: JSON.stringify(chapterPayload),
       });
 
       const contentType = response.headers.get('content-type');
@@ -183,11 +232,11 @@ export function ChapterForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormField
-              control={form.control}
+              control={control} // Using the properly typed control
               name="title"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
@@ -206,7 +255,7 @@ export function ChapterForm({
             />
 
             <FormField
-              control={form.control}
+              control={control} // Using the properly typed control
               name="parentChapterId"
               render={({ field }) => (
                 <FormItem>
@@ -228,13 +277,13 @@ export function ChapterForm({
           </div>
 
           <FormField
-            control={form.control}
+            control={control}
             name="content"
             render={({ field }) => (
               <FormItem>
                 <FormControl>
                   <ChapterContentEditor
-                    value={field.value} // This can be string or object - ChapterContentEditor handles both
+                    value={field.value}
                     onChange={field.onChange}
                     disabled={isLoading}
                   />
@@ -243,8 +292,6 @@ export function ChapterForm({
               </FormItem>
             )}
           />
-
-          {/* Removed wordCount, readingTime, level, and order fields as requested */}
         </div>
 
         <div className="flex justify-between pt-4">
