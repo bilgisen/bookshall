@@ -39,8 +39,8 @@ importers:
         specifier: ^12.9.0
         version: 12.9.0(react@19.1.1)
       '@nanostores/react':
-        specifier: git+https://github.com/ai/react.git
-        version: git+https://git@github.com:ai/react.git#a6ad745cc307881916944ee4d6ba04bdda978dc6(nanostores@0.11.4)(react@19.1.1)
+        specifier: ^0.7.0
+        version: 0.7.3(nanostores@0.11.4)(react@19.1.1)
       '@neondatabase/serverless':
         specifier: ^1.0.1
         version: 1.0.1
@@ -350,12 +350,6 @@ importers:
       react-tweet:
         specifier: ^3.2.2
         version: 3.2.2(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      react@latest:
-        specifier: link:ai/react@latest
-        version: link:ai/react@latest
-      react@latest@latest:
-        specifier: link:ai/react@latest@latest
-        version: link:ai/react@latest@latest
       recharts:
         specifier: ^2.15.4
         version: 2.15.4(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1478,12 +1472,11 @@ packages:
   '@mux/playback-core@0.30.1':
     resolution: {integrity: sha512-rnO1NE9xHDyzbAkmE6ygJYcD7cyyMt7xXqWTykxlceaoSXLjUqgp42HDio7Lcidto4x/O4FIa7ztjV2aCBCXgQ==}
 
-  '@nanostores/react@git+https://git@github.com:ai/react.git#a6ad745cc307881916944ee4d6ba04bdda978dc6':
-    resolution: {commit: a6ad745cc307881916944ee4d6ba04bdda978dc6, repo: git@github.com:ai/react.git, type: git}
-    version: 1.0.0
-    engines: {node: ^20.0.0 || >=22.0.0}
+  '@nanostores/react@0.7.3':
+    resolution: {integrity: sha512-/XuLAMENRu/Q71biW4AZ4qmU070vkZgiQ28gaTSNRPm2SZF5zGAR81zPE1MaMB4SeOp6ZTst92NBaG75XSspNg==}
+    engines: {node: ^18.0.0 || >=20.0.0}
     peerDependencies:
-      nanostores: ^0.9.0 || ^0.10.0 || ^0.11.0 || ^1.0.0
+      nanostores: ^0.9.0 || ^0.10.0 || ^0.11.0
       react: '>=18.0.0'
 
   '@napi-rs/wasm-runtime@0.2.12':
@@ -7994,7 +7987,7 @@ snapshots:
       hls.js: 1.6.11
       mux-embed: 5.12.0
 
-  '@nanostores/react@git+https://git@github.com:ai/react.git#a6ad745cc307881916944ee4d6ba04bdda978dc6(nanostores@0.11.4)(react@19.1.1)':
+  '@nanostores/react@0.7.3(nanostores@0.11.4)(react@19.1.1)':
     dependencies:
       nanostores: 0.11.4
       react: 19.1.1
