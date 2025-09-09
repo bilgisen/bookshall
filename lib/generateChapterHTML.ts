@@ -1,4 +1,31 @@
-import type { Book, Chapter } from '@/db/schema';
+// Define basic types since we can't import from schema directly
+type Chapter = {
+  id: string;
+  bookId: string;
+  title: string | null;
+  content: string | null;
+  order: number | null;
+  level: number | null;
+  parentChapterId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type Book = {
+  id: string;
+  userId: string;
+  title: string | null;
+  author: string | null;
+  description: string | null;
+  coverImageUrl: string | null;
+  isbn: string | null;
+  language: string | null;
+  publisher: string | null;
+  publisherWebsite: string | null;
+  publishYear: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 // Type definitions for Tiptap JSON structure
 interface TiptapMark {
@@ -229,7 +256,7 @@ export function generateCompleteChapterHTML(chapter: Chapter, children: Chapter[
       
       // Create metadata for the complete document
       const metadata: Partial<ChapterMetadata> = {
-        book: book.title || 'untitled',
+        book: (book as BookWithChapters & { title?: string }).title || 'untitled',
         chapter_id: `ch-${chapter.id}`,
         order: chapter.order || 0,
         level: chapter.level || 1,
@@ -252,7 +279,7 @@ export function generateCompleteChapterHTML(chapter: Chapter, children: Chapter[
   
   // If content is not a complete document, wrap it with metadata
   const metadata: Partial<ChapterMetadata> = {
-    book: book.title || 'untitled',
+    book: (book as BookWithChapters & { title?: string }).title || 'untitled',
     chapter_id: `ch-${chapter.id}`,
     order: chapter.order || 0,
     level: chapter.level || 1,

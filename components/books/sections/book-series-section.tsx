@@ -3,54 +3,81 @@
 
 import React from "react";
 import { useFormContext } from "react-hook-form";
-import { FormField } from "@/components/ui/form-field";
+import { 
+  FormLabel, 
+  FormControl, 
+  FormMessage,
+  FormItem
+} from "@/components/ui/form-field";
 
 export function BookSeriesSection() {
-  const {
-    register,
-    formState: { errors },
-  } = useFormContext();
+  const { register } = useFormContext();
 
   return (
     <section className="p-4 border rounded-lg space-y-4">
       <h2 className="text-lg font-semibold">Series & Details</h2>
 
-      <FormField
-        label="Series"
-        {...register("series")}
-        error={errors.series}
-        placeholder="Series name"
-      />
+      <FormItem>
+        <FormLabel>Series</FormLabel>
+        <FormControl>
+          <input
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Series name"
+            {...register("series")}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
 
-      <FormField
-        label="Series Index"
-        {...register("seriesIndex")}
-        error={errors.seriesIndex}
-        placeholder="e.g. 1"
-        type="number"
-      />
+      <FormItem>
+        <FormLabel>Series Index</FormLabel>
+        <FormControl>
+          <input
+            type="number"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="e.g. 1"
+            {...register("seriesIndex")}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
 
-      <FormField
-        label="Language"
-        {...register("language")}
-        error={errors.language}
-        placeholder="ISO code (e.g. en, tr)"
-      />
+      <FormItem>
+        <FormLabel>Language</FormLabel>
+        <FormControl>
+          <input
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="ISO code (e.g. en, tr)"
+            {...register("language")}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
 
-      <FormField
-        label="Publication Year"
-        {...register("year")}
-        error={errors.year}
-        placeholder="e.g. 2024"
-        type="number"
-      />
+      <FormItem>
+        <FormLabel>Publication Year</FormLabel>
+        <FormControl>
+          <input
+            type="number"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="e.g. 2024"
+            {...register("publicationYear")}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
 
-      <FormField
-        label="ISBN"
-        {...register("isbn")}
-        error={errors.isbn}
-        placeholder="ISBN number"
-      />
+      <FormItem>
+        <FormLabel>ISBN</FormLabel>
+        <FormControl>
+          <input
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="ISBN number"
+            {...register("isbn")}
+          />
+        </FormControl>
+        <FormMessage />
+      </FormItem>
     </section>
   );
 }

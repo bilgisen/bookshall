@@ -112,6 +112,9 @@ export type BookFormValues = {
   title: string;
   author: string;
   slug: string;
+  language: string;
+  isPublished: boolean;
+  isFeatured: boolean;
   
   // Optional fields
   subtitle?: string | null;
@@ -121,22 +124,19 @@ export type BookFormValues = {
   publishYear?: number | null;
   isbn?: string | null;
   
-  // Author information
+  // Author and contributor information
   contributor?: string | null;
   translator?: string | null;
+  illustrator?: string | null;
   
   // Book metadata
-  language: string;
-  genre?: BookGenreType | null;
+  genre?: BookGenreType | string | null;
   series?: string | null;
   seriesIndex?: number | null;
   tags?: string[] | null;
   
   // Media
+  coverImage?: string | null;
   coverImageUrl?: string | null;
   epubUrl?: string | null;
-  
-  // Status flags
-  isPublished: boolean;
-  isFeatured: boolean;
 };

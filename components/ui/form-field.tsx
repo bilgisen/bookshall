@@ -36,7 +36,7 @@ const useFormField = () => {
 }
 
 // Form Field Component
-type FormFieldProps = {
+interface FormFieldProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'name'> {
   /** The name of the form field */
   name: string
   /** Form field control(s) to render within the field */
@@ -55,7 +55,9 @@ type FormFieldProps = {
   required?: boolean
   /** Additional class name for the form field container */
   className?: string
-} & Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'name'>
+  /** Additional props for the input element */
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>
+}
 
 export const FormField = ({
   name,
@@ -67,6 +69,7 @@ export const FormField = ({
   isTouched = false,
   required = false,
   className,
+  inputProps = {},
   ...props
 }: FormFieldProps) => {
   const form = useFormContext()
@@ -77,9 +80,9 @@ export const FormField = ({
   const contextValue = React.useMemo<FormFieldContextValue>(
     () => ({
       name,
-      invalid,
-      isDirty,
-      isTouched,
+      invalid: invalid || !!error,
+      isDirty: isDirty || false,
+      isTouched: isTouched || false,
       error,
       formItemId,
       formDescriptionId,
@@ -89,56 +92,67 @@ export const FormField = ({
     [name, invalid, isDirty, isTouched, error, formItemId, formDescriptionId, formMessageId, form],
   )
 
-  // Clone children and pass through form field props
-  let childrenWithProps = children;
-  
-  if (children) {
-    childrenWithProps = React.Children.map(children, (child) => {
-      if (React.isValidElement(child)) {
-        // Create a type-safe way to handle props
-        const element = child as React.ReactElement<Record<string, unknown>>;
-        const childProps: Record<string, unknown> = {
-          id: formItemId,
-          'aria-invalid': invalid,
-          'aria-describedby': error ? formMessageId : undefined,
-        };
-        
-        // Define the props we want to copy
-        const childPropsToCopy = ['required', 'disabled', 'placeholder'] as const;
-        
-        childPropsToCopy.forEach(prop => {
-          if (prop in element.props) {
-            childProps[prop] = element.props[prop];
-          }
-        });
-        
-        return React.cloneElement(child, childProps);
-      }
-      return child;
-    });
+  const renderInput = () => {
+    if (children) {
+      return React.Children.map(children, (child) => {
+        if (React.isValidElement<React.HTMLAttributes<HTMLElement>>(child)) {
+          const childProps: Partial<React.HTMLAttributes<HTMLElement> & { required?: boolean }> = {
+            id: `${name}-input`,
+            'aria-invalid': invalid || !!error ? 'true' : 'false',
+            'aria-describedby': error ? formMessageId : undefined,
+            required,
+          };
+          
+          // Manually assign props to avoid spread issues
+          const propsToAssign: React.HTMLProps<HTMLElement> = { ...childProps };
+          Object.entries(child.props).forEach(([key, value]) => {
+            if (value !== undefined) {
+              // Safely assign props with proper typing
+              (propsToAssign as Record<string, unknown>)[key] = value;
+            }
+          });
+          
+          return React.cloneElement(child, propsToAssign);
+        }
+        return child;
+      });
+    }
+
+    return (
+      <input
+        id={`${name}-input`}
+        aria-invalid={invalid || !!error}
+        aria-describedby={error ? formMessageId : undefined}
+        required={required}
+        {...inputProps}
+        {...props}
+      />
+    )
   }
 
   return (
     <FormFieldContext.Provider value={contextValue}>
-      <div className={cn("space-y-2", className)} {...props}>
+      <div className={cn("space-y-2", className)}>
         {label && (
-          <Label htmlFor={formItemId} className={cn(invalid && "text-destructive")}>
+          <Label htmlFor={`${name}-input`} className={cn(invalid && "text-destructive")}>
             {label}
             {required && <span className="text-destructive ml-1">*</span>}
           </Label>
         )}
-        {childrenWithProps}
+        <div className="relative">
+          {renderInput()}
+        </div>
         {error && (
           <p className="text-sm font-medium text-destructive" id={formMessageId}>
             {typeof error === 'string' 
               ? error 
-              : error && typeof error === 'object' && error !== null && 'message' in error 
+              : error && typeof error === 'object' && 'message' in error 
                 ? typeof error.message === 'string'
                   ? error.message
                   : typeof error.message === 'function'
                     ? error.message()
                     : 'Invalid field'
-                : 'Invalid field'}
+              : 'Invalid field'}
           </p>
         )}
       </div>
@@ -196,13 +210,13 @@ export const FormControl = React.forwardRef<HTMLDivElement, FormControlProps>(
     return (
       <div
         ref={ref}
+        className={cn(
+          "relative rounded-md shadow-sm",
+          invalid && "border-red-500",
+          className
+        )}
         id={formItemId}
-        className={cn("relative", className)}
-        aria-describedby={
-          [formDescriptionId, formMessageId]
-            .filter(Boolean)
-            .join(' ') || undefined
-        }
+        aria-describedby={`${formDescriptionId} ${formMessageId}`}
         aria-invalid={invalid}
         {...props}
       />
@@ -227,11 +241,7 @@ export const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn(
-        "text-sm text-muted-foreground",
-        "mt-1.5",
-        className
-      )}
+      className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
   )
@@ -242,7 +252,7 @@ FormDescription.displayName = "FormDescription"
 export interface FormMessageProps extends React.HTMLAttributes<HTMLParagraphElement> {
   /** Additional class name */
   className?: string
-  /** Custom error message to display */
+  /** Custom message content */
   children?: React.ReactNode
 }
 
@@ -251,43 +261,20 @@ export const FormMessage = React.forwardRef<
   FormMessageProps
 >(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField()
-  const body = error ? (typeof error === 'string' ? error : error?.message) : children
+  const body = children || (error ? String(error) : null)
 
   if (!body) {
     return null
   }
 
-  // Handle different types of body content
-  const renderBody = (): React.ReactNode => {
-    if (React.isValidElement(body)) {
-      return body;
-    }
-    if (typeof body === 'string' || typeof body === 'number') {
-      return body;
-    }
-    if (error) {
-      if (typeof error === 'object' && error !== null && 'message' in error) {
-        return String(error.message);
-      }
-      return String(error);
-    }
-    return children ? children : null;
-  };
-
   return (
     <p
       ref={ref}
       id={formMessageId}
-      className={cn(
-        "text-sm font-medium text-destructive",
-        "mt-1.5",
-        className
-      )}
-      role="alert"
-      aria-live="polite"
+      className={cn("text-sm font-medium text-destructive", className)}
       {...props}
     >
-      {renderBody()}
+      {body}
     </p>
   )
 })

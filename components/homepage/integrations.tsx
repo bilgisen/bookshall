@@ -1,5 +1,4 @@
 import {
-  Shadcnui,
   TailwindCSS,
   BetterAuth,
   Polar,
@@ -14,64 +13,60 @@ export default function Integrations() {
     <section>
       <div className="pt-12 pb-32">
         <div className="mx-auto max-w-5xl px-6">
-          <div>
-            <h2 className="text-balance text-3xl font-semibold md:text-4xl">
-              Built with the best tools
+     
+          <div className="text-center">
+          <div className="inline-block px-3 py-2 mt-8 text-xl text-primary">
+            Powered by AI
+          </div>
+            <h2 className="text-balance text-3xl mx-auto font-semibold md:text-5xl">
+            Simple yet powerful
             </h2>
-            <p className="text-muted-foreground mt-3 text-lg">
-              Launch your project with confidence, knowing that you&apos;re
-              using the best tools available.
+            <p className="text-center text-muted-foreground mt-3 text-lg max-w-4xl mx-auto">
+            BooksHall is an AI-powered, innovative, simple yet powerful application that allows you to easily prepare your digital book and document content and publish it in ePub, audiobook, PDF, DOC and HTML formats.
             </p>
           </div>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <IntegrationCard
-              title="ePub"
-              description="Create dynamic, reflowable digital books perfect for every e-reader."
-              link="https://nextjs.org"
-            >
-              <Nextjs />
-            </IntegrationCard>
+          <div className="mt-12 space-y-4">
+            {/* First row - 2 columns */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <IntegrationCardHorizontal
+                title="ePub"
+                description="Create dynamic, reflowable digital books perfect for every e-reader."
+              >
+                <Nextjs />
+              </IntegrationCardHorizontal>
 
-            <IntegrationCard
-              title="Audiobook"
-              description="Transform your text into an engaging listen-anywhere audio experience"
-              link="#"
-            >
-              <BetterAuth />
-            </IntegrationCard>
+              <IntegrationCardHorizontal
+                title="Audiobook"
+                description="Transform your text into an engaging listen-anywhere audio experience"
+              >
+                <BetterAuth />
+              </IntegrationCardHorizontal>
+            </div>
 
-            <IntegrationCard
-              title="PDF"
-              description="Generate pixel-perfect, printable documents with a fixed, professional layout."
-              link="https://neon.tech"
-            >
-              <NeonPostgres />
-            </IntegrationCard>
+            {/* Second row - 3 columns */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <IntegrationCardVertical
+                title="PDF"
+                description="Generate pixel-perfect, printable PDF documents"
+              >
+                <NeonPostgres />
+              </IntegrationCardVertical>
 
-            <IntegrationCard
-              title="Polar.sh"
-              description="Developer-first subscription platform with webhooks, customer portal, and usage-based billing."
-              link="https://polar.sh"
-            >
-              <Polar />
-            </IntegrationCard>
+              <IntegrationCardVertical
+                title="HTML"
+                description="Publish searchable, web-ready content for any website or browser"
+              >
+                <Polar />
+              </IntegrationCardVertical>
 
-            <IntegrationCard
-              title="DOC"
-              description="Export easily editable documents, perfect for collaboration and review."
-              link="https://tailwindcss.com"
-            >
-              <TailwindCSS />
-            </IntegrationCard>
-
-            <IntegrationCard
-              title="shadcn/ui"
-              description="Beautiful, accessible components built with Radix UI primitives and styled with Tailwind CSS."
-              link="https://ui.shadcn.com"
-            >
-              <Shadcnui />
-            </IntegrationCard>
+              <IntegrationCardVertical
+                title="DOC"
+                description="Export easily editable documents, perfect for collaboration and review."
+              >
+                <TailwindCSS />
+              </IntegrationCardVertical>
+            </div>
           </div>
         </div>
       </div>
@@ -79,46 +74,50 @@ export default function Integrations() {
   );
 }
 
-const IntegrationCard = ({
+const IntegrationCardHorizontal = ({
   title,
   description,
   children,
-  link,
 }: {
   title: string;
   description: string;
   children: React.ReactNode;
-  link?: string;
 }) => {
-  const CardContent = () => (
-    <div className="relative">
-      <div className="*:size-10">{children}</div>
-
-      <div className="mt-6 space-y-1.5">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="text-muted-foreground line-clamp-2">{description}</p>
-      </div>
-    </div>
-  );
-
-  if (link) {
-    return (
-      <a
-        href={link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block transition-transform hover:scale-105"
-      >
-        <Card className="p-6 h-full cursor-pointer hover:shadow-lg transition-shadow rounded-md">
-          <CardContent />
-        </Card>
-      </a>
-    );
-  }
-
   return (
-    <Card className="p-6">
-      <CardContent />
+    <Card className="p-12 border bg-transparent">
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0 mr-4 *:size-12">
+          {children}
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <p className="text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const IntegrationCardVertical = ({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) => {
+  return (
+    <Card className="p-6 border bg-transparent">
+      <div className="text-left space-y-4">
+        <div className="flex justify-left *:size-10">
+          {children}
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <p className="text-muted-foreground">{description}</p>
+        </div>
+      </div>
     </Card>
   );
 };

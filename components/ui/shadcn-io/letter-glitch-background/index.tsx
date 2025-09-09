@@ -51,17 +51,17 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     ...divProps
   } = props;
 
-  const lettersAndSymbols = [
+  const memoizedLettersAndSymbols = React.useMemo(() => [
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
     "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
     "!", "@", "#", "$", "&", "*", "(", ")", "-", "_", "+", "=", "/",
     "[", "]", "{", "}", ";", ":", "<", ">", ",", "0", "1", "2", "3",
     "4", "5", "6", "7", "8", "9",
-  ];
+  ], []);
 
   const getRandomChar = useCallback(() => {
-    return lettersAndSymbols[Math.floor(Math.random() * lettersAndSymbols.length)];
-  }, []);
+    return memoizedLettersAndSymbols[Math.floor(Math.random() * memoizedLettersAndSymbols.length)];
+  }, [memoizedLettersAndSymbols]);
 
   const drawLetters = useCallback(() => {
     const ctx = context.current;
@@ -103,6 +103,7 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
         }
       : null;
   }, []);
+  
 
   const interpolateColor = useCallback((
     start: { r: number; g: number; b: number },
@@ -210,12 +211,13 @@ export const LetterGlitchBackground = forwardRef<HTMLDivElement, LetterGlitchBac
     const now = Date.now();
     if (now - lastGlitchTime.current >= glitchSpeed) {
       updateLetters();
-      drawLetters();
       lastGlitchTime.current = now;
     }
 
     if (smooth) {
       handleSmoothTransitions();
+    } else {
+      drawLetters();
     }
 
     animationRef.current = requestAnimationFrame(animate);

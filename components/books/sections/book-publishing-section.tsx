@@ -16,7 +16,7 @@ export function BookPublishingSection() {
       <FormField 
         {...register("seriesIndex", { valueAsNumber: true })}
         label="Series Index"
-        type="number"
+        inputProps={{ type: "number" }}
         error={errors.seriesIndex?.message as string}
       />
       <FormField 
@@ -27,7 +27,7 @@ export function BookPublishingSection() {
       <FormField 
         {...register("publishYear", { valueAsNumber: true })}
         label="Publication Year"
-        type="number"
+        inputProps={{ type: "number" }}
         error={errors.publishYear?.message as string}
       />
       <FormField 

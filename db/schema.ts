@@ -189,6 +189,22 @@ export const userPreferences = pgTable("user_preferences", {
 });
 
 /** books */
+/** workflow_status - tracks status of background workflows */
+export const workflowStatus = pgTable("workflow_status", {
+  id: text("id").primaryKey().notNull().$defaultFn(() => crypto.randomUUID()),
+  bookId: text("bookId")
+    .notNull()
+    .references(() => books.id, { onDelete: "cascade" }),
+  workflowId: text("workflowId").notNull(),
+  status: text("status").notNull().default("pending"),
+  progress: integer("progress").default(0),
+  error: text("error"),
+  result: jsonb("result"),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** books */
 export const books = pgTable("books", {
   id: text("id").primaryKey().notNull().$defaultFn(() => crypto.randomUUID()),
   userId: text("userId")
@@ -399,3 +415,6 @@ export type NewMedia = typeof media.$inferInsert;
 
 export type Chapter = typeof chapters.$inferSelect;
 export type NewChapter = typeof chapters.$inferInsert;
+
+export type WorkflowStatus = typeof workflowStatus.$inferSelect;
+export type NewWorkflowStatus = typeof workflowStatus.$inferInsert;

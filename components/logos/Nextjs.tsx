@@ -2,71 +2,17 @@ import * as React from "react";
 import type { SVGProps } from "react";
 const Nextjs = (props: SVGProps<SVGSVGElement>) => (
   <svg
-    width="1em"
-    height="1em"
-    viewBox="0 0 180 180"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <mask
-      id="mask0_408_139"
-      style={{
-        maskType: "alpha",
-      }}
-      maskUnits="userSpaceOnUse"
-      x={0}
-      y={0}
-      width={180}
-      height={180}
-    >
-      <circle cx={90} cy={90} r={90} fill="black" />
-    </mask>
-    <g mask="url(#mask0_408_139)">
-      <circle
-        cx={90}
-        cy={90}
-        r={87}
-        fill="black"
-        stroke="white"
-        strokeWidth={6}
-      />
-      <path
-        d="M149.508 157.52L69.142 54H54V125.97H66.1136V69.3836L139.999 164.845C143.333 162.614 146.509 160.165 149.508 157.52Z"
-        fill="url(#paint0_linear_408_139)"
-      />
-      <rect
-        x={115}
-        y={54}
-        width={12}
-        height={72}
-        fill="url(#paint1_linear_408_139)"
-      />
-    </g>
-    <defs>
-      <linearGradient
-        id="paint0_linear_408_139"
-        x1={109}
-        y1={116.5}
-        x2={144.5}
-        y2={160.5}
-        gradientUnits="userSpaceOnUse"
-      >
-        <stop stopColor="white" />
-        <stop offset={1} stopColor="white" stopOpacity={0} />
-      </linearGradient>
-      <linearGradient
-        id="paint1_linear_408_139"
-        x1={121}
-        y1={54}
-        x2={120.799}
-        y2={106.875}
-        gradientUnits="userSpaceOnUse"
-      >
-        <stop stopColor="white" />
-        <stop offset={1} stopColor="white" stopOpacity={0} />
-      </linearGradient>
-    </defs>
-  </svg>
+  width="63"
+  height="63"
+  viewBox="0 0 63 63"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  {...props}
+>
+  <path
+    d="M31.4999 51.2968L11.7028 31.4984L31.4999 11.7029L38.0996 18.3013L24.9004 31.4984L31.4995 38.0977L51.2968 18.3022L34.0508 1.0571C32.6427 -0.352365 30.3586 -0.352365 28.9491 1.0571L1.05614 28.9498C-0.352048 30.3579 -0.352048 32.6421 1.05614 34.0513L28.9491 61.9433C30.3586 63.3522 32.6427 63.3522 34.0508 61.9433L61.9439 34.0513C63.3521 32.6421 63.3521 30.3579 61.9439 28.9498L57.8949 24.9018L31.4999 51.2968Z"
+    fill="#86B918"
+  />
+</svg>
 );
 export default Nextjs;

@@ -1,8 +1,42 @@
-import { auth } from "@/lib/auth";
-import { db } from "@/db/drizzle";
-import { subscription } from "@/db/schema";
+// Using relative imports to avoid module resolution issues
+import { auth as authModule } from "./auth";
+import { db } from "./db/drizzle";
+import { subscription } from "./db";
+
+// Type declaration for the auth module
+declare module "./auth" {
+  export const authModule: {
+    api: {
+      getSession: (options: { headers: () => Promise<Headers> }) => Promise<{
+        user?: {
+          id: string;
+          email?: string;
+          name?: string;
+        } | null;
+      }>;
+    };
+  };
+}
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
+
+// Type for the raw subscription data from the database
+type RawSubscription = {
+  id: string;
+  userId: string | null;
+  productId: string;
+  status: string;
+  amount: number;
+  currency: string;
+  recurringInterval: string;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: Date | null;
+  createdAt: Date;
+  modifiedAt: Date | null; // This is the actual field name in the database
+  organizationId?: string | null;
+};
 
 export type SubscriptionDetails = {
   id: string;
@@ -27,7 +61,7 @@ export type SubscriptionDetailsResult = {
 
 export async function getSubscriptionDetails(): Promise<SubscriptionDetailsResult> {
   try {
-    const session = await auth.api.getSession({
+    const session = await authModule.api.getSession({
       headers: await headers(),
     });
 
@@ -45,18 +79,19 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetailsResul
     }
 
     // Get the most recent active subscription
-    const activeSubscription = userSubscriptions
+    const activeSubscription = (userSubscriptions as unknown as RawSubscription[])
       .filter((sub) => sub.status === "active")
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
 
     if (!activeSubscription) {
       // Check for canceled or expired subscriptions
-      const latestSubscription = userSubscriptions
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+const latestSubscription = (userSubscriptions as unknown as RawSubscription[])
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
 
       if (latestSubscription) {
         const now = new Date();
-        const isExpired = new Date(latestSubscription.currentPeriodEnd) < now;
+        const currentPeriodEnd = new Date(latestSubscription.currentPeriodEnd);
+        const isExpired = currentPeriodEnd < now;
         const isCanceled = latestSubscription.status === "canceled";
 
         return {
@@ -68,10 +103,10 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetailsResul
             amount: latestSubscription.amount,
             currency: latestSubscription.currency,
             recurringInterval: latestSubscription.recurringInterval,
-            currentPeriodStart: latestSubscription.currentPeriodStart,
-            currentPeriodEnd: latestSubscription.currentPeriodEnd,
+            currentPeriodStart: new Date(latestSubscription.currentPeriodStart),
+            currentPeriodEnd: new Date(latestSubscription.currentPeriodEnd),
             cancelAtPeriodEnd: latestSubscription.cancelAtPeriodEnd,
-            canceledAt: latestSubscription.canceledAt,
+            canceledAt: latestSubscription.canceledAt ? new Date(latestSubscription.canceledAt) : null,
             organizationId: null,
           },
           error: isCanceled ? "Subscription has been canceled" : isExpired ? "Subscription has expired" : "Subscription is not active",
@@ -91,11 +126,11 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetailsResul
         amount: activeSubscription.amount,
         currency: activeSubscription.currency,
         recurringInterval: activeSubscription.recurringInterval,
-        currentPeriodStart: activeSubscription.currentPeriodStart,
-        currentPeriodEnd: activeSubscription.currentPeriodEnd,
+        currentPeriodStart: new Date(activeSubscription.currentPeriodStart),
+        currentPeriodEnd: new Date(activeSubscription.currentPeriodEnd),
         cancelAtPeriodEnd: activeSubscription.cancelAtPeriodEnd,
-        canceledAt: activeSubscription.canceledAt,
-        organizationId: null,
+        canceledAt: activeSubscription.canceledAt ? new Date(activeSubscription.canceledAt) : null,
+        organizationId: activeSubscription.organizationId || null,
       },
     };
   } catch (error) {

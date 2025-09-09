@@ -15,6 +15,13 @@
       "when": 1757196000538,
       "tag": "0001_graceful_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1757296919694,
+      "tag": "0002_next_mystique",
+      "breakpoints": true
     }
   ]
 }

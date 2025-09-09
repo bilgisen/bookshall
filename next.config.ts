@@ -3,8 +3,17 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
+  webpack: (config) => {
+    // Add path aliases
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': __dirname,
+    };
+    return config;
+  },
   typescript: {
-    ignoreBuildErrors: true,
+    // Show TypeScript errors during development
+    ignoreBuildErrors: process.env.NODE_ENV === 'production',
   },
   eslint: {
     // Production build'de ESLint hatalarını ignore etme (önerilmez)
@@ -12,6 +21,47 @@ const nextConfig: NextConfig = {
     
     // Veya sadece belirli kuralları devre dışı bırak
     // ignoreDuringBuilds: false,
+  },
+  async headers() {
+    return [
+      {
+        // Apply these headers to all routes in your application
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: 'https://bookshall.com',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
+          },
+        ],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'www.bookshall.com',
+          },
+        ],
+        destination: 'https://bookshall.com/:path*',
+        permanent: true,
+      },
+    ];
   },
   images: {
     remotePatterns: [

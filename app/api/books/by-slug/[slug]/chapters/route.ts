@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { and, eq } from 'drizzle-orm';
 
-import { chapters, books } from '@/db/schema';
+import { chapters, books } from '@/db';
 
 // -----------------
 // GET /api/books/by-slug/[slug]/chapters

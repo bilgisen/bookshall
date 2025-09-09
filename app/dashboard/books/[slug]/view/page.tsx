@@ -214,7 +214,6 @@ export default function ViewBookPage() {
 
           {((book.contributors && book.contributors.length > 0) || (book.translators && book.translators.length > 0)) && (
             <div className="pt-4 border-t">
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">Credits</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {book.contributors && book.contributors.length > 0 && (
                   <div>

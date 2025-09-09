@@ -50,14 +50,12 @@ export default function Hero() {
         />
 
         {/* İçerik */}
-        <div className="relative z-10 text-center px-6 max-w-5xl">
+        <div className="relative z-10 text-center mt-12 px-6 max-w-5xl">
           {/* Badge */}
-          <div className="inline-block px-3 py-2 mt-8 rounded-full bg-gray-200 dark:bg-gray-800 text-md font-medium text-gray-700 dark:text-gray-300">
-            Powered by AI
-          </div>
+
 
           {/* Title */}
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground/80 my-4">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground/90 my-4">
             Go Digital, Go Simple: <br />
             <span className="text-foreground">Publish Your Digital Books Easily</span>
           </h1>
