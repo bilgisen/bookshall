@@ -128,6 +128,12 @@ jobs:
         with:
           node-version: '20.x'
           cache: 'pnpm'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -517,8 +523,14 @@ jobs:
         env:
           SESSION_ID: ${{ inputs.session_id }}
           EPUB_URL: ${{ steps.upload_epub.outputs.EPUB_URL }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
         run: |
-          # Function to update status
+          # Function to update status with proper JSON handling
           update_status() {
             local status=$1
             local phase=$2
@@ -527,58 +539,56 @@ jobs:
             
             echo "::group::Final Status Update: $message"
             
-            local data=$(cat <<EOF
-            {
-              "status": "$status",
-              "phase": "$phase",
-              "progress": $progress,
-              "message": "$message",
-              "metadata": {
-                "workflow": "${{ github.workflow }}",
-                "run_id": "${{ github.run_id }}",
-                "run_number": "${{ github.run_number }}",
-                "commit": "${{ github.sha }}",
-                "session_id": "$SESSION_ID"
-              },
-              "result": {
-                "workflowRunId": "${{ github.run_id }}",
-                "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                "commit": "${{ github.sha }}",
-                "epubUrl": "$EPUB_URL"
-              }
-            }
-            EOF
-            )
+            # Create JSON payload using jq for proper escaping
+            local payload
+            payload=$(jq -n \
+              --arg status "$status" \
+              --arg phase "$phase" \
+              --argjson progress "$progress" \
+              --arg message "$message" \
+              --arg workflow "$WORKFLOW_NAME" \
+              --arg run_id "$RUN_ID" \
+              --arg run_number "$RUN_NUMBER" \
+              --arg commit "$COMMIT_SHA" \
+              --arg session_id "$SESSION_ID" \
+              --arg epub_url "$EPUB_URL" \
+              '{
+                status: $status,
+                phase: $phase,
+                progress: $progress,
+                message: $message,
+                metadata: {
+                  workflow: $workflow,
+                  run_id: $run_id,
+                  run_number: $run_number,
+                  commit: $commit,
+                  session_id: $session_id
+                },
+                result: {
+                  workflowRunId: $run_id,
+                  runUrl: "\($SERVER_URL)/\($REPO)/actions/runs/\($run_id)",
+                  commit: $commit,
+                  epubUrl: $epub_url
+                }
+              }')
             
-            # Remove newlines and extra spaces from JSON
-            data=$(echo "$data" | tr -d '\n' | tr -s ' ')
-            
-            curl -X POST "$BACKEND_URL/api/publish/update" \
+            # Send the request
+            curl -s -X POST "$BACKEND_URL/api/publish/update" \
               -H "Authorization: Bearer ${{ github.token }}" \
               -H "Content-Type: application/json" \
               -H "X-Session-Id: $SESSION_ID" \
-              -H "X-GitHub-Run-Id: ${{ github.run_id }}" \
-              -d "$data" || true
-              
+              -H "X-GitHub-Run-Id: $RUN_ID" \
+              -d "$payload" || echo "::warning::Failed to update status"
+            
             echo "::endgroup::"
           }
           
-          # Always try to finalize, even if previous steps failed
+          # Determine job status and update accordingly
           if [ "${{ job.status }}" = "success" ]; then
             echo "✅ Publish completed successfully"
-            update_status \
-              "completed" \
-              "completed" \
-              100 \
-              "Publish completed successfully - EPUB is ready for download"
+            update_status "completed" "completed" 100 "Publish completed successfully - EPUB is ready for download"
           else
             echo "❌ Publish failed"
-            update_status \
-              "failed" \
-              "failed" \
-              0 \
-              "Publish failed - check logs for details"
-              
-            # Fail the step to mark the workflow as failed
-            exit 1
+            update_status "failed" "failed" 0 "Publish failed - check logs for details"
+            # Don't exit with error here to allow cleanup steps to run
           fi
