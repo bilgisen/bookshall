@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Use TOKEN if available, otherwise use GITHUB_TOKEN
+export TOKEN="${TOKEN:-${GITHUB_TOKEN:-}}"
+
 # Validate required environment variables
-: "${GITHUB_TOKEN:?GITHUB_TOKEN must be set in workflow environment}"
+: "${TOKEN:?Either TOKEN or GITHUB_TOKEN must be set in workflow environment}"
 
 # --- CONFIG ---
 BASE_URL="${NEXT_PUBLIC_APP_URL:-https://bookshall.com}"
@@ -15,7 +18,6 @@ OUTPUT_DIR="$WORKDIR/output"
 # Required parameters
 BOOK_ID="${BOOK_ID:?BOOK_ID is required}"
 CONTENT_ID="${CONTENT_ID:?CONTENT_ID is required}"
-COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
 
 # Debug: Print environment variables for troubleshooting
 echo "=== Environment Variables ==="
@@ -23,7 +25,7 @@ printenv | sort
 echo "==========================="
 
 # Handle metadata with proper JSON validation
-METADATA="${METADATA:-'{}'}"
+METADATA="${METADATA:-{}}"
 
 # Debug: Print the raw metadata for troubleshooting
 echo "Raw metadata input: $METADATA"
@@ -40,6 +42,12 @@ clean_and_validate_json() {
   
   # Debug: Print after removing quotes
   echo "After removing quotes: $json"
+  
+  # If empty, return empty object
+  if [ -z "$json" ] || [ "$json" = "null" ]; then
+    echo '{}'
+    return 0
+  fi
   
   # Try to parse with jq
   if ! echo "$json" | jq -e . >/dev/null 2>&1; then
@@ -90,7 +98,7 @@ download_with_retry() {
   local url="$1" output="$2"
   local max_retries=3
   for i in $(seq 1 $max_retries); do
-    if curl -sSf -H "Authorization: Bearer $COMBINED_TOKEN" -o "$output.tmp" "$url"; then
+    if curl -sSf -H "Authorization: Bearer $TOKEN" -o "$output.tmp" "$url"; then
       mv "$output.tmp" "$output"
       return 0
     fi
@@ -104,11 +112,12 @@ update_status() {
   [ -n "${TOKEN}" ] && echo "::add-mask::${TOKEN}"
   [ -n "${R2_ACCESS_KEY_ID}" ] && echo "::add-mask::${R2_ACCESS_KEY_ID}"
   [ -n "${R2_SECRET_ACCESS_KEY}" ] && echo "::add-mask::${R2_SECRET_ACCESS_KEY}"
-  [ -n "${BACKEND_URL:-}" ] && [ -n "${COMBINED_TOKEN:-}" ] && \
-  curl -s -X POST "$BACKEND_URL/api/publish/update" \
-    -H "Authorization: Bearer $COMBINED_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"status\":\"in-progress\",\"phase\":\"$phase\",\"progress\":$progress,\"message\":\"$message\"}" >/dev/null 2>&1 || true
+  if [ -n "${BACKEND_URL:-}" ] && [ -n "${TOKEN:-}" ]; then
+    curl -s -X POST "$BACKEND_URL/api/publish/update" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"status\":\"in-progress\",\"phase\":\"$phase\",\"progress\":$progress,\"message\":\"$message\"}" >/dev/null 2>&1 || true
+  fi
 }
 
 # --- FETCH PAYLOAD ---

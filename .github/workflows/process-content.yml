@@ -146,19 +146,46 @@ jobs:
           fi
 
           # Export environment variables for next steps
-          echo "INCLUDE_METADATA=$INCLUDE_METADATA" >> $GITHUB_ENV
-          echo "INCLUDE_COVER=$INCLUDE_COVER" >> $GITHUB_ENV
-          echo "INCLUDE_TOC=$INCLUDE_TOC" >> $GITHUB_ENV
-          echo "TOC_LEVEL=$TOC_LEVEL" >> $GITHUB_ENV
-          echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT" >> $GITHUB_ENV
-          echo "METADATA='$METADATA'" >> $GITHUB_ENV
+          {
+            echo "INCLUDE_METADATA=$INCLUDE_METADATA"
+            echo "INCLUDE_COVER=$INCLUDE_COVER"
+            echo "INCLUDE_TOC=$INCLUDE_TOC"
+            echo "TOC_LEVEL=$TOC_LEVEL"
+            echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT"
+            # Escape single quotes in METADATA for GITHUB_ENV
+            echo "METADATA=$(echo "$METADATA" | sed "s/'/'\\''/g")"
+          } >> "$GITHUB_ENV"
 
-          # Mask sensitive values
-          echo "::add-mask::${GITHUB_TOKEN}"
-          [ -n "${R2_ACCESS_KEY_ID}" ] && echo "::add-mask::${R2_ACCESS_KEY_ID}"
-          [ -n "${R2_SECRET_ACCESS_KEY}" ] && echo "::add-mask::${R2_SECRET_ACCESS_KEY}"
+          # Mask sensitive values if they exist
+          if [ -n "${R2_ACCESS_KEY_ID:-}" ]; then
+            echo "::add-mask::$R2_ACCESS_KEY_ID"
+          fi
+          if [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::add-mask::$R2_SECRET_ACCESS_KEY"
+          fi
+          if [ -n "${TOKEN:-}" ]; then
+            echo "::add-mask::$TOKEN"
+          fi
 
       - name: Fetch book & generate EPUB
+        env:
+          TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          BOOK_ID: ${{ inputs.book_id }}
+          USER_ID: ${{ inputs.user_id }}
+          SESSION_ID: ${{ inputs.session_id }}
+          CONTENT_ID: ${{ inputs.content_id }}
+          TOC_LEVEL: ${{ inputs.toc_level || '3' }}
+          INCLUDE_METADATA: ${{ inputs.include_metadata || 'true' }}
+          INCLUDE_COVER: ${{ inputs.include_cover || 'true' }}
+          INCLUDE_TOC: ${{ inputs.include_toc || 'true' }}
+          INCLUDE_IMPRINT: ${{ inputs.include_imprint || 'true' }}
+          METADATA: ${{ inputs.metadata || '{}' }}
+          NEXT_PUBLIC_APP_URL: https://bookshall.com
+          R2_ENDPOINT: https://f330373f7096cf2d6727c2d973b911d3.r2.cloudflarestorage.com
+          R2_BUCKET: bookshall
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || secrets.R2_UPLOAD_IMAGE_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY }}
+          R2_PUBLIC_URL: https://storage.bookshall.com
         run: |
           chmod +x ./scripts/fetch-book.sh
           ./scripts/fetch-book.sh
