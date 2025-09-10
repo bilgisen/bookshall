@@ -17,6 +17,11 @@ BOOK_ID="${BOOK_ID:?BOOK_ID is required}"
 CONTENT_ID="${CONTENT_ID:?CONTENT_ID is required}"
 COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
 
+# Debug: Print environment variables for troubleshooting
+echo "=== Environment Variables ==="
+printenv | sort
+echo "==========================="
+
 # Handle metadata with proper JSON validation
 METADATA="${METADATA:-'{}'}"
 
@@ -27,38 +32,51 @@ echo "Raw metadata input: $METADATA"
 clean_and_validate_json() {
   local json="$1"
   
+  # Debug: Print the input to the function
+  echo "clean_and_validate_json input: $json"
+  
   # Remove surrounding single/double quotes if they exist
-  json=$(echo "$json" | sed 's/^["\x27]\|["\x27]$//g')
+  json=$(echo "$json" | sed 's/^[\"\x27]\|[\"\x27]$//g')
   
-  # Unescape any escaped quotes
-  json=$(echo "$json" | sed 's/\\"/"/g')
-  
-  # If empty after stripping, return empty object
-  [ -z "$json" ] && echo '{}' && return 0
+  # Debug: Print after removing quotes
+  echo "After removing quotes: $json"
   
   # Try to parse with jq
   if ! echo "$json" | jq -e . >/dev/null 2>&1; then
     echo "::warning::Invalid JSON in metadata, using empty object" >&2
-    echo '{'
+    echo '{}'
     return 1
   fi
   
   # If we got here, the JSON is valid
   echo "$json"
+  return 0
 }
 
 # Clean and validate the JSON
-CLEANED_METADATA=$(clean_and_validate_json "$METADATA")
-METADATA="${CLEANED_METADATA:-'{}'}"
+echo "Cleaning and validating JSON..."
+CLEANED_METADATA=$(clean_and_validate_json "$METADATA" 2>&1)
+EXIT_CODE=$?
 
-# Debug: Print the cleaned JSON
-echo "Cleaned metadata: $METADATA"
+echo "Cleaned metadata output:"
+echo "$CLEANED_METADATA"
+echo "Exit code: $EXIT_CODE"
+
+# If cleaning failed, use empty object
+if [ $EXIT_CODE -ne 0 ] || [ -z "$CLEANED_METADATA" ]; then
+  echo "::warning::Using empty metadata due to validation failure"
+  METADATA='{}'
+else
+  METADATA="$CLEANED_METADATA"
+fi
 
 # Extract slug if it exists
 SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
 if [ -n "$SLUG" ]; then
   echo "SLUG=$SLUG" >> $GITHUB_ENV
 fi
+
+echo "Final metadata: $METADATA"
 
 echo "Using metadata: $METADATA"
 
