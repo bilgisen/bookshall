@@ -1,7 +1,7 @@
 name: Publish Epub
 
 on:
-  # For manual or aAPI triggering
+  # For manual or API triggering
   workflow_dispatch:
     inputs:
       book_id:
