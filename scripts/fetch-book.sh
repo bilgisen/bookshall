@@ -20,17 +20,22 @@ COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
 # Handle metadata with proper JSON validation
 METADATA="${METADATA:-{}}"
 # Remove any surrounding single quotes if present
-if [[ "$METADATA" == "'"*"'" ]]; then
-  METADATA="${METADATA:1:${#METADATA}-2}"
+METADATA=$(echo "$METADATA" | sed "s/^'\|\"\|'$//g")
+# If empty after stripping, use empty object
+if [ -z "$METADATA" ]; then
+  METADATA='{}'
 fi
-# Validate and sanitize JSON
-if ! SANITIZED_JSON=$(echo "$METADATA" | jq -c . 2>/dev/null); then
+# Try to parse with jq, if it fails, use empty object
+if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
   echo "::warning::Invalid JSON in metadata, using empty object"
   METADATA='{}'
 else
-  METADATA="$SANITIZED_JSON"
+  # Extract slug if it exists
+  SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
+  if [ -n "$SLUG" ]; then
+    echo "SLUG=$SLUG" >> $GITHUB_ENV
+  fi
 fi
-
 echo "Using metadata: $METADATA"
 
 mkdir -p "$PAYLOAD_DIR" "$CHAPTERS_DIR" "$OUTPUT_DIR"
