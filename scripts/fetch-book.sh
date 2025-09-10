@@ -97,14 +97,35 @@ error() { echo -e "[ERROR] $*" >&2; exit 1; }
 download_with_retry() {
   local url="$1" output="$2"
   local max_retries=3
+  
+  # Debug info
+  log "Downloading $url to $output"
+  log "Using token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
+  
   for i in $(seq 1 $max_retries); do
-    if curl -sSf -H "Authorization: Bearer $TOKEN" -o "$output.tmp" "$url"; then
+    log "Attempt $i of $max_retries..."
+    
+    # Use curl with verbose output to debug
+    if ! curl -v \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "X-Request-ID: $(uuidgen || date +%s)" \
+      -H "X-GitHub-Event: workflow_dispatch" \
+      -o "$output.tmp" \
+      "$url" 2>"$output.curl.log"; then
+      
+      # Log the error but continue to retry
+      warn "Attempt $i failed. Response code: $(grep -o 'HTTP/[0-9.]* [0-9]*' "$output.curl.log" || echo 'unknown')"
+      [ $i -lt $max_retries ] && sleep $((i*2))
+    else
+      # Success - move the temp file to output
       mv "$output.tmp" "$output"
+      log "Successfully downloaded to $output"
       return 0
     fi
-    sleep $((i*2))
   done
-  error "Failed to download $url"
+  
+  # If we get here, all retries failed
+  error "Failed to download $url after $max_retries attempts. Last error log:\n$(cat "$output.curl.log" 2>/dev/null || echo 'No error log available')"
 }
 
 update_status() {
