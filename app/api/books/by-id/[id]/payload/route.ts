@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/db/drizzle';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { books, chapters } from '@/db';
 import { auth } from '@/lib/auth';
@@ -12,23 +12,17 @@ export const runtime = 'nodejs';
 
 // Types and Schemas
 const PublishOptionsSchema = z.object({
-  // Format options
   format: z.enum(['epub']).default('epub'),
-  
-  // Content inclusion
   includeMetadata: z.boolean().default(true),
   includeCover: z.boolean().default(true),
   includeTOC: z.boolean().default(true),
   tocLevel: z.number().int().min(1).max(5).default(3),
   includeImprint: z.boolean().default(true),
   language: z.string().default('en'),
-  
-  // Legacy parameters (for backward compatibility)
   generate_toc: z.boolean().optional(),
   include_imprint: z.boolean().optional(),
   toc_depth: z.number().int().min(1).max(5).optional(),
 }).transform(data => ({
-  // Normalize options
   format: data.format,
   includeMetadata: data.includeMetadata,
   includeCover: data.includeCover,
@@ -41,7 +35,6 @@ const PublishOptionsSchema = z.object({
 type PublishOptions = z.infer<typeof PublishOptionsSchema>;
 
 // Data Types
-// From db/schema.ts: chapters table definition
 interface ChapterNode {
   id: string;
   bookId: string;
@@ -109,70 +102,128 @@ function getBaseUrl(request: NextRequest): string {
 }
 
 async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
-  // Fetch all non-draft chapters for the book
-  const allChapters = await db.query.chapters.findMany({
-    where: and(
-      eq(chapters.bookId, bookId),
-      eq(chapters.isDraft, false)
-    ),
-    orderBy: (chapters, { asc }) => [asc(chapters.order)],
-  });
+  try {
+    console.log('Building chapter tree for bookId:', bookId);
+    
+    // Fetch all non-draft chapters for the book with explicit field selection
+    console.log('Fetching chapters for bookId:', bookId);
+    const allChapters = await db.select({
+      id: chapters.id,
+      bookId: chapters.bookId,
+      title: chapters.title,
+      content: chapters.content,
+      order: chapters.order,
+      level: chapters.level,
+      parentChapterId: chapters.parentChapterId,
+      isDraft: chapters.isDraft,
+      wordCount: chapters.wordCount,
+      readingTime: chapters.readingTime,
+      uuid: chapters.uuid,
+      createdAt: chapters.createdAt,
+      updatedAt: chapters.updatedAt
+    }).from(chapters).where(
+      and(
+        eq(chapters.bookId, bookId),
+        eq(chapters.isDraft, false)
+      )
+    ).orderBy(chapters.order);
+    
+    console.log(`Found ${allChapters.length} non-draft chapters for book ${bookId}`);
 
-  const chapterMap = new Map<string, ChapterNode>();
-  const rootChapters: ChapterNode[] = [];
+    console.log('Fetched chapters count:', allChapters.length);
+    console.log('Fetched chapters:', JSON.stringify(allChapters, null, 2));
 
-  // First pass: create all nodes with proper typing
-  for (const chapter of allChapters) {
-    const node: ChapterNode = {
-      id: chapter.id,
-      bookId: chapter.bookId,
-      title: chapter.title,
-      content: chapter.content,
-      order: chapter.order,
-      parentChapterId: chapter.parentChapterId,
-      level: chapter.level,
-      isDraft: chapter.isDraft ?? false, // Default to false if null
-      wordCount: chapter.wordCount,
-      readingTime: chapter.readingTime,
-      createdAt: chapter.createdAt,
-      updatedAt: chapter.updatedAt,
-      children: [],
-      slug: `chapter-${chapter.id}`
-    };
-    chapterMap.set(chapter.id, node);
-  }
+    if (allChapters.length === 0) {
+      console.log('No chapters found for bookId:', bookId);
+      return [];
+    }
 
-  // Second pass: build the tree
-  for (const chapter of allChapters) {
-    const node = chapterMap.get(chapter.id);
-    if (!node) continue;
+    const chapterMap = new Map<string, ChapterNode>();
+    const rootChapters: ChapterNode[] = [];
 
-    if (chapter.parentChapterId) {
-      const parent = chapterMap.get(chapter.parentChapterId);
-      if (parent) {
-        // Ensure level is properly incremented
-        node.level = parent.level + 1;
-        parent.children.push(node);
+    // First pass: create all nodes with proper typing
+    for (const chapter of allChapters) {
+      // Ensure content is a string
+      let content = '';
+      if (typeof chapter.content === 'string') {
+        content = chapter.content;
+      } else if (chapter.content && typeof chapter.content === 'object') {
+        // If it's a Tiptap JSON object, convert to string
+        content = JSON.stringify(chapter.content);
+      } else if (chapter.content !== null && chapter.content !== undefined) {
+        content = String(chapter.content);
+      }
+
+      const node: ChapterNode = {
+        id: String(chapter.id),
+        bookId: String(chapter.bookId),
+        title: chapter.title || 'Untitled Chapter',
+        content: content,
+        order: chapter.order ?? 0,
+        parentChapterId: chapter.parentChapterId ? String(chapter.parentChapterId) : null,
+        level: chapter.level ?? 1,
+        isDraft: chapter.isDraft ?? false,
+        wordCount: chapter.wordCount ?? 0,
+        readingTime: chapter.readingTime ?? null,
+        createdAt: chapter.createdAt ?? new Date(),
+        updatedAt: chapter.updatedAt ?? new Date(),
+        children: [],
+        slug: `chapter-${chapter.id}`,
+        uuid: chapter.uuid || undefined
+      };
+      
+      chapterMap.set(String(chapter.id), node);
+    }
+
+    console.log('Chapter map size:', chapterMap.size);
+
+    // Second pass: build the tree
+    for (const chapter of allChapters) {
+      const chapterId = String(chapter.id);
+      const node = chapterMap.get(chapterId);
+      if (!node) {
+        console.log('Node not found for chapterId:', chapterId);
         continue;
       }
+
+      if (chapter.parentChapterId) {
+        const parentChapterId = String(chapter.parentChapterId);
+        const parent = chapterMap.get(parentChapterId);
+        if (parent) {
+          // Ensure level is properly incremented
+          node.level = parent.level + 1;
+          parent.children.push(node);
+          console.log(`Added chapter ${chapterId} as child of ${parentChapterId}`);
+          continue;
+        } else {
+          console.log(`Parent chapter ${parentChapterId} not found for chapter ${chapterId}`);
+        }
+      }
+      
+      // If no parent or parent not found, add to root with level 1
+      node.level = 1;
+      rootChapters.push(node);
+      console.log(`Added chapter ${chapterId} to root chapters`);
     }
+
+    // Sort chapters by order
+    const sortChapters = (nodes: ChapterNode[]): ChapterNode[] => {
+      return nodes
+        .sort((a, b) => a.order - b.order)
+        .map(node => ({
+          ...node,
+          children: sortChapters(node.children),
+        }));
+    };
+
+    const sortedRootChapters = sortChapters(rootChapters);
+    console.log('Built chapter tree with root chapters:', sortedRootChapters.length);
     
-    // If no parent or parent not found, add to root with level 1
-    node.level = 1;
-    rootChapters.push(node);
+    return sortedRootChapters;
+  } catch (error) {
+    console.error('Error building chapter tree:', error);
+    return [];
   }
-
-  // Sort chapters by order
-  const sortChapters = (nodes: ChapterNode[]): ChapterNode[] => {
-    return nodes
-      .sort((a, b) => a.order - b.order)
-      .map(node => ({
-        ...node,
-        children: sortChapters(node.children),
-      }));
-  };
-
-  return sortChapters(rootChapters);
 }
 
 function flattenChapterTree(
@@ -183,6 +234,8 @@ function flattenChapterTree(
   parentId: string | null = null
 ): PayloadChapter[] {
   let result: PayloadChapter[] = [];
+  
+  console.log('Flattening chapter tree, chapters count:', chapters.length);
   
   for (const chapter of chapters) {
     const slug = `chapter-${chapter.id}`;
@@ -202,6 +255,7 @@ function flattenChapterTree(
     };
     
     result.push(payloadChapter);
+    console.log(`Flattened chapter: ${chapter.title} (ID: ${chapter.id})`);
     
     // Add children recursively
     if (chapter.children.length > 0) {
@@ -217,8 +271,10 @@ function flattenChapterTree(
 // Main Handler
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  // Await the params promise
+  const { id } = await params;
   try {
     // Authenticate the request
     const session = await auth.api.getSession({
@@ -232,7 +288,11 @@ export async function GET(
       );
     }
 
-    const { id: bookId } = params;
+    // Await params as required by Next.js 15
+    const awaitedParams = await params;
+    const { id: bookId } = awaitedParams;
+    
+    console.log('GET /api/books/by-id/[id]/payload called with bookId:', bookId);
     
     if (!bookId) {
       return NextResponse.json(
@@ -245,23 +305,44 @@ export async function GET(
     const queryParams = Object.fromEntries(request.nextUrl.searchParams);
     const options = PublishOptionsSchema.parse({
       ...queryParams,
-      // Map legacy parameter names
       toc_depth: queryParams.toc_depth || queryParams.tocLevel,
       include_imprint: queryParams.include_imprint || queryParams.includeImprint,
       generate_toc: queryParams.generate_toc || queryParams.includeTOC,
     });
     
-    // Fetch the book with proper type
+    // Get the book with all necessary fields
+    console.log('Fetching book with ID:', bookId);
     const book = await db.query.books.findFirst({
-      where: eq(books.id, bookId),
+      where: (books, { eq }) => eq(books.id, bookId),
+      columns: {
+        id: true,
+        title: true,
+        slug: true,
+        author: true,
+        description: true,
+        language: true,
+        subtitle: true,
+        coverImageUrl: true,
+        isPublished: true,
+        userId: true, // Added userId to the query
+        createdAt: true,
+        updatedAt: true,
+      },
     });
-
+    
     if (!book) {
+      console.error('Book not found with ID:', bookId);
       return NextResponse.json(
         { error: 'Book not found' },
         { status: 404 }
       );
     }
+    
+    console.log('Found book:', { 
+      id: book.id, 
+      title: book.title,
+      isPublished: book.isPublished 
+    });
 
     // Verify ownership (if needed)
     if (book.userId !== session.user.id) {
@@ -272,9 +353,53 @@ export async function GET(
     }
 
     // Build chapter tree and flatten for payload
+    console.log('Building chapter tree for book ID:', bookId);
     const chapterTree = await buildChapterTree(bookId);
+    console.log('Chapter tree built, root chapters count:', chapterTree.length);
+    
+    // Debug: Check if we have any chapters in the database for this book
+    const debugChapters = await db.select({
+      id: chapters.id,
+      title: chapters.title,
+      parentChapterId: chapters.parentChapterId,
+      order: chapters.order,
+      isDraft: chapters.isDraft,
+      bookId: chapters.bookId,
+      level: chapters.level,
+      content: chapters.content
+    }).from(chapters).where(
+      and(
+        eq(chapters.bookId, bookId),
+        eq(chapters.isDraft, false)
+      )
+    ).orderBy(chapters.order);
+    
+    console.log('Debug - Total non-draft chapters in database for this book:', debugChapters.length);
+    if (debugChapters.length > 0) {
+      console.log('Debug - Sample chapter from database:', {
+        id: debugChapters[0].id,
+        bookId: debugChapters[0].bookId,
+        title: debugChapters[0].title,
+        parentChapterId: debugChapters[0].parentChapterId,
+        order: debugChapters[0].order,
+        level: debugChapters[0].level,
+        isDraft: debugChapters[0].isDraft,
+        contentLength: debugChapters[0].content?.length || 0
+      });
+    } else {
+      // Check if there are any chapters at all (including drafts)
+      const anyChapters = await db.select({ count: sql<number>`count(*)` })
+        .from(chapters)
+        .where(eq(chapters.bookId, bookId));
+      
+      console.log(`Debug - Total chapters (including drafts): ${anyChapters[0]?.count || 0}`);
+    }
+    
     const baseUrl = getBaseUrl(request);
+    console.log('Base URL:', baseUrl);
+    
     const payloadChapters = flattenChapterTree(chapterTree, book.slug, baseUrl);
+    console.log('Flattened payload chapters count:', payloadChapters.length);
 
     // Generate output filename
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -285,7 +410,7 @@ export async function GET(
       book: {
         slug: book.slug,
         title: book.title,
-        author: book.author,
+        author: book.author || '',
         language: options.language,
         description: book.description || undefined,
         subtitle: book.subtitle || undefined,
@@ -305,9 +430,11 @@ export async function GET(
         generated_at: new Date().toISOString(),
         generated_by: 'bookshall-epub-generator',
         user_id: session.user.id,
-        user_email: session.user.email,
+        user_email: session.user.email || undefined,
       },
     };
+
+    console.log('Generated payload with chapters:', payload.book.chapters.length);
 
     // Return the payload
     return NextResponse.json(payload);

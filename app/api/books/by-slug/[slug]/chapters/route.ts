@@ -11,11 +11,12 @@ import { chapters, books } from '@/db';
 // -----------------
 export async function GET(
   req: Request,
-  context: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Await the params promise
+  const { slug } = await params;
   console.log('GET /api/books/by-slug/[slug]/chapters called');
   try {
-    const { slug } = await context.params;
     const response = await auth.api.getSession({
       headers: req.headers,
     });
@@ -132,11 +133,12 @@ export async function GET(
 // -----------------
 export async function POST(
   req: Request,
-  context: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Await the params promise
+  const { slug } = await params;
   console.log('POST /api/books/by-slug/[slug]/chapters called');
   try {
-    const { slug } = await context.params;
     const response = await auth.api.getSession({
       headers: req.headers,
     });

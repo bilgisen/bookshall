@@ -12,6 +12,7 @@ interface BookHeaderProps {
   slug?: string;
   onEdit?: () => void;
   showEditButton?: boolean;
+  children?: React.ReactNode;
 }
 
 export function BookHeader({
@@ -19,6 +20,7 @@ export function BookHeader({
   description,
   slug,
   showEditButton = true,
+  children,
 }: BookHeaderProps) {
   return (
     <div className="w-full space-y-4">
@@ -31,24 +33,18 @@ export function BookHeader({
         </div>
         
         <div className="flex items-center gap-2 ml-4">
-          {showEditButton && slug && (
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="flex items-center gap-1.5"
-            >
-              <Link href={`/dashboard/books/${slug}/edit`}>
-                <Pencil className="h-4 w-4" />
-                <span>Edit Book</span>
-              </Link>
-            </Button>
-          )}
-          <BooksMenu 
-            slug={slug || ""} 
-            hideEdit 
-            className="ml-2"
-          />
+          <div className="flex items-center space-x-2">
+            {children}
+            {showEditButton && slug && (
+              <Button variant="outline" size="icon" asChild>
+                <Link href={`/dashboard/books/${slug}/edit`}>
+                  <Pencil className="h-4 w-4" />
+                  <span className="sr-only">Edit</span>
+                </Link>
+              </Button>
+            )}
+            <BooksMenu slug={slug} hideEdit className="ml-2" />
+          </div>
         </div>
       </div>
       <Separator />

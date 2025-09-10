@@ -1,5 +1,7 @@
+// components/chapters/ChapterForm.tsx
 'use client';
 
+import React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Control } from 'react-hook-form';
 import type * as z from 'zod';
@@ -23,17 +25,20 @@ import { chapterFormSchema, type ChapterFormValues } from '@/lib/validation/chap
 import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import type { InferInsertModel } from 'drizzle-orm';
-import { chapters } from '@/db/schema';
+import { chapters } from '@/db';
 
 type DbChapter = InferInsertModel<typeof chapters> & {
+  id?: string | number;
   uuid?: string;
 };
 
 interface BaseChapterFormProps {
   initialData?: DbChapter | null;
-  bookId: number;
+  bookId: number | string;  // Accept both number and string for flexibility
   parentChapters: ChapterOption[];
   onSuccess?: (chapterId: string) => void;
+  onChange?: (data: Partial<ChapterFormValues>) => void;
+  isSubmitting?: boolean;
 }
 
 // For new chapters, slug is required
@@ -50,12 +55,15 @@ interface EditChapterFormProps extends BaseChapterFormProps {
 
 type ChapterFormProps = NewChapterFormProps | EditChapterFormProps;
 
-export function ChapterForm({ 
+export default function ChapterForm({ 
   initialData, 
   bookId, 
   parentChapters,
-  onSuccess 
-}: Omit<ChapterFormProps, 'slug'>) {
+  onSuccess,
+  onChange,
+  isSubmitting = false,
+  slug,
+}: ChapterFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -79,10 +87,12 @@ export function ChapterForm({
 
   // Create base values with proper string types for IDs
   const defaultValues: Omit<ChapterFormValues, 'uuid' | 'parentChapterId' | 'bookId'> & {
+    id?: string | number;
     parentChapterId?: string | null;
     bookId: string;
     uuid?: string;
   } = {
+    ...(initialData?.id && { id: initialData.id }),
     title: initialData?.title ?? '',
     content: formContent,
     parentChapterId: initialData?.parentChapterId ? String(initialData.parentChapterId) : null,
@@ -125,10 +135,19 @@ export function ChapterForm({
     },
   });
   
+  // Watch for form changes and call onChange prop
+  const watchFields = form.watch();
+  React.useEffect(() => {
+    if (onChange) {
+      onChange(watchFields);
+    }
+  }, [watchFields, onChange]);
+  
   // Get form control with proper typing
   const { control, handleSubmit } = form as unknown as {
     control: Control<FormValues>;
     handleSubmit: (onSubmit: (data: FormValues) => void) => (e?: React.FormEvent<HTMLFormElement>) => void;
+    watch: () => FormValues;
   };
   
   // Wrap the async submit handler to match the expected type
@@ -140,53 +159,54 @@ export function ChapterForm({
   const onSubmit = async (formValues: FormValues) => {
     try {
       setIsLoading(true);
-
-      // Form values are already properly typed, no need for a separate formData object
-
-      // Get the session
-      const { data: session } = await authClient.getSession();
       
-      if (!session?.user || !session?.session?.id) {
-        router.push('/sign-in');
-        return;
+      const session = await authClient.getSession();
+      const sessionId = session?.data?.session?.id;
+      if (!sessionId) {
+        throw new Error('Not authenticated');
       }
 
-      // Get the book slug from the URL
-      const urlSlug = window.location.pathname.split('/')[3];
-      if (!urlSlug) {
-        throw new Error('Could not determine book slug from URL');
+      if (!slug) {
+        throw new Error('Book slug is required');
       }
-
-      // Prepare chapter data with proper types
+      
+      // Prepare the chapter data for the API
       const chapterPayload = {
-        title: String(formValues.title),
-        content: formValues.content, // Let the API handle the format conversion
+        ...formValues,
+        bookId: String(bookId), // Ensure bookId is a string
         parentChapterId: formValues.parentChapterId || null,
         order: Number(formValues.order) || 0,
         level: Number(formValues.level) || 1,
         wordCount: Number(formValues.wordCount) || 0,
         readingTime: formValues.readingTime ? Number(formValues.readingTime) : null,
-        bookId: String(formValues.bookId),
         uuid: formValues.uuid,
-        // Include any additional fields required by the API
         ...(formValues.id && { id: String(formValues.id) }),
       };
-
-      const bookSlug = urlSlug || (initialData ? `book-${bookId}` : '');
       
-      if (!bookSlug) {
-        throw new Error('Book slug is required for creating new chapters');
+      // For PATCH requests, we should have an ID from initialData
+      const chapterId = initialData?.id ? String(initialData.id) : undefined;
+      
+      if (initialData && !chapterId) {
+        throw new Error('Chapter ID is required for updating');
       }
-      
-      const apiUrl = formValues.id 
-        ? `/api/books/${urlSlug}/chapters/${formValues.id}`
-        : `/api/books/${urlSlug}/chapters`;
+
+      // Use slug-based URL for the API endpoint
+      const apiUrl = chapterId 
+        ? `/api/books/by-slug/${slug}/chapters/${chapterId}`
+        : `/api/books/by-slug/${slug}/chapters`;
+
+      console.log('Making API request:', {
+        method: initialData ? 'PATCH' : 'POST',
+        url: apiUrl,
+        hasId: !!formValues.id,
+        slug,
+        chapterId: formValues.id
+      });
 
       const response = await fetch(apiUrl, {
         method: initialData ? 'PATCH' : 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.session.id}`
+          'Content-Type': 'application/json'
         },
         credentials: 'include',
         body: JSON.stringify(chapterPayload),
@@ -215,7 +235,12 @@ export function ChapterForm({
       if (onSuccess) {
         onSuccess(responseData.id);
       } else if (!initialData) {
-        router.push(`/dashboard/books/${urlSlug}/chapters/${responseData.id}/view`);
+        // Use slug in the URL for consistency
+        router.push(`/dashboard/books/${slug}/chapters/${responseData.id}/view`);
+        router.refresh();
+      } else if (initialData) {
+        // For updates, redirect to the view page
+        router.push(`/dashboard/books/${slug}/chapters/${responseData.id}/view`);
         router.refresh();
       }
     } catch (error) {
@@ -303,9 +328,15 @@ export function ChapterForm({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {initialData ? 'Update Chapter' : 'Create Chapter'}
+          <Button type="submit" disabled={isLoading || isSubmitting}>
+            {isLoading || isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isSubmitting ? 'Saving...' : 'Loading...'}
+              </>
+            ) : (
+              'Save Chapter'
+            )}
           </Button>
         </div>
       </form>

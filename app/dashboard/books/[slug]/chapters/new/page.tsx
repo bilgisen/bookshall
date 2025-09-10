@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Book } from "@/types/book";
-import { ChapterForm } from "@/components/chapters/ChapterForm";
+import ChapterForm from '@/components/chapters/ChapterForm';
 import { ChapterHeader } from "@/components/chapters/chapter-header";
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -132,6 +132,7 @@ export default function NewChapterPage() {
       
         <ChapterForm 
           bookId={Number(book.id)}
+          slug={params.slug}
           parentChapters={[]} // You might want to fetch parent chapters if needed
           onSuccess={handleSuccess}
         />

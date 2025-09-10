@@ -69,7 +69,7 @@ export default function Hero() {
           {/* CTA Button */}
           <Link href="/sign-in">
             <Button size="lg" className="rounded-2xl px-6 py-3 text-lg shadow-lg">
-              Create a book for free
+              Publish your book for free
             </Button>
           </Link>
         </div>

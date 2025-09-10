@@ -6,16 +6,17 @@ import { eq, and } from "drizzle-orm";
 
 // -----------------
 // GET /api/books/by-slug/[slug]
-// -----------------
+// Get a book by slug
 export async function GET(
   request: Request,
-  context: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Await the params promise
+  const { slug } = await params;
   console.log('GET /api/books/by-slug/[slug] called');
   console.log('Request URL:', request.url);
   
   try {
-    const { slug } = await context.params;
     console.log('Looking for book with slug:', slug);
     
     const response = await auth.api.getSession({
@@ -66,14 +67,15 @@ export async function GET(
 
 // -----------------
 // PUT /api/books/by-slug/[slug]
-// -----------------
+// Update a book by slug
 export async function PUT(
   request: Request,
-  context: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Await the params promise
+  const { slug } = await params;
   console.log('PUT /api/books/by-slug/[slug] called');
   try {
-    const { slug } = await context.params;
     const response = await auth.api.getSession({
       headers: request.headers,
     });
@@ -137,14 +139,15 @@ export async function PUT(
 
 // -----------------
 // DELETE /api/books/by-slug/[slug]
-// -----------------
+// Delete a book by slug
 export async function DELETE(
   request: Request,
-  context: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Await the params promise
+  const { slug } = await params;
   console.log('DELETE /api/books/by-slug/[slug] called');
   try {
-    const { slug } = await context.params;
     const response = await auth.api.getSession({
       headers: request.headers,
     });

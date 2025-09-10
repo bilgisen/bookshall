@@ -10,6 +10,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "commander": "^11.1.0",
+    "epub-gen": "^1.2.3",
+    "uuid": "^9.0.1",
     "@ai-sdk/openai": "2.0.23",
     "@ai-sdk/provider": "2.0.0",
     "@ai-sdk/provider-utils": "3.0.7",

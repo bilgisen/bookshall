@@ -13,8 +13,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { workflowId: string } }
+  { params }: { params: Promise<{ workflowId: string }> }
 ) {
+  // Await the params promise
+  const { workflowId } = await params;
+  
   try {
     // Get session from request
     const session = await auth.api.getSession({
@@ -28,7 +31,7 @@ export async function GET(
       );
     }
 
-    const { workflowId } = params;
+    // workflowId is already destructured from params above
 
     if (!workflowId) {
       return NextResponse.json(

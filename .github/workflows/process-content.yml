@@ -1,6 +1,57 @@
-name: Publish Content
+name: Publish Epub
 
 on:
+  # For manual or API triggering
+  workflow_dispatch:
+    inputs:
+      book_id:
+        description: 'ID of the book to publish'
+        required: true
+        type: string
+      user_id:
+        description: 'ID of the user triggering the publish'
+        required: true
+        type: string
+      session_id:
+        description: 'Session ID for tracking the publish process'
+        required: true
+        type: string
+      content_id:
+        description: 'Content ID for the book'
+        required: true
+        type: string
+      include_metadata:
+        description: 'Whether to include metadata in the EPUB'
+        required: false
+        type: boolean
+        default: true
+      include_cover:
+        description: 'Whether to include the cover image'
+        required: false
+        type: boolean
+        default: true
+      include_toc:
+        description: 'Whether to include table of contents'
+        required: false
+        type: boolean
+        default: true
+      toc_level:
+        description: 'Depth of the table of contents (1-6)'
+        required: false
+        type: number
+        default: 3
+      include_imprint:
+        description: 'Whether to include imprint page'
+        required: false
+        type: boolean
+        default: true
+      metadata:
+        description: 'Additional metadata (JSON string)'
+        required: false
+        type: string
+        default: '{}'
+
+  # For calling from other workflows
   workflow_call:
     inputs:
       book_id:
@@ -58,9 +109,7 @@ permissions:
 # Environment variables
 env:
   NODE_ENV: production
-  # Default backend URL - can be overridden in GitHub repository variables
   BACKEND_URL: ${{ vars.BACKEND_URL || 'https://editor.bookshall.com' }}
-  # Set default values for required environment variables
   BOOK_ID: ${{ inputs.book_id }}
   USER_ID: ${{ inputs.user_id }}
   SESSION_ID: ${{ inputs.session_id }}

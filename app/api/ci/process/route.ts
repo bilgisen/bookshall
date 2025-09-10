@@ -1,180 +1,101 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { WorkflowOptions, WorkflowState } from '@/types/workflow';
-
-type ProcessRequest = {
-  contentId: string;
-  mode: string;
-  options: WorkflowOptions;
-  metadata?: Record<string, unknown>;
-};
-
-// In-memory store for workflow status (replace with Redis in production)
-const workflowStatus = new Map<string, WorkflowState>();
-
-// Clean up old workflows periodically
-setInterval(() => {
-  const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  
-  for (const [id, workflow] of workflowStatus.entries()) {
-    if (workflow.updatedAt < oneHourAgo) {
-      workflowStatus.delete(id);
-    }
-  }
-}, 60 * 60 * 1000); // Run every hour
+// app/api/ci/process/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/db/drizzle';
+import { workflowStatus } from '@/db';
+import { eq } from 'drizzle-orm';
+import { triggerEpubWorkflow, PublishOptions } from '@/lib/workflows/trigger-epub';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // Get session from request
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     // Parse request body
-    const body = (await request.json()) as ProcessRequest;
-    const { contentId, mode, options, metadata = {} } = body;
-
+    const { contentId, mode, options, metadata } = await request.json();
+    
     if (!contentId || !mode) {
       return NextResponse.json(
-        { error: 'contentId and mode are required' },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Generate a unique workflow ID
-    const workflowId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    
-    // Store initial workflow status
-    workflowStatus.set(workflowId, {
-      status: 'pending',
-      progress: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    // Only support epub mode for now
+    if (mode !== 'epub') {
+      return NextResponse.json(
+        { error: 'Unsupported workflow mode' },
+        { status: 400 }
+      );
+    }
 
-    // Start processing in the background
-    processWorkflow(workflowId, contentId, mode, options, metadata);
+    // Trigger the workflow
+    const result = await triggerEpubWorkflow({
+      bookId: contentId,
+      options: options as Partial<PublishOptions> || {},
+      metadata: metadata || {},
+    });
 
     return NextResponse.json({
-      workflowId,
+      success: true,
+      workflowId: result.workflowId,
       status: 'pending',
-      message: 'Workflow started',
+      message: result.message,
     });
-
   } catch (error) {
-    console.error('Error in CI process:', error);
+    console.error('Error processing workflow:', error);
     return NextResponse.json(
       { 
-        error: error instanceof Error ? error.message : 'Internal server error' 
+        error: 'Failed to process workflow',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const workflowId = searchParams.get('workflowId');
-
+  
   if (!workflowId) {
     return NextResponse.json(
-      { error: 'workflowId is required' },
+      { error: 'Missing workflowId parameter' },
       { status: 400 }
     );
   }
 
-  const workflow = workflowStatus.get(workflowId);
-  
-  if (!workflow) {
-    return NextResponse.json(
-      { error: 'Workflow not found' },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({
-    workflowId,
-    status: workflow.status,
-    progress: workflow.progress,
-    result: workflow.result,
-    error: workflow.error,
-    updatedAt: workflow.updatedAt,
-  });
-}
-// Simulate workflow processing (replace with actual implementation)
-async function processWorkflow(
-  workflowId: string,
-  contentId: string,
-  mode: string,
-  options: WorkflowOptions,
-  metadata: Record<string, unknown>
-) {
-  const updateStatus = (updates: Partial<WorkflowState>) => {
-    const current = workflowStatus.get(workflowId);
-    if (current) {
-      workflowStatus.set(workflowId, {
-        ...current,
-        ...updates,
-        updatedAt: new Date(),
-      });
-    }
-  };
-
   try {
-    // Initialize workflow
-    workflowStatus.set(workflowId, {
-      status: 'processing',
-      progress: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    // Simulate processing steps
-    const steps = [
-      { name: 'Initializing', duration: 1000 },
-      { name: 'Processing content', duration: 3000 },
-      { name: 'Generating output', duration: 2000 },
-      { name: 'Finalizing', duration: 1000 },
-    ];
-
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const progress = Math.round(((i + 1) / steps.length) * 100);
-      
-      updateStatus({
-        status: 'processing',
-        progress,
-      });
-
-      console.log(`[${workflowId}] ${step.name} (${progress}%)`);
-      await new Promise(resolve => setTimeout(resolve, step.duration));
+    const workflow = await db
+      .select()
+      .from(workflowStatus)
+      .where(eq(workflowStatus.id, workflowId))
+      .limit(1)
+      .then(rows => rows[0]);
+    
+    if (!workflow) {
+      return NextResponse.json(
+        { error: 'Workflow not found' },
+        { status: 404 }
+      );
     }
 
-    // Complete the workflow
-    updateStatus({
-      status: 'completed',
-      progress: 100,
-      result: {
-        downloadUrl: `/api/downloads/${contentId}/book.epub`,
-        filePath: `/downloads/${contentId}/book.epub`,
-      },
+    return NextResponse.json({
+      id: workflow.id,
+      workflowId: workflow.workflowId,
+      status: workflow.status,
+      progress: workflow.progress,
+      error: workflow.error,
+      result: workflow.result,
+      workflowRunUrl: workflow.workflowRunUrl,
+      metadata: workflow.metadata,
+      startedAt: workflow.startedAt?.toISOString(),
+      updatedAt: workflow.updatedAt?.toISOString(),
+      completedAt: workflow.completedAt?.toISOString(),
     });
   } catch (error) {
-    console.error(`Workflow ${workflowId} failed:`, error);
-    updateStatus({
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-    throw error;
+    console.error('Error fetching workflow status:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch workflow status' },
+      { status: 500 }
+    );
   }
 }

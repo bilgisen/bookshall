@@ -196,10 +196,14 @@ export const workflowStatus = pgTable("workflow_status", {
     .notNull()
     .references(() => books.id, { onDelete: "cascade" }),
   workflowId: text("workflowId").notNull(),
-  status: text("status").notNull().default("pending"),
-  progress: integer("progress").default(0),
+  status: text("status", { enum: ['pending', 'queued', 'in-progress', 'completed', 'failed'] } as const).notNull().default("pending"),
+  progress: integer("progress").default(0).notNull(),
   error: text("error"),
   result: jsonb("result"),
+  workflowRunUrl: text("workflowRunUrl"),
+  metadata: jsonb("metadata"),
+  startedAt: timestamp("startedAt", { withTimezone: true }),
+  completedAt: timestamp("completedAt", { withTimezone: true }),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });

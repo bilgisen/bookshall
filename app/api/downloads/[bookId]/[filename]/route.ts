@@ -10,6 +10,8 @@ export async function GET(
   request: Request,
   { params }: { params: { bookId: string; filename: string } }
 ) {
+  // Await the params promise
+  const { bookId, filename } = await params;
   try {
     // Get session from request
     const session = await auth.api.getSession({

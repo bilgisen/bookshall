@@ -14,8 +14,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { userId: string } }
 ) {
+  // Await the params promise
+  const { userId } = await params;
   try {
-    const { userId } = params;
     const response = await auth.api.getSession({
       headers: request.headers,
     });

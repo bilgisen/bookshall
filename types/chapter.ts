@@ -1,4 +1,4 @@
-import { Chapter as DbChapter } from '../db/schema';
+import { Chapter as DbChapter } from '@/db';
 
 export type Chapter = DbChapter & {
   children?: Chapter[];

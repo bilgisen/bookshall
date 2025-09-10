@@ -22,21 +22,20 @@ import type { BookFormValues } from "@/lib/validation/book";
 import type { Book } from "@/types/book";
 
 // Components
-import { BookTitleSection } from "./sections/book-title-section";
-import { BookAuthorSection } from "./sections/book-author-section";
-import { BookMetaSection } from "./sections/book-meta-section";
-import { BookPublishingSection } from "./sections/book-publishing-section";
 import { BookCoverSection } from "./sections/book-cover-section";
-import { SlugInput } from "./sections/slug-input";
+import { MainSection } from "./sections/main-section";
+import { AdditionalSection } from "./sections/additional-section";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BookFormProps {
   defaultValues?: Partial<Book>;
   onSubmit: (data: BookFormValues) => Promise<void>;
   isSubmitting?: boolean;
   redirectPath: string;
+  onGenerateSlug?: (title: string) => string;
 }
 
-export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redirectPath }: BookFormProps) {
+export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redirectPath, onGenerateSlug }: BookFormProps) {
   // Initialize form with default values
   const methods = useForm<BookFormValues>({
     // @ts-expect-error - The type mismatch is due to optional fields in the schema
@@ -72,9 +71,19 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
     reValidateMode: "onChange"
   });
   
-  const { formState, getValues, handleSubmit } = methods;
+  const { formState, getValues, handleSubmit, watch, setValue } = methods;
   const { errors } = formState;
   const _timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Watch for title changes to auto-generate slug
+  const title = watch('title');
+  
+  useEffect(() => {
+    if (onGenerateSlug && title) {
+      const slug = onGenerateSlug(title);
+      setValue('slug', slug, { shouldValidate: true });
+    }
+  }, [title, onGenerateSlug, setValue]);
   
   // Explicitly type the form submission handler
   const handleFormSubmitTyped = handleSubmit as unknown as (
@@ -174,6 +183,19 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
   const handleFormSubmit: SubmitHandler<BookFormValues> = async (formData) => {
     console.log('Form submission started with data:', formData);
     try {
+      // Process tags - convert string to array and trim each tag
+      let tagsArray: string[] = [];
+      const tagsValue = formData.tags as unknown; // Type assertion to handle unknown type
+      
+      if (typeof tagsValue === 'string') {
+        tagsArray = tagsValue
+          .split(',')
+          .map((tag: string) => tag.trim())
+          .filter((tag: string) => tag.length > 0);
+      } else if (Array.isArray(tagsValue)) {
+        tagsArray = tagsValue.filter((tag): tag is string => typeof tag === 'string');
+      }
+
       // Create a properly typed submission data object
       const submissionData: BookFormValues = {
         // Required fields with type safety
@@ -201,7 +223,7 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
         genre: formData.genre || 'FICTION',
         series: formData.series || null,
         seriesIndex: formData.seriesIndex || null,
-        tags: Array.isArray(formData.tags) ? formData.tags : [],
+        tags: tagsArray,
         
         // Media
         coverImage: formData.coverImage || null,
@@ -234,31 +256,45 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
     <FormProvider {...methods}>
       <form 
         onSubmit={onSubmitForm}
-        className="grid grid-cols-3 gap-6 w-full"
+        className="w-full"
         noValidate
       >
-        <div className="col-span-2 space-y-6">
-          <BookTitleSection />
-          <SlugInput className="mt-6" />
-          <BookAuthorSection />
-          <BookMetaSection />
-          <BookPublishingSection />
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="w-full md:w-2/3">
+            <Tabs defaultValue="main" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="main">Main Information</TabsTrigger>
+                <TabsTrigger value="additional">Additional Information</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="main" className="space-y-6">
+                <MainSection />
+              </TabsContent>
+              
+              <TabsContent value="additional" className="space-y-6">
+                <AdditionalSection />
+              </TabsContent>
+            </Tabs>
+          </div>
+          
+          <div className="w-full md:w-1/3">
+            <div className="space-y-6">
+              <BookCoverSection />
+              <Button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="w-full"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
         </div>
-        <aside className="col-span-1 space-y-6">
-          <BookCoverSection />
-          <Button 
-            type="submit" 
-            disabled={isSubmitting}
-            className="w-full sm:w-auto"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : 'Save Changes'}
-          </Button>
-        </aside>
       </form>
     </FormProvider>
   );

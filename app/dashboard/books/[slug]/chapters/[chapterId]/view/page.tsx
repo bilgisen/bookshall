@@ -36,9 +36,9 @@ interface BookInfo {
 }
 
 interface ChapterWithBook {
-  id: number;
+  id: string; // Changed from number to string to handle UUID
   title: string;
-  content: string | object; // Content can be string or Tiptap JSON object
+  content: string | JSONContent;
   excerpt?: string | null;
   order: number;
   level: number;
@@ -48,25 +48,41 @@ interface ChapterWithBook {
   createdAt: string;
   updatedAt: string;
   publishedAt?: string | null;
-  parentChapterId: number | null;
-  bookId: number;
+  parentChapterId: string | null; // Changed from number | null to string | null
+  bookId: string; // Changed from number to string
   book: BookInfo;
 }
 
 async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWithBook> {
-  const res = await fetch(`/api/books/by-slug/${slug}/chapters/${chapterId}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  try {
+    console.log(`Fetching chapter with ID: ${chapterId} for book: ${slug}`);
+    
+    const res = await fetch(`/api/books/by-slug/${slug}/chapters/${chapterId}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store' // Prevent caching to ensure fresh data
+    });
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData?.error || 'Failed to fetch chapter');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      console.error('Failed to fetch chapter:', {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorData,
+        url: `/api/books/by-slug/${slug}/chapters/${chapterId}`
+      });
+      throw new Error(errorData?.error || `Failed to fetch chapter (${res.status})`);
+    }
+
+    const data = await res.json();
+    console.log('Fetched chapter data:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in fetchChapter:', error);
+    throw error;
   }
-
-  return res.json();
 }
 
 // Define the extensions used in your editor for generateHTML
@@ -133,6 +149,15 @@ export default function ChapterViewPage() {
         }
 
         const data = await fetchChapter(currentSlug, currentChapterId); // Use awaited params
+
+        // Debug log to inspect the content type and format
+        console.log('Chapter data received:', {
+          ...data,
+          contentType: typeof data.content,
+          contentSample: typeof data.content === 'string' 
+            ? data.content.substring(0, 100) + (data.content.length > 100 ? '...' : '')
+            : data.content
+        });
 
         // Ensure the data has the expected structure
         if (!data || typeof data !== 'object') {
@@ -252,69 +277,150 @@ export default function ChapterViewPage() {
               {(() => {
                 try {
                   let contentToRender = chapter.content;
+                  console.log('Rendering content:', {
+                    type: typeof contentToRender,
+                    content: contentToRender
+                  });
 
-                  // If content is a string, try to parse it as JSON
+                  // 1. Handle null/undefined content
+                  if (!contentToRender) {
+                    return <p className="text-muted-foreground">No content available</p>;
+                  }
+
+                  // 2. Handle string content
                   if (typeof contentToRender === 'string') {
-                    try {
-                      // Try to parse as JSON if it looks like JSON
-                      if (contentToRender.trim().startsWith('{') || contentToRender.trim().startsWith('[')) {
-                        contentToRender = JSON.parse(contentToRender);
-                        // After parsing, it should be an object, proceed to generateHTML
-                      } else {
-                        // It's a plain string, wrap it in a paragraph or render directly
-                         // Assuming it's plain text if not JSON
-                         return (
-                          <div
-                            className="whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: contentToRender }}
-                          />
+                    const trimmedContent = contentToRender.trim();
+                    // If it's a JSON string, parse it and continue processing
+                    if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
+                      try {
+                        const parsedContent = JSON.parse(trimmedContent);
+                        console.log('Parsed JSON content:', parsedContent);
+                        // If it's already a valid Tiptap document, use it as is
+                        if (typeof parsedContent === 'object' && parsedContent !== null && 'type' in parsedContent) {
+                          contentToRender = parsedContent as JSONContent;
+                        } else {
+                          // Otherwise, wrap in a document structure
+                          contentToRender = {
+                            type: 'doc',
+                            content: [
+                              {
+                                type: 'paragraph',
+                                content: [
+                                  {
+                                    type: 'text',
+                                    text: typeof parsedContent === 'string' 
+                                      ? parsedContent 
+                                      : JSON.stringify(parsedContent)
+                                  }
+                                ]
+                              }
+                            ]
+                          };
+                        }
+                      } catch (e) {
+                        console.warn('Failed to parse content as JSON, treating as plain text');
+                        // If it's not valid JSON but has HTML tags, render as HTML
+                        if (typeof contentToRender === 'string' && /<[a-z][\s\S]*>/i.test(contentToRender)) {
+                          return (
+                            <div 
+                              className="prose dark:prose-invert max-w-none"
+                              dangerouslySetInnerHTML={{ __html: contentToRender }} 
+                            />
+                          );
+                        }
+                        // Otherwise, treat as plain text
+                        const textContent = typeof contentToRender === 'string' 
+                          ? contentToRender 
+                          : JSON.stringify(contentToRender);
+                        return (
+                          <div className="prose dark:prose-invert max-w-none">
+                            <p>{textContent}</p>
+                          </div>
                         );
                       }
-                    } catch (parseError) {
-                      console.warn('Failed to parse chapter content string as JSON, rendering as text:', parseError);
-                      // If parsing fails, treat as plain text
+                    } else {
+                      // It's a plain string, not JSON
+                      const textContent = typeof contentToRender === 'string' 
+                        ? contentToRender 
+                        : JSON.stringify(contentToRender);
                       return (
-                        <div
-                          className="whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: contentToRender }}
-                        />
+                        <div className="prose dark:prose-invert max-w-none">
+                          <p>{textContent}</p>
+                        </div>
                       );
                     }
                   }
 
-                  // If we have a Tiptap document (object with type 'doc'), generate HTML
-                  if (typeof contentToRender === 'object' &&
-                      contentToRender !== null &&
-                      'type' in contentToRender &&
-                      contentToRender.type === 'doc') {
-
+                  // 3. Handle Tiptap JSON content (object with type 'doc')
+                  if (typeof contentToRender === 'object' && contentToRender !== null) {
                     try {
-                      // Use the correctly configured extensions array
-                      // Ensure contentToRender is properly typed as JSONContent
-                      const htmlContent = generateHTML(contentToRender as JSONContent, tiptapExtensionsForRendering);
+                      // Type guard to check if it's a Tiptap document
+                      const isTiptapDoc = (obj: any): obj is { type: string; content: any[] } => {
+                        return 'type' in obj && obj.type === 'doc' && 'content' in obj;
+                      };
 
+                      if (isTiptapDoc(contentToRender)) {
+                        // Ensure content is an array and has elements
+                        if (Array.isArray(contentToRender.content) && contentToRender.content.length > 0) {
+                          try {
+                            const tiptapContent = contentToRender as JSONContent;
+                            const htmlContent = generateHTML(tiptapContent, tiptapExtensionsForRendering);
+                            return (
+                              <div 
+                                className="prose dark:prose-invert max-w-none"
+                                dangerouslySetInnerHTML={{ __html: htmlContent }} 
+                              />
+                            );
+                          } catch (generateError) {
+                            console.error('Error generating HTML from Tiptap content:', generateError);
+                            // Fallback to rendering content as JSON
+                            return (
+                              <div className="prose dark:prose-invert max-w-none">
+                                <pre className="whitespace-pre-wrap p-4 bg-muted/50 rounded">
+                                  {JSON.stringify(contentToRender, null, 2)}
+                                </pre>
+                              </div>
+                            );
+                          }
+                        } else {
+                          // Empty content
+                          return <p className="text-muted-foreground">No content available</p>;
+                        }
+                      }
+                      
+                      // If it's an object but not a Tiptap doc, try to stringify it
+                      console.warn('Unexpected object format for chapter content:', contentToRender);
                       return (
-                        <div
-                          className="w-full prose dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: htmlContent }}
-                        />
+                        <div className="prose dark:prose-invert max-w-none">
+                          <pre className="whitespace-pre-wrap p-4 bg-muted/50 rounded">
+                            {JSON.stringify(contentToRender, null, 2)}
+                          </pre>
+                        </div>
                       );
-                    } catch (generateError) {
-                      console.error('Error generating HTML from Tiptap content:', generateError);
-                      // Fall through to error handling
-                      throw generateError; // Re-throw to be caught by the outer try/catch
+                    } catch (e) {
+                      console.error('Error processing content object:', e);
+                      // Try to render as much as possible even if there's an error
+                      return (
+                        <div className="prose dark:prose-invert max-w-none">
+                          <pre className="whitespace-pre-wrap p-4 bg-muted/50 rounded">
+                            {JSON.stringify(contentToRender, null, 2)}
+                          </pre>
+                        </div>
+                      );
                     }
                   }
 
                   // Fallback for other content types (e.g., array or unexpected object)
                   console.warn('Unexpected chapter content format for HTML generation:', typeof contentToRender, contentToRender);
                   return (
-                    <div
-                      className="whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{
-                        __html: typeof contentToRender === 'object' ? JSON.stringify(contentToRender, null, 2) : String(contentToRender)
-                      }}
-                    />
+                    <div className="prose dark:prose-invert max-w-none">
+                      <pre className="whitespace-pre-wrap p-4 bg-muted/50 rounded">
+                        {typeof contentToRender === 'object' 
+                          ? JSON.stringify(contentToRender, null, 2) 
+                          : String(contentToRender)
+                        }
+                      </pre>
+                    </div>
                   );
                 } catch (renderError) {
                   console.error('Error rendering chapter content:', renderError);

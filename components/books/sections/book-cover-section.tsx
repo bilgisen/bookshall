@@ -8,10 +8,9 @@ export function BookCoverSection() {
   const { control } = useFormContext();
   
   return (
-    <section className="p-4 border rounded-lg space-y-4">
-      <h2 className="text-lg font-semibold">Cover Image</h2>
+    <section className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground/70">Book Cover</label>
+        <label className="text-md font-medium text-muted-foreground/70">Book Cover</label>
         <Controller
           name="coverImageUrl" // Changed from "coverUrl" to match your schema
           control={control}

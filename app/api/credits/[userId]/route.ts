@@ -5,10 +5,11 @@ import { CreditService, type CreditSummary, type TransactionHistoryResult } from
 
 export async function GET(
   request: NextRequest,
-  context: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = await context.params;
+    // Await the params promise
+    const { userId } = await params;
     
     // Get the session using the request headers
     const response = await auth.api.getSession({

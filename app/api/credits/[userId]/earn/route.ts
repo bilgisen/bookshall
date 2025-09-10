@@ -4,11 +4,12 @@ import { CreditService } from '@/lib/services/credit.service';
 
 export async function POST(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
+  // Await the params promise
+  const { userId } = await params;
   try {
     const session = await auth();
-    const { userId } = params;
 
     // Verify the user is authenticated and has permission to earn credits
     if (!session?.user?.id) {

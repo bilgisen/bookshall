@@ -1,19 +1,24 @@
 // @/lib/validation/book.ts
 import { z } from "zod";
+import type { BookGenre } from '@/types';
 
+// Align with the BookGenre type from @/types/book
 export const BOOK_GENRES = [
-  "FICTION", "NON_FICTION", "SCIENCE_FICTION", "FANTASY", "ROMANCE",
-  "THRILLER", "MYSTERY", "HORROR", "BIOGRAPHY", "HISTORY", "SELF_HELP",
-  "CHILDREN", "YOUNG_ADULT", "COOKBOOK", "TRAVEL", "HUMOR", "POETRY",
-  "BUSINESS", "TECHNOLOGY", "SCIENCE", "PHILOSOPHY", "RELIGION", "OTHER",
-] as const;
+  'FICTION', 'NON_FICTION', 'SCIENCE_FICTION', 'FANTASY', 'ROMANCE',
+  'THRILLER', 'MYSTERY', 'HORROR', 'BIOGRAPHY', 'HISTORY', 'SELF_HELP',
+  'CHILDREN', 'YOUNG_ADULT', 'COOKBOOK', 'TRAVEL', 'HUMOR', 'POETRY',
+  'BUSINESS', 'TECHNOLOGY', 'SCIENCE', 'PHILOSOPHY', 'RELIGION', 'OTHER'
+] as const satisfies readonly BookGenre[];
 
-export type BookGenreType = (typeof BOOK_GENRES)[number];
+export type BookGenreType = BookGenre;
 
 export const bookSchema = z.object({
-  // Required fields
+    // Required fields
   title: z.string().min(1, { message: "Title is required" }),
   author: z.string().min(1, { message: "Author is required" }),
+  publisher: z.string().min(1, { message: "Publisher is required" }),
+  
+  // Optional fields with validation
   slug: z.string()
     .min(3, { message: "Slug must be at least 3 characters long" })
     .regex(/^[a-z0-9-]+$/, { 
@@ -22,12 +27,12 @@ export const bookSchema = z.object({
     .refine(
       (val) => val === val.toLowerCase(),
       { message: "Slug must be lowercase" }
-    ),
-  
-  // Optional fields with validation
+    )
+    .optional()
+    .nullable(),
+    
   subtitle: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
-  publisher: z.string().optional().nullable(),
   publisherWebsite: z
     .string()
     .url({ message: "Invalid URL" })
@@ -96,15 +101,7 @@ export const bookSchema = z.object({
   isFeatured: z.boolean().default(false)
 });
 
-export const bookFormSchema = bookSchema.superRefine((data, ctx) => {
-    if (!data.isbn && !data.publishYear) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Either ISBN or Publish Year is required",
-        path: ["isbn"],
-      });
-    }
-  });
+export const bookFormSchema = bookSchema;
 
 // Export the inferred type
 export type BookFormValues = {
@@ -130,7 +127,7 @@ export type BookFormValues = {
   illustrator?: string | null;
   
   // Book metadata
-  genre?: BookGenreType | string | null;
+  genre?: BookGenre | null;
   series?: string | null;
   seriesIndex?: number | null;
   tags?: string[] | null;

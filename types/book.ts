@@ -1,4 +1,4 @@
-import { Book as DBBook } from '@/db/schema';
+import { Book as DBBook } from '@/db';
 
 export type BookGenre = 'FICTION' | 'NON_FICTION' | 'SCIENCE_FICTION' | 'FANTASY' | 'ROMANCE' |
   'THRILLER' | 'MYSTERY' | 'HORROR' | 'BIOGRAPHY' | 'HISTORY' | 'SELF_HELP' |

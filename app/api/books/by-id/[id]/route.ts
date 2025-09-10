@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
-import { books, chapters } from '@/db/schema';
+import { books, chapters } from '@/db';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 
@@ -18,8 +18,10 @@ const whereClause = (id: string, userId: string) => {
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await the params promise
+  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -88,8 +90,10 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await the params promise
+  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -106,13 +110,13 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { 
+    let { 
       title, 
       author, 
       publisher, 
       description, 
       coverImageUrl, 
-      slug,
+      slug: rawSlug,
       subtitle,
       publisherWebsite,
       publishYear,
@@ -126,6 +130,23 @@ export async function PUT(
       language,
       epubUrl
     } = body;
+
+    // Ensure slug is not empty and is URL-friendly
+    let slug = (rawSlug || '').trim();
+    if (!slug) {
+      // If slug is empty, generate one from the title
+      slug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with dash
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
+    } else {
+      // Ensure slug is URL-friendly
+      slug = slug
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '') // Remove invalid characters
+        .replace(/--+/g, '-') // Replace multiple dashes with single dash
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
+    }
 
     if (!title || !author) {
       return NextResponse.json(
@@ -188,8 +209,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await the params promise
+  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,

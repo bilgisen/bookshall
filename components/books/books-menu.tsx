@@ -14,7 +14,7 @@ import { MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 
 interface BooksMenuProps {
-  slug: string;  // Book slug for navigation
+  slug?: string;  // Book slug for navigation (made optional)
   bookId?: string; // Book ID for direct operations
   onView?: () => void;
   onEdit?: () => void;

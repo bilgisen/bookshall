@@ -1,3 +1,4 @@
+// app/dashboard/books/[slug]/edit/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
 import type { Book } from '@/types/book';
-import { BOOK_GENRES, BookGenreType } from '@/lib/validation/book';
+import { BOOK_GENRES } from '@/lib/validation/book';
 import type { BookFormValues } from '@/lib/validation/book';
+import type { BookGenre } from '@/types';
 
 // API Response Types
 interface ApiResponse<T> {
@@ -34,13 +36,14 @@ const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // No need for EditBookPageProps since we'll use useParams()
 
 export default function EditBookPage() {
-  const router = useRouter();
   const params = useParams();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
   
   // Initialize form with proper types
   const form = useForm<BookFormValues>({
@@ -78,33 +81,25 @@ export default function EditBookPage() {
     }
   }, [slug, router]);
 
-  // Client-side auth check
+  // Combined auth check and data fetching
   useEffect(() => {
-    const checkAuth = async () => {
+    let isMounted = true;
+    
+    const fetchBook = async () => {
+      if (!slug) return;
+      
+      setIsLoading(true);
+      setBook(null); // Reset book state when slug changes
+      
       try {
+        // 1. Check authentication first
         const { data: session } = await authClient.getSession();
         if (!session?.user) {
           router.push('/sign-in');
           return;
         }
-        setIsAuthorized(true);
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        router.push('/sign-in');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [router]);
-
-  // Fetch book data after auth check
-  useEffect(() => {
-    if (!isAuthorized || !slug) return;
-
-    const fetchBook = async () => {
-      try {
+        
+        // 2. If authenticated, fetch book data
         console.log('Fetching book with slug:', slug);
         const response = await fetch(`/api/books/by-slug/${encodeURIComponent(slug)}`, {
           method: 'GET',
@@ -115,101 +110,87 @@ export default function EditBookPage() {
           },
         });
 
-        const responseData = await response.json();
-        console.log('Book fetch response:', { status: response.status, data: responseData });
-
         if (!response.ok) {
-          throw new Error(responseData.message || 'Failed to fetch book');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to fetch book');
         }
 
-        if (!responseData) {
-          throw new Error('No book data received from server');
-        }
-
-        // The API returns the book directly, not wrapped in a data property
-        const bookData = responseData as BookResponse;
+        const bookData = await response.json() as BookResponse;
+        
+        if (!isMounted) return;
         
         // Create a proper Book object with all required fields
         const book: Book = {
           ...bookData,
-          // Ensure we have all required Book fields
           createdAt: bookData.createdAt || new Date().toISOString(),
           updatedAt: bookData.updatedAt || new Date().toISOString(),
           created_at: bookData.created_at || bookData.createdAt,
           updated_at: bookData.updated_at || bookData.updatedAt,
-          // Add any other required fields with defaults if needed
           viewCount: bookData.viewCount || 0,
           publishedAt: bookData.publishedAt || null
         };
         
-        // Set the book data
         setBook(book);
+        setInitialLoad(false);
         
-        // Map BookResponse to BookFormValues with exact type matching
+        // Prepare form values
         const formValues: BookFormValues = {
-          // Required fields
-          title: bookData.title || '',
-          author: bookData.author || '',
-          slug: bookData.slug || '',
-          language: bookData.language || 'tr',
-          
-          // Status flags
-          isPublished: Boolean(bookData.isPublished),
-          isFeatured: Boolean(bookData.isFeatured),
-          
-          // Optional fields
-          subtitle: bookData.subtitle || null,
-          description: bookData.description || null,
-          publisher: bookData.publisher || null,
-          publisherWebsite: bookData.publisherWebsite || null,
-          
-          // Numeric fields
-          publishYear: typeof bookData.publishYear === 'number' ? bookData.publishYear : null,
-          
-          // String fields
-          isbn: bookData.isbn || null,
-          contributor: bookData.contributor || null,
-          translator: bookData.translator || null,
-          
-          // Genre - must be one of the valid values or undefined
-          genre: bookData.genre && BOOK_GENRES.includes(bookData.genre as BookGenreType)
-            ? (bookData.genre as BookGenreType)
-            : undefined,
-            
-          series: bookData.series || null,
-          seriesIndex: typeof bookData.seriesIndex === 'number' ? bookData.seriesIndex : null,
-          
-          // Array field - ensure it's an array of strings
-          tags: Array.isArray(bookData.tags) 
-            ? bookData.tags.filter((tag): tag is string => typeof tag === 'string')
+          title: book.title || '',
+          author: book.author || '',
+          slug: book.slug || '',
+          language: book.language || 'tr',
+          isPublished: Boolean(book.isPublished),
+          isFeatured: Boolean(book.isFeatured),
+          subtitle: book.subtitle || undefined,
+          description: book.description || undefined,
+          publisher: book.publisher || undefined,
+          publisherWebsite: book.publisherWebsite || undefined,
+          publishYear: typeof book.publishYear === 'number' ? book.publishYear : undefined,
+          isbn: book.isbn || undefined,
+          contributor: book.contributor || null,
+          translator: book.translator || null,
+          genre: (book.genre && BOOK_GENRES.includes(book.genre as BookGenre))
+            ? (book.genre as BookGenre)
+            : null,
+          series: book.series || undefined,
+          seriesIndex: typeof book.seriesIndex === 'number' ? book.seriesIndex : undefined,
+          tags: Array.isArray(book.tags) 
+            ? book.tags.filter((tag): tag is string => typeof tag === 'string')
             : [],
-            
-          // Media URLs
-          coverImageUrl: bookData.coverImageUrl || null,
-          epubUrl: bookData.epubUrl || null
+          coverImageUrl: book.coverImageUrl || undefined,
+          epubUrl: book.epubUrl || undefined
         };
         
-        // Reset form with new values
         form.reset(formValues);
+        
       } catch (error) {
-        console.error('Error fetching book:', error);
-        toast.error('Failed to load book data');
-        router.push('/dashboard/books');
+        console.error('Error:', error);
+        if (isMounted) {
+          if (error instanceof Error && error.message.includes('Failed to fetch')) {
+            router.push('/dashboard/books');
+          } else {
+            toast.error('Failed to load book data');
+            router.push('/dashboard/books');
+          }
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    if (slug && isAuthorized) {
-      fetchBook();
-    }
-  }, [slug, router, isAuthorized, form]);
+    fetchBook();
+    
+    return () => {
+      isMounted = false;
+    };
+
+  }, [slug, router, form]);
 
   const handleSubmit = async (formData: BookFormValues) => {
-    if (isSubmitting) return;
-    
-    if (!book) {
-      toast.error('Book data not loaded');
+    if (isSubmitting || !book) {
+      toast.error('Book data not loaded or already submitting');
       return;
     }
     
@@ -225,11 +206,22 @@ export default function EditBookPage() {
         return;
       }
 
+      // Ensure slug is not empty and is URL-friendly
+      let slug = formData.slug?.trim() || '';
+      if (!slug) {
+        // If slug is empty, generate one from the title
+        slug = formData.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with dash
+          .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
+      }
+
       // Prepare the data for the API
       const updateData = {
         ...formData,
         id: book.id,
         userId: session.user.id,
+        slug, // Use the processed slug
         // Convert empty strings to null for optional fields
         subtitle: formData.subtitle || null,
         description: formData.description || null,
@@ -248,21 +240,35 @@ export default function EditBookPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update book');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to update book');
       }
 
-      const responseData = await response.json() as ApiResponse<BookResponse>;
-      
-      if (!responseData.data) {
-        throw new Error('No data received from server after update');
+      // Parse the response directly as BookResponse
+      let updatedBook: BookResponse | null = null;
+      try {
+        const rawData = await response.json();
+        
+        // Ensure the response contains at least some expected book fields
+        if (rawData && typeof rawData === 'object' && 'id' in rawData) {
+          updatedBook = rawData as BookResponse;
+        } else {
+          console.warn('API response does not contain a valid book object:', rawData);
+          throw new Error('Invalid book data received from server');
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Received invalid response format from server');
       }
 
-      console.log('Book updated successfully:', responseData);
+      if (!updatedBook) {
+        throw new Error('No valid book data received from server after update');
+      }
+
+      console.log('Book updated successfully:', updatedBook);
       toast.success('Book updated successfully');
       
       // Handle redirect based on whether slug changed
-      const updatedBook = responseData.data;
       if (updatedBook.slug !== slug) {
         // If slug changed, redirect to new URL
         router.push(`/dashboard/books/${updatedBook.slug}/view`);
@@ -280,103 +286,69 @@ export default function EditBookPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || initialLoad) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-4 bg-muted rounded w-1/4"></div>
-          <Separator className="my-4" />
-          <div className="space-y-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="h-4 bg-muted rounded w-1/4"></div>
-                <div className="h-10 bg-muted rounded"></div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading book data...</p>
       </div>
     );
   }
 
   if (!book) {
     return (
-      <div className="container mx-auto p-6">
-        <BookHeader 
-          title="Book Not Found"
-          description="The book you're looking for doesn't exist or you don't have permission to view it."
-        />
-        <Button 
-          onClick={() => router.push('/dashboard/books')}
-          variant="outline"
-          className="mt-4"
-        >
-          Back to Books
-        </Button>
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Book not found</p>
       </div>
     );
   }
 
-  // Transform Book to BookFormValues
-  const formValues: BookFormValues = book ? {
-    // Required fields with empty string fallback
+  // Prepare form values from book data
+  const formValues: BookFormValues = {
     title: book.title || '',
     author: book.author || '',
-    publisher: book.publisher || '',
     slug: book.slug || '',
-    
-    // Handle contributor and translator as strings
-    contributor: book.contributor || null,
-    translator: book.translator || null,
-    
-    // Optional fields with undefined for null values
+    language: book.language || 'tr',
+    isPublished: Boolean(book.isPublished),
+    isFeatured: Boolean(book.isFeatured),
     subtitle: book.subtitle || undefined,
     description: book.description || undefined,
+    publisher: book.publisher || undefined,
     publisherWebsite: book.publisherWebsite || undefined,
-    publishYear: book.publishYear || undefined,
+    publishYear: typeof book.publishYear === 'number' ? book.publishYear : undefined,
     isbn: book.isbn || undefined,
-    language: book.language || 'tr',
-    genre: book.genre || undefined,
+    contributor: book.contributor || null,
+    translator: book.translator || null,
+    genre: (book.genre && BOOK_GENRES.includes(book.genre as BookGenre))
+      ? (book.genre as BookGenre)
+      : null,
     series: book.series || undefined,
-    seriesIndex: book.seriesIndex || undefined,
-    tags: [], // Initialize empty array for tags if needed
+    seriesIndex: typeof book.seriesIndex === 'number' ? book.seriesIndex : undefined,
+    tags: Array.isArray(book.tags) 
+      ? book.tags.filter((tag): tag is string => typeof tag === 'string')
+      : [],
     coverImageUrl: book.coverImageUrl || undefined,
-    isPublished: book.isPublished || false,
-    isFeatured: book.isFeatured || false
-  } : {
-    // Default empty values if book is null
-    title: '',
-    author: '',
-    publisher: '',
-    slug: '',
-    language: 'tr',
-    isPublished: false,
-    isFeatured: false,
-    contributor: null,
-    translator: null
+    epubUrl: book.epubUrl || undefined
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {book ? (
-        <>
-          <BookHeader 
-            title={`Edit: ${book.title}`}
-            description="Update the book details below"
-          />
-          <BookForm 
-            defaultValues={formValues}
-            onSubmit={handleSubmit}
-            isSubmitting={isSubmitting}
-            redirectPath="/dashboard/books"
-          />
-        </>
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading book details...</p>
-        </div>
-      )}
+    <div className="space-y-6 p-8">
+      <BookHeader
+        title="Edit Book"
+        description="Update book details"
+      >
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/dashboard/books/${book.slug}/view`)}
+        >
+          View Book
+        </Button>
+      </BookHeader>
+      <BookForm 
+        defaultValues={formValues}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        redirectPath="/dashboard/books"
+      />
     </div>
   );
 }

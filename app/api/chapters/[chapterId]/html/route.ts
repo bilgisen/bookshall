@@ -70,21 +70,33 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
+  // Await the params promise
+  const { chapterId } = await params;
   try {
-    const { chapterId } = params;
     const authResult = await authenticateRequest(request);
     if (authResult.type === 'unauthorized') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    // First, get the chapter
-    const [chapterResult] = await db
+    // First, try to find the chapter by UUID
+    let chapterResult = await db
       .select()
       .from(chapters)
-      .where(eq(chapters.id, chapterId))
-      .limit(1);
+      .where(eq(chapters.uuid, chapterId))
+      .limit(1)
+      .then(res => res[0]);
+      
+    // If not found by UUID, try by ID for backward compatibility
+    if (!chapterResult) {
+      chapterResult = await db
+        .select()
+        .from(chapters)
+        .where(eq(chapters.id, chapterId))
+        .limit(1)
+        .then(res => res[0]);
+    }
 
     if (!chapterResult) {
       return new NextResponse('Chapter not found', { status: 404 });

@@ -9,14 +9,12 @@ import { Chapter } from '@/types/chapter';
 
 export async function GET(
   req: Request,
-  context: { params: Promise<{ slug: string; chapterId: string }> }
+  { params }: { params: { slug: string; chapterId: string } }
 ) {
-  // Await the params to ensure they're resolved
-  const params = await context.params;
+  const { slug, chapterId } = params;
   console.log('GET /api/books/by-slug/[slug]/chapters/[chapterId] called');
   
   try {
-    const { slug, chapterId: chapterIdParam } = params;
     
     // Get session using authClient
     const sessionResponse = await auth.api.getSession({
@@ -51,11 +49,11 @@ export async function GET(
       );
     }
 
-    const chapterId = chapterIdParam;
+    const chapterId = params.chapterId.trim();
     console.log('Fetching chapter with ID:', chapterId, 'for book ID:', book.id);
     
-    // Get the chapter with basic book information
-    const [chapterData] = await db
+    // First try with the exact ID
+    let [chapterData] = await db
       .select({
         // Chapter fields
         id: chapters.id,
@@ -70,6 +68,7 @@ export async function GET(
         bookId: chapters.bookId,
         createdAt: chapters.createdAt,
         updatedAt: chapters.updatedAt,
+        isDraft: chapters.isDraft,
         
         // Book fields - only select fields that exist in the books table
         book: {
@@ -84,6 +83,7 @@ export async function GET(
           publishYear: books.publishYear,
           isbn: books.isbn,
           description: books.description,
+          isPublished: books.isPublished,
           createdAt: books.createdAt,
           updatedAt: books.updatedAt
         }
@@ -97,25 +97,61 @@ export async function GET(
         )
       )
       .limit(1);
+      
+    // If not found, try with UUID if the ID looks like a number (for backward compatibility)
+    if (!chapterData && !isNaN(Number(chapterId))) {
+      console.log('Chapter not found with ID, trying with UUID...');
+      [chapterData] = await db
+        .select({
+          id: chapters.id,
+          uuid: chapters.uuid,
+          title: chapters.title,
+          content: chapters.content,
+          order: chapters.order,
+          level: chapters.level,
+          wordCount: chapters.wordCount,
+          readingTime: chapters.readingTime,
+          parentChapterId: chapters.parentChapterId,
+          bookId: chapters.bookId,
+          isDraft: chapters.isDraft,
+          createdAt: chapters.createdAt,
+          updatedAt: chapters.updatedAt,
+          book: {
+            id: books.id,
+            title: books.title,
+            slug: books.slug,
+            author: books.author,
+            coverImageUrl: books.coverImageUrl,
+            language: books.language,
+            subtitle: books.subtitle,
+            publisher: books.publisher,
+            publishYear: books.publishYear,
+            isbn: books.isbn,
+            description: books.description,
+            isPublished: books.isPublished,
+            createdAt: books.createdAt,
+            updatedAt: books.updatedAt
+          }
+        })
+        .from(chapters)
+        .innerJoin(books, eq(chapters.bookId, books.id))
+        .where(
+          and(
+            eq(chapters.uuid, chapterId),
+            eq(chapters.bookId, book.id)
+          )
+        )
+        .limit(1);
+    }
 
     if (!chapterData) {
-      console.log('Chapter not found for id:', chapterId);
+      console.log('Chapter not found with ID:', chapterId, 'for book ID:', book.id);
       return NextResponse.json(
         { error: 'Chapter not found' }, 
         { status: 404 }
       );
     }
-    
-    console.log('Chapter data retrieved from DB:', {
-      id: chapterData.id,
-      title: chapterData.title,
-      hasContent: chapterData.content !== undefined && chapterData.content !== null,
-      contentType: typeof chapterData.content
-    });
 
-    // Prepare response data with proper serialization
-    const { book: bookData, ...restChapterData } = chapterData;
-    
     // Ensure content is in proper Tiptap JSON format
     let content = null;
     if (chapterData.content !== null && chapterData.content !== undefined) {
@@ -169,32 +205,40 @@ export async function GET(
       }
     }
 
+    // Return the data in the expected format
     const responseData = {
-      ...restChapterData,
-      content,
-      id: Number(restChapterData.id),
-      bookId: Number(restChapterData.bookId),
-      order: Number(restChapterData.order),
-      level: Number(restChapterData.level),
-      wordCount: restChapterData.wordCount ? Number(restChapterData.wordCount) : 0,
-      readingTime: restChapterData.readingTime ? Number(restChapterData.readingTime) : null,
-      parentChapterId: restChapterData.parentChapterId ? Number(restChapterData.parentChapterId) : null,
-      createdAt: new Date(restChapterData.createdAt).toISOString(),
-      updatedAt: new Date(restChapterData.updatedAt).toISOString(),
+      id: chapterData.id,
+      title: chapterData.title,
+      content: content,
+      excerpt: null, // Not in the schema
+      order: Number(chapterData.order) || 0,
+      level: Number(chapterData.level) || 1,
+      isDraft: false, // Not in the schema
+      wordCount: Number(chapterData.wordCount) || 0,
+      readingTime: chapterData.readingTime ? Number(chapterData.readingTime) : null,
+      parentChapterId: chapterData.parentChapterId || null,
+      bookId: chapterData.bookId,
+      uuid: chapterData.uuid,
+      createdAt: new Date(chapterData.createdAt).toISOString(),
+      updatedAt: new Date(chapterData.updatedAt).toISOString(),
+      publishedAt: null, // Not in the schema
+      // Include book information
       book: {
-        id: Number(bookData.id),
-        title: bookData.title,
-        slug: bookData.slug,
-        author: bookData.author || null,
-        coverImageUrl: bookData.coverImageUrl || null,
-        language: bookData.language,
-        subtitle: bookData.subtitle || null,
-        publisher: bookData.publisher || null,
-        publishYear: bookData.publishYear || null,
-        isbn: bookData.isbn || null,
-        description: bookData.description || null,
-        createdAt: new Date(bookData.createdAt).toISOString(),
-        updatedAt: new Date(bookData.updatedAt).toISOString()
+        id: chapterData.book.id,
+        title: chapterData.book.title,
+        slug: chapterData.book.slug,
+        author: chapterData.book.author || null,
+        coverImageUrl: chapterData.book.coverImageUrl || null,
+        language: chapterData.book.language || null,
+        subtitle: chapterData.book.subtitle || null,
+        publisher: chapterData.book.publisher || null,
+        publishYear: chapterData.book.publishYear || null,
+        isbn: chapterData.book.isbn || null,
+        description: chapterData.book.description || null,
+        isPublished: true, // Default value since it's not in the schema
+        publishedAt: null, // Not in the schema
+        createdAt: new Date(chapterData.book.createdAt).toISOString(),
+        updatedAt: new Date(chapterData.book.updatedAt).toISOString(),
       },
     };
     
@@ -215,12 +259,11 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  context: { params: Promise<{ slug: string; chapterId: string }> }
+  { params }: { params: { slug: string; chapterId: string } }
 ) {
-  const params = await context.params;
+  const { slug, chapterId } = params;
   console.log('PUT /api/books/by-slug/[slug]/chapters/[chapterId] called');
   try {
-    const { slug, chapterId: chapterIdParam } = params;
     const response = await auth.api.getSession({
       headers: req.headers,
     });
@@ -251,8 +294,6 @@ export async function PUT(
       );
     }
 
-    const chapterId = chapterIdParam;
-    
     // Parse the request body
     const updateData = await req.json();
     
@@ -393,13 +434,11 @@ export async function PUT(
 
 export async function PATCH(
   req: Request,
-  context: { params: Promise<{ slug: string; chapterId: string }> }
+  { params }: { params: { slug: string; chapterId: string } }
 ) {
+  const { slug, chapterId } = params;
   try {
-    const params = await context.params;
     console.log('PATCH /api/books/by-slug/[slug]/chapters/[chapterId] called');
-    
-    const { slug, chapterId: chapterIdParam } = params;
     const response = await auth.api.getSession({
       headers: req.headers,
     });
@@ -430,21 +469,90 @@ export async function PATCH(
       );
     }
 
-    const chapterId = chapterIdParam;
+    // Ensure chapterId is always a string for database queries
+    const chapterIdParam = String(chapterId).trim();
+    
+    // Log the incoming parameters for debugging
+    console.log('Processing chapter update for ID:', chapterIdParam, 'type:', typeof chapterIdParam);
+    console.log('Book ID:', book.id, 'type:', typeof book.id);
+    
+    // Validate chapterId format (should be a valid UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(chapterIdParam)) {
+      console.error('Invalid chapter ID format:', chapterIdParam);
+      return NextResponse.json(
+        { error: 'Invalid chapter ID format' },
+        { status: 400 }
+      );
+    }
     
     // Get the update data from the request body
     const updateData = await req.json();
     
+    console.log('Received update data:', JSON.stringify(updateData, null, 2));
+    
+    // First, try to find the chapter with the exact ID
+    console.log('Querying for chapter with ID:', chapterIdParam, 'and book ID:', book.id);
+    const existingChapter = await db.query.chapters.findFirst({
+      where: and(
+        eq(chapters.id, chapterIdParam),
+        eq(chapters.bookId, book.id)
+      )
+    });
+      
+    // If not found, try to find by numeric ID (for backward compatibility)
+    let chapterToUpdate = existingChapter;
+    if (!chapterToUpdate && !isNaN(Number(chapterId))) {
+      console.log('Chapter not found with UUID, trying numeric ID...');
+      const numericChapters = await db
+        .select()
+        .from(chapters)
+        .where(
+          and(
+            eq(chapters.id, String(chapterId)), // Try with string ID
+            eq(chapters.bookId, book.id)
+          )
+        )
+        .limit(1);
+      
+      if (numericChapters && numericChapters.length > 0) {
+        chapterToUpdate = numericChapters[0];
+      }
+    }
+      
+    console.log('Chapter found:', chapterToUpdate ? 'Yes' : 'No');
+
+    if (!chapterToUpdate) {
+      return NextResponse.json(
+        { 
+          error: 'Chapter not found or does not belong to this book',
+          details: { chapterId, bookId: book.id }
+        },
+        { status: 404 }
+      );
+    }
+    
     // Validate update data
-    const allowedFields = ['order', 'level', 'parentChapterId'];
-    const validUpdate: Record<string, string | number | null> = {};
+    const allowedFields = ['title', 'content', 'order', 'level', 'parentChapterId', 'wordCount', 'readingTime'];
+    const validUpdate: Record<string, string | number | null | object> = {};
+    
+    console.log('Allowed fields:', allowedFields);
     
     // Only allow specific fields to be updated
     for (const field of allowedFields) {
+      console.log(`Checking field: ${field}, exists: ${field in updateData}, value:`, updateData[field]);
+      
       if (field in updateData && updateData[field] !== undefined) {
-        validUpdate[field] = updateData[field];
+        // Handle content field specifically to preserve Tiptap JSON format
+        if (field === 'content') {
+          validUpdate[field] = updateData[field];
+        } else {
+          validUpdate[field] = updateData[field];
+        }
       }
     }
+    
+    console.log('Valid update object:', JSON.stringify(validUpdate, null, 2));
     
     if (Object.keys(validUpdate).length === 0) {
       return NextResponse.json(
@@ -482,13 +590,25 @@ export async function PATCH(
       }
     }
     
-    // Add updatedAt timestamp as ISO string
-    validUpdate.updatedAt = new Date().toISOString();
+    // Add updatedAt timestamp
+    validUpdate.updatedAt = new Date();
+    
+    // Create a properly typed update object
+    const updateValues: Record<string, any> = {};
+    
+    // Copy all valid fields
+    for (const [key, value] of Object.entries(validUpdate)) {
+      if (value !== undefined) {
+        updateValues[key] = value;
+      }
+    }
+    
+    console.log('Update values with dates:', JSON.stringify(updateValues, null, 2));
     
     // Update the chapter
     const [updatedChapter] = await db
       .update(chapters)
-      .set(validUpdate)
+      .set(updateValues as any) // Type assertion to avoid TypeScript errors
       .where(
         and(
           eq(chapters.id, chapterId),

@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
     // ignoreDuringBuilds: false,
   },
   async headers() {
+    const isProd = process.env.NODE_ENV === 'production';
+    const allowedOrigins = isProd 
+      ? ['https://bookshall.com', 'https://www.bookshall.com']
+      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://bookshall.com', 'https://www.bookshall.com'];
+
     return [
       {
         // Apply these headers to all routes in your application
@@ -34,12 +39,29 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://bookshall.com',
+            value: isProd ? 'https://bookshall.com' : '*',
+          },
+          {
+            key: 'Vary',
+            value: 'Origin',
           },
           {
             key: 'Access-Control-Allow-Methods',
             value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
           },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
+          },
+        ],
+      },
+      // Handle preflight requests
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Credentials', value: 'true' },
+          { key: 'Access-Control-Allow-Origin', value: isProd ? 'https://bookshall.com' : '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
           {
             key: 'Access-Control-Allow-Headers',
             value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',

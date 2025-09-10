@@ -1,4 +1,4 @@
-export type WorkflowStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type WorkflowStatusType = 'pending' | 'in-progress' | 'completed' | 'failed' | 'processing';
 
 export interface WorkflowOptions {
   includeMetadata?: boolean;
@@ -17,10 +17,11 @@ export interface WorkflowResult {
 }
 
 export interface WorkflowState {
-  status: WorkflowStatus;
+  status: WorkflowStatusType;
   progress: number;
   result?: WorkflowResult;
   error?: string;
+  workflowRunUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }

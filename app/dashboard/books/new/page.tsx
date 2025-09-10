@@ -1,16 +1,48 @@
-"use client"
+"use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookHeader } from "@/components/books/book-header";
-import { BookForm } from "@/components/books/book-form";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
 import { authClient } from "@/lib/auth-client";
-import type { BookFormValues } from "@/lib/validation/book";
+import { generateUniqueSlug } from "@/lib/utils/slugify";
+import { BookForm } from "@/components/books/book-form";
+
+type BookFormValues = {
+  title: string;
+  slug?: string;
+  author: string;
+  description?: string | null;
+  language?: string;
+  isPublished?: boolean;
+  publisher?: string | null;
+  isbn?: string | null;
+  coverImageUrl?: string | null;
+  isFeatured?: boolean;
+  subtitle?: string | null;
+  series?: string | null;
+  seriesIndex?: number | null;
+  publishYear?: number | null;
+  contributor?: string | null;
+  translator?: string | null;
+  tags?: string[] | null;
+};
 
 export default function NewBookPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  
+  const defaultValues: Partial<BookFormValues> = {
+    title: "",
+    slug: "",
+    author: "",
+    description: "",
+    language: "en",
+    isPublished: false,
+  };
   
   // Client-side auth check
   useEffect(() => {
@@ -39,9 +71,8 @@ export default function NewBookPage() {
     );
   }
 
-  const handleSubmit = async (data: BookFormValues) => {
-    console.log('Submitting form with data:', data);
-    
+  const handleSubmit = async (formData: BookFormValues) => {
+    setIsSubmitting(true);
     try {
       const { data: session } = await authClient.getSession();
       if (!session?.user) {
@@ -49,27 +80,30 @@ export default function NewBookPage() {
         return;
       }
 
+      // Generate slug from title if not provided
+      const slug = formData.slug || generateUniqueSlug(formData.title, []);
+
       // Prepare the book data according to the database schema
       const bookData = {
-        title: data.title?.trim(),
-        author: data.author?.trim(),
-        publisher: data.publisher?.trim(),
-        description: data.description?.trim(),
-        isbn: data.isbn?.trim(),
-        language: data.language || 'en',
-        coverImageUrl: data.coverImageUrl?.trim(),
-        isPublished: Boolean(data.isPublished),
-        isFeatured: Boolean(data.isFeatured),
-        slug: data.slug,
-        subtitle: data.subtitle?.trim(),
-        series: data.series?.trim(),
-        seriesIndex: data.seriesIndex ? Number(data.seriesIndex) : null,
-        publishYear: data.publishYear ? Number(data.publishYear) : null,
-        contributor: data.contributor || null,
-        translator: data.translator || null
+        ...formData,
+        title: formData.title.trim(),
+        slug,
+        author: formData.author.trim(),
+        publisher: formData.publisher?.trim() || null,
+        description: formData.description?.trim() || null,
+        isbn: formData.isbn?.trim() || null,
+        language: formData.language || 'en',
+        coverImageUrl: formData.coverImageUrl?.trim() || null,
+        isPublished: Boolean(formData.isPublished),
+        isFeatured: Boolean(formData.isFeatured),
+        subtitle: formData.subtitle?.trim() || null,
+        series: formData.series?.trim() || null,
+        seriesIndex: formData.seriesIndex ? Number(formData.seriesIndex) : null,
+        publishYear: formData.publishYear ? Number(formData.publishYear) : null,
+        contributor: formData.contributor?.trim() || null,
+        translator: formData.translator?.trim() || null,
+        tags: Array.isArray(formData.tags) ? formData.tags : []
       };
-
-      console.log('Sending book data to API:', bookData);
 
       const response = await fetch('/api/books', {
         method: 'POST',
@@ -83,7 +117,6 @@ export default function NewBookPage() {
       const responseData = await response.json();
 
       if (!response.ok) {
-        console.error('API Error Response:', responseData);
         throw new Error(
           responseData.error?.message || 
           responseData.message || 
@@ -93,39 +126,38 @@ export default function NewBookPage() {
 
       toast.success('Book created successfully');
       
-      // Ensure we have a valid slug before redirecting
       if (!responseData.slug) {
-        console.error('No slug in response:', responseData);
         throw new Error('Failed to create book: Invalid response from server');
       }
       
-      // Redirect to the book's view page with the slug from the response
       router.push(`/dashboard/books/${encodeURIComponent(responseData.slug)}/view`);
-      router.refresh(); // Ensure the page updates with the new book
+      router.refresh();
       
       return responseData;
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       toast.error(`Failed to save book: ${errorMessage}`);
-      throw error; // Re-throw to let the form handle the error state
+      throw error;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6 p-8">
-      <div>
-        <BookHeader
-          title="Create Book"
-          description="Add a new book to your library."
-        />
+    <div className="container mx-auto py-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Create New Book</h1>
+        <p className="text-muted-foreground">
+          Fill in the details below to add a new book to your collection.
+        </p>
       </div>
-      <div className="max-w-full mx-auto">
-        <BookForm 
-          onSubmit={handleSubmit}
-          redirectPath="/dashboard/books"
-        />
-      </div>
+      <BookForm 
+        defaultValues={defaultValues}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        onGenerateSlug={(title) => generateUniqueSlug(title, [])}
+        redirectPath="/dashboard/books"
+      />
     </div>
   );
 }

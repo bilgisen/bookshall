@@ -4,6 +4,7 @@ import { getSessionCookie } from 'better-auth/cookies';
 // List of allowed origins (add your frontend URLs here)
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
+  'http://127.0.0.1:3000',
   'http://localhost:3001',
   'https://bookshall.com',
   'https://www.bookshall.com',
@@ -16,12 +17,20 @@ const PUBLIC_PATHS = [
   '/api/auth/session',
   '/api/auth/csrf',
   '/api/auth/providers',
+  '/api/auth/get-session',
+  '/api/ci/process',
 ];
 
 // List of paths that don't require authentication
 const PUBLIC_API_PATHS = [
   '/api/health',
   '/api/hello',
+];
+
+// List of paths that require authentication but have custom handling
+const AUTH_REQUIRED_PATHS = [
+  '/api/trigger-workflow',
+  '/api/books',
 ];
 
 // Function to normalize origin by ensuring consistent www/non-www usage
@@ -47,7 +56,19 @@ export async function middleware(request: NextRequest) {
   
   // Handle CORS for all API routes
   if (pathname.startsWith('/api/')) {
+    // Create a response object
     const response = NextResponse.next();
+    
+    // Add CORS headers
+    if (normalizedOrigin && ALLOWED_ORIGINS.some(o => o === normalizedOrigin || o === origin)) {
+      response.headers.set('Access-Control-Allow-Origin', normalizedOrigin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+      response.headers.set(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+      );
+    }
     
     // Add CORS headers if the origin is allowed
     if (ALLOWED_ORIGINS.some(o => normalizeOrigin(o) === normalizedOrigin)) {

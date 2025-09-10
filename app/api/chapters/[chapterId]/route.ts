@@ -7,13 +7,13 @@ import { eq, and } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
-  context: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
+  // Await the params promise
+  const { chapterId } = await params;
   console.log('GET /api/chapters/[chapterId] called');
   
   try {
-    // Await params before accessing chapterId
-    const { chapterId } = await context.params;
     const response = await auth.api.getSession({
       headers: request.headers,
     });
@@ -58,13 +58,13 @@ export async function GET(
 // PATCH: Update a chapter
 export async function PATCH(
   request: Request,
-  context: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
+  // Await the params promise
+  const { chapterId } = await params;
   console.log('PATCH /api/chapters/[chapterId] called');
   
   try {
-    // Await params before accessing chapterId
-    const { chapterId } = await context.params;
     const body = await request.json();
     
     const response = await auth.api.getSession({
@@ -113,13 +113,13 @@ export async function PATCH(
 // DELETE: Delete a chapter
 export async function DELETE(
   request: Request,
-  context: { params: { chapterId: string } }
+  { params }: { params: Promise<{ chapterId: string }> }
 ) {
+  // Await the params promise
+  const { chapterId } = await params;
   console.log('DELETE /api/chapters/[chapterId] called');
   
   try {
-    // Await params before accessing chapterId
-    const { chapterId } = await context.params;
     
     const response = await auth.api.getSession({
       headers: request.headers,

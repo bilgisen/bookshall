@@ -12,9 +12,23 @@ function safeParseDate(value: string | Date | null | undefined): Date | null {
   return new Date(value);
 }
 
+// Define allowed origins for both development and production
+const devOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+const prodOrigins = [
+  'https://bookshall.com',
+  'https://www.bookshall.com',
+];
+
+const isProd = process.env.NODE_ENV === 'production';
+const allowedOrigins = isProd ? prodOrigins : [...devOrigins, ...prodOrigins];
+
 export const auth = betterAuth({
-  trustedOrigins: [`${process.env.NEXT_PUBLIC_APP_URL}`],
-  allowedDevOrigins: [`${process.env.NEXT_PUBLIC_APP_URL}`],
+  trustedOrigins: allowedOrigins,
+  allowedDevOrigins: allowedOrigins,
   cookieCache: {
     enabled: true,
     maxAge: 5 * 60, // Cache duration in seconds
