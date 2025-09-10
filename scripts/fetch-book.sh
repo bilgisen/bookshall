@@ -55,20 +55,19 @@ clean_and_validate_json() {
 
 # Clean and validate the JSON
 echo "Cleaning and validating JSON..."
-CLEANED_METADATA=$(clean_and_validate_json "$METADATA" 2>&1)
-EXIT_CODE=$?
-
-echo "Cleaned metadata output:"
-echo "$CLEANED_METADATA"
-echo "Exit code: $EXIT_CODE"
-
-# If cleaning failed, use empty object
-if [ $EXIT_CODE -ne 0 ] || [ -z "$CLEANED_METADATA" ]; then
-  echo "::warning::Using empty metadata due to validation failure"
+if ! CLEANED_METADATA=$(echo "$METADATA" | jq -c . 2>/dev/null); then
+  echo "::warning::Invalid JSON in metadata, using empty object"
   METADATA='{}'
 else
   METADATA="$CLEANED_METADATA"
+  SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null || true)
+  if [ -n "$SLUG" ]; then
+    echo "SLUG=$SLUG" >> $GITHUB_ENV
+  fi
 fi
+
+echo "Cleaned metadata output:"
+echo "$METADATA"
 
 # Extract slug if it exists
 SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
@@ -102,6 +101,9 @@ download_with_retry() {
 
 update_status() {
   local phase="$1" local progress="$2" local message="$3"
+  [ -n "${TOKEN}" ] && echo "::add-mask::${TOKEN}"
+  [ -n "${R2_ACCESS_KEY_ID}" ] && echo "::add-mask::${R2_ACCESS_KEY_ID}"
+  [ -n "${R2_SECRET_ACCESS_KEY}" ] && echo "::add-mask::${R2_SECRET_ACCESS_KEY}"
   [ -n "${BACKEND_URL:-}" ] && [ -n "${COMBINED_TOKEN:-}" ] && \
   curl -s -X POST "$BACKEND_URL/api/publish/update" \
     -H "Authorization: Bearer $COMBINED_TOKEN" \
