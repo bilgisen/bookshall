@@ -245,6 +245,9 @@ importers:
       color:
         specifier: ^5.0.0
         version: 5.0.0
+      commander:
+        specifier: ^11.1.0
+        version: 11.1.0
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
