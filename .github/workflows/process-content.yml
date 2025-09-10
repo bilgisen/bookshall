@@ -94,8 +94,8 @@ jobs:
           INCLUDE_COVER: ${{ inputs.include_cover || 'true' }}
           INCLUDE_TOC: ${{ inputs.include_toc || 'true' }}
           INCLUDE_IMPRINT: ${{ inputs.include_imprint || 'true' }}
-          # Pass metadata as string, will be validated in the script
-          METADATA: ${{ inputs.metadata || '{}' }}
+          # Pass metadata as properly escaped JSON
+          METADATA: ${{ toJson(inputs.metadata || '{}') }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || '' }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || '' }}
         run: |

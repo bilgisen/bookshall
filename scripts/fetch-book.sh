@@ -18,14 +18,12 @@ CONTENT_ID="${CONTENT_ID:?CONTENT_ID is required}"
 COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
 
 # Handle metadata with proper JSON validation
-METADATA="${METADATA:-{}}"
-# Remove any surrounding single quotes if present
-METADATA=$(echo "$METADATA" | sed "s/^'\|\"\|'$//g")
-# If empty after stripping, use empty object
-if [ -z "$METADATA" ]; then
-  METADATA='{}'
-fi
-# Try to parse with jq, if it fails, use empty object
+METADATA="${METADATA:-'{}'}"
+
+# Remove surrounding single quotes added by GitHub Actions
+METADATA=$(echo "$METADATA" | sed "s/^'\|'$//g")
+
+# Validate JSON
 if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
   echo "::warning::Invalid JSON in metadata, using empty object"
   METADATA='{}'
@@ -36,6 +34,7 @@ else
     echo "SLUG=$SLUG" >> $GITHUB_ENV
   fi
 fi
+
 echo "Using metadata: $METADATA"
 
 mkdir -p "$PAYLOAD_DIR" "$CHAPTERS_DIR" "$OUTPUT_DIR"
