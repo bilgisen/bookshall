@@ -12,9 +12,26 @@ PAYLOAD_DIR="$WORKDIR/payload"
 CHAPTERS_DIR="$WORKDIR/chapters"
 OUTPUT_DIR="$WORKDIR/output"
 
-BOOK_ID="${BOOK_ID:-}"
-CONTENT_ID="${CONTENT_ID:-}"
-COMBINED_TOKEN="${COMBINED_TOKEN:-}"
+# Required parameters
+BOOK_ID="${BOOK_ID:?BOOK_ID is required}"
+CONTENT_ID="${CONTENT_ID:?CONTENT_ID is required}"
+COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
+
+# Handle metadata with proper JSON validation
+METADATA="${METADATA:-{}}"
+# Remove any surrounding single quotes if present
+if [[ "$METADATA" == "'"*"'" ]]; then
+  METADATA="${METADATA:1:${#METADATA}-2}"
+fi
+# Validate and sanitize JSON
+if ! SANITIZED_JSON=$(echo "$METADATA" | jq -c . 2>/dev/null); then
+  echo "::warning::Invalid JSON in metadata, using empty object"
+  METADATA='{}'
+else
+  METADATA="$SANITIZED_JSON"
+fi
+
+echo "Using metadata: $METADATA"
 
 mkdir -p "$PAYLOAD_DIR" "$CHAPTERS_DIR" "$OUTPUT_DIR"
 
