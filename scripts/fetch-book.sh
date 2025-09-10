@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Validate required environment variables
+: "${GITHUB_TOKEN:?GITHUB_TOKEN must be set in workflow environment}"
+
 # --- CONFIG ---
 BASE_URL="${NEXT_PUBLIC_APP_URL:-https://bookshall.com}"
 API_URL="${API_URL:-$BASE_URL/api}"
