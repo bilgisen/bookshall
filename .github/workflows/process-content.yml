@@ -19,6 +19,36 @@ on:
         description: 'Content ID'
         required: true
         type: string
+      include_metadata:
+        description: 'Include metadata in EPUB'
+        required: false
+        type: boolean
+        default: true
+      include_cover:
+        description: 'Include cover image'
+        required: false
+        type: boolean
+        default: true
+      include_toc:
+        description: 'Include table of contents'
+        required: false
+        type: boolean
+        default: true
+      toc_level:
+        description: 'Depth of table of contents (1-6)'
+        required: false
+        type: number
+        default: 3
+      include_imprint:
+        description: 'Include imprint page'
+        required: false
+        type: boolean
+        default: true
+      metadata:
+        description: 'Additional metadata (JSON string)'
+        required: false
+        type: string
+        default: '{}'
 
 permissions:
   contents: read
