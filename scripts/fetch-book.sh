@@ -7,8 +7,11 @@ export TOKEN="${TOKEN:-${GITHUB_TOKEN:-}}"
 # Validate required environment variables
 : "${TOKEN:?Either TOKEN or GITHUB_TOKEN must be set in workflow environment}"
 
-# --- CONFIG ---
-BASE_URL="${NEXT_PUBLIC_APP_URL:-https://bookshall.com}"
+# Base URL for API requests
+BASE_URL="${API_URL:-${NEXT_PUBLIC_APP_URL:-https://bookshall.com}}"
+
+# Ensure the base URL doesn't end with a slash
+BASE_URL="${BASE_URL%/}"
 API_URL="${API_URL:-$BASE_URL/api}"
 WORKDIR="./work"
 PAYLOAD_DIR="$WORKDIR/payload"
@@ -143,7 +146,8 @@ update_status() {
 
 # --- FETCH PAYLOAD ---
 log "Fetching book payload..."
-download_with_retry "$BASE_URL/api/books/by-id/$CONTENT_ID/export" "$PAYLOAD_DIR/payload.json"
+log "Using API endpoint: $API_URL"
+download_with_retry "$API_URL/books/by-id/$CONTENT_ID/export" "$PAYLOAD_DIR/payload.json"
 
 BOOK_TITLE=$(jq -r '.book.title // "Untitled"' "$PAYLOAD_DIR/payload.json")
 BOOK_AUTHOR=$(jq -r '.book.author // "Unknown"' "$PAYLOAD_DIR/payload.json")

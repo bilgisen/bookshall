@@ -169,24 +169,42 @@ jobs:
 
       - name: Fetch book & generate EPUB
         env:
-          TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # Use a dedicated service token or a pre-shared token with limited permissions
+          TOKEN: ${{ secrets.API_SERVICE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # Required IDs
           BOOK_ID: ${{ inputs.book_id }}
           USER_ID: ${{ inputs.user_id }}
           SESSION_ID: ${{ inputs.session_id }}
           CONTENT_ID: ${{ inputs.content_id }}
+          # EPUB generation options
           TOC_LEVEL: ${{ inputs.toc_level || '3' }}
           INCLUDE_METADATA: ${{ inputs.include_metadata || 'true' }}
           INCLUDE_COVER: ${{ inputs.include_cover || 'true' }}
           INCLUDE_TOC: ${{ inputs.include_toc || 'true' }}
           INCLUDE_IMPRINT: ${{ inputs.include_imprint || 'true' }}
           METADATA: ${{ inputs.metadata || '{}' }}
+          # API configuration
           NEXT_PUBLIC_APP_URL: https://bookshall.com
+          API_URL: https://bookshall.com/api
+          # R2 storage configuration
           R2_ENDPOINT: https://f330373f7096cf2d6727c2d973b911d3.r2.cloudflarestorage.com
           R2_BUCKET: bookshall
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || secrets.R2_UPLOAD_IMAGE_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY }}
           R2_PUBLIC_URL: https://storage.bookshall.com
         run: |
+          # Debug information
+          echo "Using API endpoint: $API_URL"
+          echo "Book ID: $BOOK_ID"
+          echo "User ID: $USER_ID"
+          
+          # Test API access
+          if ! curl -s -H "Authorization: Bearer $TOKEN" "$API_URL/books/by-id/$BOOK_ID/payload" > /dev/null; then
+            echo "::error::Failed to authenticate with the API. Please check your token and permissions."
+            exit 1
+          fi
+          
+          # Run the script
           chmod +x ./scripts/fetch-book.sh
           ./scripts/fetch-book.sh
 
