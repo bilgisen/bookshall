@@ -20,19 +20,44 @@ COMBINED_TOKEN="${COMBINED_TOKEN:-${GITHUB_TOKEN:-}}"
 # Handle metadata with proper JSON validation
 METADATA="${METADATA:-'{}'}"
 
-# Remove surrounding single quotes added by GitHub Actions
-METADATA=$(echo "$METADATA" | sed "s/^'\|'$//g")
+# Debug: Print the raw metadata for troubleshooting
+echo "Raw metadata input: $METADATA"
 
-# Validate JSON
-if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
-  echo "::warning::Invalid JSON in metadata, using empty object"
-  METADATA='{}'
-else
-  # Extract slug if it exists
-  SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
-  if [ -n "$SLUG" ]; then
-    echo "SLUG=$SLUG" >> $GITHUB_ENV
+# Function to clean and validate JSON
+clean_and_validate_json() {
+  local json="$1"
+  
+  # Remove surrounding single/double quotes if they exist
+  json=$(echo "$json" | sed 's/^["\x27]\|["\x27]$//g')
+  
+  # Unescape any escaped quotes
+  json=$(echo "$json" | sed 's/\\"/"/g')
+  
+  # If empty after stripping, return empty object
+  [ -z "$json" ] && echo '{}' && return 0
+  
+  # Try to parse with jq
+  if ! echo "$json" | jq -e . >/dev/null 2>&1; then
+    echo "::warning::Invalid JSON in metadata, using empty object" >&2
+    echo '{'
+    return 1
   fi
+  
+  # If we got here, the JSON is valid
+  echo "$json"
+}
+
+# Clean and validate the JSON
+CLEANED_METADATA=$(clean_and_validate_json "$METADATA")
+METADATA="${CLEANED_METADATA:-'{}'}"
+
+# Debug: Print the cleaned JSON
+echo "Cleaned metadata: $METADATA"
+
+# Extract slug if it exists
+SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
+if [ -n "$SLUG" ]; then
+  echo "SLUG=$SLUG" >> $GITHUB_ENV
 fi
 
 echo "Using metadata: $METADATA"
