@@ -333,7 +333,7 @@ jobs:
           
           echo "Book content downloaded successfully"
 
-      - name: Generate EPUB
+      - name: Generate EPUB with pandoc
         id: generate_epub
         env:
           BOOK_ID: ${{ env.BOOK_ID }}
@@ -366,30 +366,38 @@ jobs:
           }
           
           # Update status
-          update_status "building" 30 "Preparing to generate EPUB"
+          update_status "building" 30 "Preparing to generate EPUB with pandoc"
           
           # Get book metadata
           TITLE=$(jq -r '.book.title // "Untitled"' ./book-content/payload.json)
           AUTHOR=$(jq -r '.book.author // "Unknown"' ./book-content/payload.json)
           LANGUAGE=$(jq -r '.book.language // "en"' ./book-content/payload.json)
           
-          echo "📖 Building EPUB: $TITLE by $AUTHOR"
+          echo "📖 Building EPUB with pandoc: $TITLE by $AUTHOR"
           
-          # Build pandoc command
+          # Create output directory
+          mkdir -p ./output
+          
+          # Prepare pandoc command
           PANDOC_CMD=(
             pandoc
             --from=html
             --to=epub3
             --output=./output/${CONTENT_ID}.epub
             --epub-chapter-level=1
-            --metadata=title:"$TITLE"
-            --metadata=author:"$AUTHOR"
-            --metadata=language:"$LANGUAGE"
-            --metadata=identifier:"$CONTENT_ID"
+            --metadata="title:$TITLE"
+            --metadata="author:$AUTHOR"
+            --metadata="language:$LANGUAGE"
+            --metadata="identifier:$CONTENT_ID"
           )
           
-          # Add cover image if available
-          if [ -f "./book-content/cover.jpg" ]; then
+          # Add table of contents if enabled
+          if [ "$INCLUDE_TOC" = "true" ]; then
+            PANDOC_CMD+=(--toc --toc-depth=$TOC_LEVEL)
+          fi
+          
+          # Add cover image if available and enabled
+          if [ "$INCLUDE_COVER" = "true" ] && [ -f "./book-content/cover.jpg" ]; then
             echo "Adding cover image..."
             PANDOC_CMD+=(--epub-cover-image=./book-content/cover.jpg)
           fi
@@ -406,32 +414,35 @@ jobs:
             echo "  - $(basename "$file")"
           done < <(find ./book-content -type f -name 'chapter-*.xhtml' -print0 | sort -z -V)
           
-          # Add imprint if available
-          if [ -f "./book-content/imprint.xhtml" ]; then
+          # Add imprint if available and enabled
+          if [ "$INCLUDE_IMPRINT" = "true" ] && [ -f "./book-content/imprint.xhtml" ]; then
             PANDOC_CMD+=("./book-content/imprint.xhtml")
             echo "Adding imprint..."
           fi
           
           # Generate EPUB
-          echo "Generating EPUB..."
-          update_status "building" 40 "Generating EPUB file"
+          echo "Generating EPUB with pandoc..."
+          update_status "building" 40 "Generating EPUB file with pandoc"
+          
+          # Print the command for debugging
+          echo "Running: ${PANDOC_CMD[*]}"
           
           if ! "${PANDOC_CMD[@]}"; then
-            echo "::error::Failed to generate EPUB"
-            update_status "failed" 0 "Failed to generate EPUB"
+            echo "::error::Failed to generate EPUB with pandoc"
+            update_status "failed" 0 "Failed to generate EPUB with pandoc"
             exit 1
           fi
           
           # Verify EPUB was created
           if [ ! -f "./output/${CONTENT_ID}.epub" ]; then
-            echo "::error::EPUB file was not created"
-            update_status "failed" 0 "EPUB file was not created"
+            echo "::error::EPUB file was not created by pandoc"
+            update_status "failed" 0 "EPUB file was not created by pandoc"
             exit 1
           fi
           
           # Update status
-          echo "✅ EPUB generated successfully"
-          update_status "building" 60 "EPUB generated successfully"
+          echo "✅ EPUB generated successfully with pandoc"
+          update_status "building" 60 "EPUB successfully generated with pandoc"
 
       - name: Upload EPUB to Cloudflare R2
         id: upload_epub
