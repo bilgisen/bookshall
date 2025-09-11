@@ -103,18 +103,35 @@ download_with_retry() {
   
   # Debug info
   log "Downloading $url to $output"
-  log "Using token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
+  
+  # Determine if this is a chapter URL
+  local is_chapter_url=false
+  if [[ "$url" == *"/chapters/"* ]]; then
+    is_chapter_url=true
+    log "Detected chapter URL, using API key authentication"
+  else
+    log "Using token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
+  fi
   
   for i in $(seq 1 $max_retries); do
     log "Attempt $i of $max_retries..."
     
-    # Use curl with verbose output to debug
-    if ! curl -v \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "X-Request-ID: $(uuidgen || date +%s)" \
-      -H "X-GitHub-Event: workflow_dispatch" \
-      -o "$output.tmp" \
-      "$url" 2>"$output.curl.log"; then
+    # Build curl command with appropriate auth headers
+    local curl_cmd="curl -v"
+    
+    if [ "$is_chapter_url" = true ] && [ -n "${GITHUB_ACTIONS_API_KEY:-}" ]; then
+      curl_cmd+=" -H \"x-api-key: $GITHUB_ACTIONS_API_KEY\""
+    else
+      curl_cmd+=" -H \"Authorization: Bearer $TOKEN\""
+    fi
+    
+    curl_cmd+=" -H \"X-Request-ID: $(uuidgen || date +%s)\""
+    curl_cmd+=" -H \"X-GitHub-Event: workflow_dispatch\""
+    curl_cmd+=" -o \"$output.tmp\""
+    curl_cmd+=" \"$url\" 2>\"$output.curl.log\""
+    
+    # Execute the curl command
+    if ! eval "$curl_cmd"; then
       
       # Log the error but continue to retry
       warn "Attempt $i failed. Response code: $(grep -o 'HTTP/[0-9.]* [0-9]*' "$output.curl.log" || echo 'unknown')"
