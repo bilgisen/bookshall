@@ -122,21 +122,13 @@ jobs:
       - name: Fetch book content
         run: ./scripts/fetch-book.sh
 
-      - name: Generate EPUB
-        run: |
-          echo "📚 Generating EPUB..."
-          mkdir -p output
-          pandoc book.md \
-            --toc --toc-depth=$TOC_LEVEL \
-            --metadata-file=metadata.yaml \
-            -o output/book.epub
-
       - name: Upload EPUB to R2
         run: |
           echo "☁️ Uploading EPUB to Cloudflare R2..."
-          aws s3 cp output/book.epub s3://$R2_BUCKET/$CONTENT_ID.epub \
+          EPUB_FILE=$(ls *.epub | head -n1)
+          aws s3 cp "$EPUB_FILE" s3://$R2_BUCKET/$CONTENT_ID.epub \
             --endpoint-url=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-
+      
       - name: Upload artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4

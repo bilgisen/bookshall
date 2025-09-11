@@ -308,5 +308,9 @@ else
   exit 1
 fi
 
+# normalize output path for workflow
+mkdir -p output
+cp "$EPUB_FILENAME" output/book.epub
+
 # finished
 echo "🎉 Done."
