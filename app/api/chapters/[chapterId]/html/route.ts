@@ -15,6 +15,11 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ chapterId: string }> }
 ) {
+  // Set cache control headers
+  const headers = new Headers();
+  headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+  headers.set('Content-Type', 'text/html; charset=utf-8');
+  
   // Await the params promise
   const { chapterId } = await params;
   try {
@@ -37,7 +42,16 @@ export async function GET(
     }
 
     if (!chapterResult) {
-      return new NextResponse('Chapter not found', { status: 404 });
+      return new NextResponse(
+        JSON.stringify({ error: 'Chapter not found' }),
+        { 
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60, s-maxage=60'
+          }
+        }
+      );
     }
 
     // Then get the associated book
@@ -48,12 +62,30 @@ export async function GET(
       .limit(1);
 
     if (!bookResult) {
-      return new NextResponse('Book not found', { status: 404 });
+      return new NextResponse(
+        JSON.stringify({ error: 'Book not found' }),
+        { 
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60, s-maxage=60'
+          }
+        }
+      );
     }
 
     // For non-published books, only allow access to non-draft chapters
     if (chapterResult.isDraft) {
-      return new NextResponse('Chapter not available', { status: 404 });
+      return new NextResponse(
+        JSON.stringify({ error: 'Chapter not available' }),
+        { 
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60, s-maxage=60'
+          }
+        }
+      );
     }
 
     // Create typed objects
@@ -67,7 +99,7 @@ export async function GET(
         order: chapterResult.order,
         level: chapterResult.level,
         parentChapterId: chapterResult.parentChapterId,
-isDraft: chapterResult.isDraft ?? false,
+        isDraft: chapterResult.isDraft ?? false,
         wordCount: chapterResult.wordCount,
         readingTime: chapterResult.readingTime,
         createdAt: chapterResult.createdAt,
@@ -81,12 +113,12 @@ isDraft: chapterResult.isDraft ?? false,
         description: bookResult.description,
         coverImageUrl: bookResult.coverImageUrl,
         isbn: bookResult.isbn,
-language: bookResult.language ?? 'en',
+        language: bookResult.language ?? 'en',
         publisher: bookResult.publisher,
         publisherWebsite: bookResult.publisherWebsite,
         publishYear: bookResult.publishYear,
         slug: bookResult.slug,
-isPublished: bookResult.isPublished ?? false,
+        isPublished: bookResult.isPublished ?? false,
         epubUrl: bookResult.epubUrl,
         createdAt: bookResult.createdAt,
         updatedAt: bookResult.updatedAt,
@@ -103,7 +135,16 @@ isPublished: bookResult.isPublished ?? false,
     // Row is already populated from the query above
     // Ensure required fields are not null
     if (!row.chapter.title || !row.chapter.content || !row.chapter.uuid) {
-      return new NextResponse('Chapter data is incomplete', { status: 400 });
+      return new NextResponse(
+        JSON.stringify({ error: 'Chapter data is incomplete' }),
+        { 
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60, s-maxage=60'
+          }
+        }
+      );
     }
 
     // Use the typed data from our query
@@ -125,14 +166,18 @@ isPublished: bookResult.isPublished ?? false,
       }
     );
 
-    return new NextResponse(html, {
-      headers: {
-        'Content-Type': 'text/html',
-        'Cache-Control': 'public, max-age=60',
-      },
-    });
+    return new NextResponse(html, { headers });
   } catch (error) {
-    console.error('Failed to generate chapter HTML:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error in chapter HTML route:', error);
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error' }),
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, max-age=0'
+        }
+      }
+    );
   }
 }
