@@ -16,95 +16,131 @@ on:
         required: true
         type: string
       content_id:
-        description: 'ID of the content (book) to publish'
+        description: 'Content ID for this publish'
         required: true
         type: string
-      toc_level:
-        description: 'Table of contents depth'
-        required: false
-        type: number
-        default: 3
       include_metadata:
         description: 'Include metadata in EPUB'
         required: false
         type: boolean
         default: true
       include_cover:
-        description: 'Include cover image in EPUB'
+        description: 'Include cover in EPUB'
         required: false
         type: boolean
         default: true
       include_toc:
-        description: 'Include table of contents'
+        description: 'Include table of contents in EPUB'
         required: false
         type: boolean
         default: true
       include_imprint:
-        description: 'Include imprint page'
+        description: 'Include imprint in EPUB'
         required: false
         type: boolean
         default: true
+      toc_level:
+        description: 'Table of contents depth level'
+        required: false
+        type: number
+        default: 3
       metadata:
-        description: 'Additional metadata JSON string'
+        description: 'Additional metadata as JSON string'
         required: false
         type: string
         default: '{}'
 
 jobs:
-  build-epub:
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: https://bookshall.com
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Input parameters
+      BOOK_ID: ${{ github.event.inputs.book_id }}
+      USER_ID: ${{ github.event.inputs.user_id }}
+      SESSION_ID: ${{ github.event.inputs.session_id }}
+      CONTENT_ID: ${{ github.event.inputs.content_id }}
+      INCLUDE_METADATA: ${{ github.event.inputs.include_metadata || 'true' }}
+      INCLUDE_COVER: ${{ github.event.inputs.include_cover || 'true' }}
+      INCLUDE_TOC: ${{ github.event.inputs.include_toc || 'true' }}
+      INCLUDE_IMPRINT: ${{ github.event.inputs.include_imprint || 'true' }}
+      TOC_LEVEL: ${{ github.event.inputs.toc_level || '3' }}
+      
+      # Cloudflare R2 Configuration
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Debug environment
+        run: |
+          echo "=== Environment Variables ==="
+          env | sort
+          echo "\n=== Input Parameters ==="
+          echo "BOOK_ID: $BOOK_ID"
+          echo "USER_ID: $USER_ID"
+          echo "SESSION_ID: $SESSION_ID"
+          echo "CONTENT_ID: $CONTENT_ID"
+          echo "INCLUDE_METADATA: $INCLUDE_METADATA"
+          echo "INCLUDE_COVER: $INCLUDE_COVER"
+          echo "INCLUDE_TOC: $INCLUDE_TOC"
+          echo "INCLUDE_IMPRINT: $INCLUDE_IMPRINT"
+          echo "TOC_LEVEL: $TOC_LEVEL"
+          echo "\n=== Current Directory ==="
+          pwd
+          ls -la
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl pandoc unzip
-
-          # Install AWS CLI v2 manually
+          sudo apt-get install -y jq curl pandoc
+          # Install AWS CLI v2 for Cloudflare R2
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip awscliv2.zip
           sudo ./aws/install --update
           aws --version
 
-      - name: Validate & export inputs
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          NEXT_PUBLIC_APP_URL: https://bookshall.com
-          BOOK_ID: ${{ inputs.book_id }}
-          USER_ID: ${{ inputs.user_id }}
-          SESSION_ID: ${{ inputs.session_id }}
-          CONTENT_ID: ${{ inputs.content_id }}
-          TOC_LEVEL: ${{ inputs.toc_level }}
-          INCLUDE_METADATA: ${{ inputs.include_metadata }}
-          INCLUDE_COVER: ${{ inputs.include_cover }}
-          INCLUDE_TOC: ${{ inputs.include_toc }}
-          INCLUDE_IMPRINT: ${{ inputs.include_imprint }}
-          METADATA: ${{ toJson(inputs.metadata) }}
-        run: |
-          bash ./scripts/validate-inputs.sh
+      - name: Install project dependencies
+        run: npm ci
 
-      - name: Fetch book + Build EPUB
+      - name: Make scripts executable
         run: |
-          bash ./scripts/fetch-book.sh
+          chmod +x ./scripts/validate-inputs.sh
+          chmod +x ./scripts/fetch-book.sh
 
-      - name: Upload EPUB to Cloudflare R2
-        env:
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      - name: Validate inputs
         run: |
-          EPUB_FILE=$(ls *.epub | head -n1)
-          echo "Uploading $EPUB_FILE to R2..."
-          aws s3 cp "$EPUB_FILE" "s3://${R2_BUCKET}/$EPUB_FILE" \
-            --endpoint-url "${R2_ENDPOINT}" \
-            --acl public-read
+          echo "Validating inputs..."
+          source ./scripts/validate-inputs.sh
+
+      - name: Run fetch-book script
+        run: |
+          echo "Starting fetch-book script..."
+          ./scripts/fetch-book.sh
+          echo "Fetch book script completed with status: $?"
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-logs
+          path: |
+            *.log
+            ./logs/
+          retention-days: 7
