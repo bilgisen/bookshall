@@ -15,6 +15,40 @@ on:
         description: 'Session ID'
         required: true
         type: string
+      content_id:
+        description: 'Content ID'
+        required: true
+        type: string
+      include_metadata:
+        description: 'Include metadata in EPUB'
+        required: false
+        type: boolean
+        default: true
+      include_cover:
+        description: 'Include cover image'
+        required: false
+        type: boolean
+        default: true
+      include_toc:
+        description: 'Include table of contents'
+        required: false
+        type: boolean
+        default: true
+      toc_level:
+        description: 'Depth of table of contents (1-6)'
+        required: false
+        type: number
+        default: 3
+      include_imprint:
+        description: 'Include imprint page'
+        required: false
+        type: boolean
+        default: true
+      metadata:
+        description: 'Additional metadata (JSON string)'
+        required: false
+        type: string
+        default: '{}'
 
 jobs:
   publish:
@@ -23,6 +57,13 @@ jobs:
       BOOK_ID: ${{ github.event.inputs.book_id }}
       USER_ID: ${{ github.event.inputs.user_id }}
       SESSION_ID: ${{ github.event.inputs.session_id }}
+      CONTENT_ID: ${{ github.event.inputs.content_id }}
+      INCLUDE_METADATA: ${{ github.event.inputs.include_metadata }}
+      INCLUDE_COVER: ${{ github.event.inputs.include_cover }}
+      INCLUDE_TOC: ${{ github.event.inputs.include_toc }}
+      TOC_LEVEL: ${{ github.event.inputs.toc_level }}
+      INCLUDE_IMPRINT: ${{ github.event.inputs.include_imprint }}
+      METADATA_JSON: ${{ github.event.inputs.metadata }}
       BASE_URL: https://bookshall.com
       API_URL: https://bookshall.com/api
       BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
@@ -35,105 +76,44 @@ jobs:
           echo "  - Book ID: ${{ github.event.inputs.book_id }}"
           echo "  - User ID: ${{ github.event.inputs.user_id }}"
           echo "  - Session ID: ${{ github.event.inputs.session_id }}"
+          echo "  - Content ID: ${{ github.event.inputs.content_id }}"
+          echo "  - Include Metadata: ${{ github.event.inputs.include_metadata }}"
+          echo "  - Include Cover: ${{ github.event.inputs.include_cover }}"
+          echo "  - Include TOC: ${{ github.event.inputs.include_toc }}"
+          echo "  - TOC Level: ${{ github.event.inputs.toc_level }}"
+          echo "  - Include Imprint: ${{ github.event.inputs.include_imprint }}"
+          echo "  - Metadata: ${{ github.event.inputs.metadata }}"
           echo ""
           echo "🔑 Checking environment variables:"
           echo "  - BASE_URL: $BASE_URL"
           echo "  - API_URL: $API_URL"
           echo "  - BOOKSHALL_API_KEY: ${BOOKSHALL_API_KEY:0:4}...${BOOKSHALL_API_KEY: -4} (${#BOOKSHALL_API_KEY} chars)"
+          echo "  - CONTENT_ID: $CONTENT_ID"
+          echo "  - INCLUDE_METADATA: $INCLUDE_METADATA"
+          echo "  - INCLUDE_COVER: $INCLUDE_COVER"
+          echo "  - INCLUDE_TOC: $INCLUDE_TOC"
+          echo "  - TOC_LEVEL: $TOC_LEVEL"
+          echo "  - INCLUDE_IMPRINT: $INCLUDE_IMPRINT"
+          echo "  - METADATA_JSON: $METADATA_JSON"
           echo ""
           echo "📂 Current directory:"
           pwd
           ls -la
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch all history for all branches and tags
+      # ... rest of your workflow steps ...
 
-      - name: Debug - Check repository content
+      - name: Debug - Print all inputs as JSON
         run: |
-          echo "📂 Repository content:"
-          ls -la
-          echo ""
-          echo "🔍 Git status:"
-          git status
-          echo ""
-          echo "🌿 Current branch:"
-          git branch --show-current
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: Debug - Node.js and npm versions
-        run: |
-          echo "🟢 Node.js version: $(node -v)"
-          echo "📦 npm version: $(npm -v)"
-          echo "📦 pnpm version: $(pnpm -v)"
-
-      - name: Install dependencies
-        run: |
-          echo "📦 Installing dependencies..."
-          pnpm install --frozen-lockfile
-          echo "✅ Dependencies installed"
-
-      - name: Debug API key and environment
-        run: |
-          echo "🔑 Environment variables:"
-          printenv | sort
-          echo ""
-          echo "🔍 Checking API key:"
-          if [ -z "$BOOKSHALL_API_KEY" ]; then
-            echo "❌ BOOKSHALL_API_KEY is empty"
-            exit 1
-          else
-            echo "✅ BOOKSHALL_API_KEY is set (${#BOOKSHALL_API_KEY} characters)"
-            echo "   First 4 chars: ${BOOKSHALL_API_KEY:0:4}..."
-            echo "   Last 4 chars: ${BOOKSHALL_API_KEY: -4}"
-          fi
-
-      - name: Debug network connectivity
-        run: |
-          echo "🌐 Testing network connectivity:"
-          echo " - Google DNS: $(ping -c 1 8.8.8.8 | grep 'bytes from' || echo '❌ Failed')"
-          echo " - Google.com: $(ping -c 1 google.com | grep 'bytes from' || echo '❌ Failed')"
-          echo " - API endpoint: $(curl -s -o /dev/null -w "%{http_code}" $API_URL/health || echo '❌ Failed')"
-
-      - name: Fetch book content
-        run: |
-          echo "📥 Starting to fetch book content..."
-          echo "🔍 Script location: $(ls -la ./scripts/fetch-book.sh)"
-          echo "🔍 Script permissions: $(ls -l ./scripts/fetch-book.sh)"
-          echo "📋 Environment for fetch-book.sh:"
-          echo "  - BOOK_ID: $BOOK_ID"
-          echo "  - BASE_URL: $BASE_URL"
-          echo "  - API_URL: $API_URL"
-          echo "  - BOOKSHALL_API_KEY: ${BOOKSHALL_API_KEY:0:4}...${BOOKSHALL_API_KEY: -4}"
-          
-          # Run with debug output
-          set -x  # Enable debug output
-          chmod +x ./scripts/fetch-book.sh
-          ./scripts/fetch-book.sh
-          set +x  # Disable debug output
-        env:
-          BOOK_ID: ${{ env.BOOK_ID }}
-          BASE_URL: ${{ env.BASE_URL }}
-          API_URL: ${{ env.API_URL }}
-          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
-          DEBUG: "true"  # Enable debug mode for the script
-
-      - name: Debug - List generated files
-        run: |
-          echo "📂 Generated files:"
-          find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -ls
-          echo ""
-
-      - name: Final status
-        if: always()
-        run: |
-          echo "🏁 Workflow completed with status: ${{ job.status }}"
-          echo "📊 Job status: ${{ job.status }}"
-          echo "🕒 Job started at: ${{ job.steps[*].startedAt }}"
-          echo "⏱️  Job completed at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "📝 All workflow inputs as JSON:"
+          echo '{
+            "book_id": "'${{ github.event.inputs.book_id }}'",
+            "user_id": "'${{ github.event.inputs.user_id }}'",
+            "session_id": "'${{ github.event.inputs.session_id }}'",
+            "content_id": "'${{ github.event.inputs.content_id }}'",
+            "include_metadata": "'${{ github.event.inputs.include_metadata }}'",
+            "include_cover": "'${{ github.event.inputs.include_cover }}'",
+            "include_toc": "'${{ github.event.inputs.include_toc }}'",
+            "toc_level": "'${{ github.event.inputs.toc_level }}'",
+            "include_imprint": "'${{ github.event.inputs.include_imprint }}'",
+            "metadata": ${{ github.event.inputs.metadata }}
+          }' | jq .
