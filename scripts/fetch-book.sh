@@ -80,6 +80,7 @@ BOOK_TITLE=$(jq -r '.book.title // empty' "$PAYLOAD_FILE")
 BOOK_AUTHOR=$(jq -r '.book.author // empty' "$PAYLOAD_FILE")
 BOOK_LANG=$(jq -r '.book.language // "en"' "$PAYLOAD_FILE")
 BOOK_SLUG=$(jq -r '.book.slug // empty' "$PAYLOAD_FILE")
+BOOK_SLUG=$(jq -r '.book.slug // empty' "$PAYLOAD_FILE")
 BOOK_ID_FROM_PAYLOAD=$(jq -r '.book.id // empty' "$PAYLOAD_FILE")
 
 [ -z "$BOOK_TITLE" ] && BOOK_TITLE="Untitled Book"
@@ -177,8 +178,8 @@ if [ "$CHAPTER_COUNT" -gt 0 ]; then
       cid=$(jq -r '.id // empty' <<<"$chap")
       curl_url=$(jq -r '.url // empty' <<<"$chap")
       # fallback: if url empty but id present, try chapter endpoint
-      if [ -z "$curl_url" ] && [ -n "$cid" ]; then
-        curl_url="$NEXT_PUBLIC_APP_URL/api/chapters/$cid/html"
+      if [ -z "$curl_url" ] && [ -n "$cid" ] && [ -n "$BOOK_SLUG" ]; then
+        curl_url="$NEXT_PUBLIC_APP_URL/api/books/by-slug/$BOOK_SLUG/chapters/$cid"
       fi
       filename="$CHAPTER_DIR/chapter-$(printf "%03d" "$idx").xhtml"
       if [ -n "$curl_url" ]; then

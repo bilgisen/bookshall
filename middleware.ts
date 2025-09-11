@@ -24,8 +24,11 @@ const PUBLIC_API_PATHS = [
   '/api/books/by-id/', // This will make all /by-id/ endpoints public
   '/api/books/by-id/:id/payload', // Explicitly include the payload endpoint
   '/api/chapters/', // Make all chapter endpoints public
-  '/api/chapters/', // Make chapter HTML endpoints public
   '/api/books/by-slug/', // Make book by-slug endpoints public
+  '/api/books/by-slug/*/chapters/', // Make chapter listing public
+  '/api/books/by-slug/*/chapters/*', // Make specific chapter endpoints public
+  '/api/books/by-slug/*/imprint', // Make imprint endpoint public
+  '/api/books/by-slug/*/imprint/' // Make imprint endpoint public with trailing slash
 ];
 
 // List of paths that can be accessed with API key
@@ -85,19 +88,38 @@ export async function middleware(request: NextRequest) {
       }
     }
     
-    // Skip authentication for public paths
-    if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
-        PUBLIC_API_PATHS.some(p => {
-          // Handle exact matches
-          if (pathname === p) return true;
-          // Handle wildcard paths
-          if (p.includes('*')) {
-            const regex = new RegExp('^' + p.replace(/\*/g, '.*') + '$');
-            return regex.test(pathname);
+    // Check if path is in public paths
+    const isPublicPath = PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
+      PUBLIC_API_PATHS.some(p => {
+        // Handle exact matches
+        if (pathname === p || pathname === p.replace(/\/$/, '') || pathname === `${p}/`) {
+          return true;
+        }
+        
+        // Handle wildcard paths
+        if (p.includes('*')) {
+          // Convert path pattern to regex
+          let pattern = p
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // escape regex special chars
+            .replace(/\*/g, '[^/]+'); // replace * with non-slash chars
+          
+          // Make sure pattern matches whole path segments
+          if (!pattern.endsWith('$') && !pattern.endsWith('/')) {
+            pattern = `${pattern}(?:/|$)`;
           }
-          // Handle prefix matches
-          return pathname.startsWith(p);
-        })) {
+          
+          const regex = new RegExp(`^${pattern}`);
+          return regex.test(pathname);
+        }
+        
+        // Handle prefix matches with or without trailing slash
+        return pathname.startsWith(p) || 
+               pathname.startsWith(p.replace(/\/$/, '')) || 
+               pathname.startsWith(`${p}/`);
+      });
+
+    if (isPublicPath) {
+      console.log(`Allowing public access to: ${pathname}`);
       return response;
     }
     

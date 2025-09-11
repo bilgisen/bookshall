@@ -6,11 +6,15 @@ import { chapters, books } from '@/db';
 import { generateJSON } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
 
-// Define types for our response data
+// Define types for chapter content
 interface ChapterContent {
-  type: 'doc' | string;  // Made type more specific with default value
+  type: 'doc' | string;
   content?: Array<{
     type: string;
+    attrs?: {
+      level?: number;
+      [key: string]: unknown;
+    };
     content?: Array<{
       type: string;
       text?: string;
@@ -20,41 +24,6 @@ interface ChapterContent {
   }>;
   [key: string]: unknown;
 }
-
-type ChapterResponse = {
-  id: string;
-  title: string | null;
-  content: ChapterContent | null;
-  excerpt: null;
-  order: number;
-  level: number;
-  isDraft: boolean;
-  wordCount: number;
-  readingTime: number | null;
-  parentChapterId: string | null;
-  bookId: string;
-  uuid: string;
-  createdAt: string;
-  updatedAt: string;
-  publishedAt: null;
-  book: {
-    id: string;
-    title: string;
-    slug: string;
-    author: string | null;
-    coverImageUrl: string | null;
-    language: string | null;
-    subtitle: string | null;
-    publisher: string | null;
-    publishYear: number | null;
-    isbn: string | null;
-    description: string | null;
-    isPublished: boolean;
-    publishedAt: null;
-    createdAt: string;
-    updatedAt: string;
-  };
-};
 
 type UpdateFieldKey = 
   | 'title'
@@ -100,30 +69,11 @@ export async function GET(
   console.log('GET /api/books/by-slug/[slug]/chapters/[chapterId] called');
   
   try {
-    
-    // Get session using authClient
-    const sessionResponse = await auth.api.getSession({
-      headers: req.headers,
-    });
-    
-    if (!sessionResponse?.user) {
-      console.log('No session found, returning 401');
-      return NextResponse.json(
-        { error: 'Unauthorized' }, 
-        { status: 401 }
-      );
-    }
-
-    // Find the book by slug
+    // Find the book by slug (no authentication required for GET)
     const [book] = await db
       .select()
       .from(books)
-      .where(
-        and(
-          eq(books.slug, params.slug),
-          eq(books.userId, sessionResponse.user.id)
-        )
-      )
+      .where(eq(books.slug, params.slug))
       .limit(1);
 
     if (!book) {
@@ -296,55 +246,118 @@ export async function GET(
       }
     }
 
-    // Return the data in the expected format
-    const responseData: ChapterResponse = {
-      id: chapterData.id,
-      title: chapterData.title,
-      content: content,
-      excerpt: null, // Not in the schema
-      order: Number(chapterData.order) || 0,
-      level: Number(chapterData.level) || 1,
-      isDraft: false, // Not in the schema
-      wordCount: Number(chapterData.wordCount) || 0,
-      readingTime: chapterData.readingTime ? Number(chapterData.readingTime) : null,
-      parentChapterId: chapterData.parentChapterId || null,
-      bookId: chapterData.bookId,
-      uuid: chapterData.uuid,
-      createdAt: new Date(chapterData.createdAt).toISOString(),
-      updatedAt: new Date(chapterData.updatedAt).toISOString(),
-      publishedAt: null, // Not in the schema
-      // Include book information
-      book: {
-        id: chapterData.book.id,
-        title: chapterData.book.title,
-        slug: chapterData.book.slug,
-        author: chapterData.book.author || null,
-        coverImageUrl: chapterData.book.coverImageUrl || null,
-        language: chapterData.book.language || null,
-        subtitle: chapterData.book.subtitle || null,
-        publisher: chapterData.book.publisher || null,
-        publishYear: chapterData.book.publishYear || null,
-        isbn: chapterData.book.isbn || null,
-        description: chapterData.book.description || null,
-        isPublished: true, // Default value since it's not in the schema
-        publishedAt: null, // Not in the schema
-        createdAt: new Date(chapterData.book.createdAt).toISOString(),
-        updatedAt: new Date(chapterData.book.updatedAt).toISOString(),
-      },
-    };
-    
-    return NextResponse.json(responseData);
+    // Generate HTML content from the chapter data
+    const htmlContent = (() => {
+      if (!content) return '<p>No content available</p>';
+      
+      if (content.type === 'doc' && content.content) {
+        // Convert Tiptap JSON to HTML
+        return content.content.map(block => {
+          if (block.type === 'paragraph') {
+            return `<p>${block.content?.map(node => node.text).join('') || ''}</p>`;
+          } else if (block.type === 'heading') {
+            return `<h${block.attrs?.level || 2}>${block.content?.map(node => node.text).join('') || ''}</h${block.attrs?.level || 2}>`;
+          }
+          return '';
+        }).join('');
+      }
+      
+      return String(content);
+    })();
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${chapterData.title || 'Chapter'}</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+              line-height: 1.6; 
+              max-width: 800px; 
+              margin: 0 auto; 
+              padding: 20px; 
+              color: #333;
+            }
+            h1 { 
+              font-size: 2em; 
+              margin-bottom: 0.5em;
+              color: #1a1a1a;
+            }
+            .content { 
+              line-height: 1.8; 
+              font-size: 1.1em;
+            }
+            p {
+              margin-bottom: 1.5em;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${chapterData.title || 'Chapter'}</h1>
+          <div class="content">
+            ${htmlContent}
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Return HTML response
+    return new NextResponse(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600, s-maxage=3600'
+      }
+    });
   } catch (error) {
     console.error('Error getting chapter:', error);
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: process.env.NODE_ENV === 'development' 
-          ? error instanceof Error ? error.message : 'Unknown error'
-          : undefined
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error instanceof Error ? error.message : 'Unknown error'
+      : 'An error occurred while loading this chapter';
+    
+    const errorHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Error</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+              line-height: 1.6; 
+              max-width: 800px; 
+              margin: 0 auto; 
+              padding: 20px; 
+              color: #333;
+            }
+            h1 { 
+              color: #dc2626;
+              margin-bottom: 1em;
+            }
+            pre {
+              background: #f5f5f5;
+              padding: 1em;
+              border-radius: 4px;
+              overflow-x: auto;
+              font-size: 0.9em;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Error Loading Chapter</h1>
+          <p>${errorMessage}</p>
+          ${process.env.NODE_ENV === 'development' ? `<pre>${error instanceof Error ? error.stack : JSON.stringify(error, null, 2)}</pre>` : ''}
+        </body>
+      </html>
+    `;
+
+    return new NextResponse(errorHtml, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
       },
-      { status: 500 }
-    );
+    });
   }
 }
 
