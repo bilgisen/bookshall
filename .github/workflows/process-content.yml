@@ -58,8 +58,6 @@ jobs:
     env:
       NODE_ENV: production
       NEXT_PUBLIC_APP_URL: https://bookshall.com
-
-      # GitHub Token
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Inputs
@@ -85,32 +83,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug environment
-        run: |
-          echo "=== Env vars ==="
-          env | sort
-          echo "=== Inputs ==="
-          echo "BOOK_ID=$BOOK_ID"
-          echo "USER_ID=$USER_ID"
-          echo "SESSION_ID=$SESSION_ID"
-          echo "CONTENT_ID=$CONTENT_ID"
-          echo "TOC_LEVEL=$TOC_LEVEL"
-          echo "INCLUDE_METADATA=$INCLUDE_METADATA"
-          echo "INCLUDE_COVER=$INCLUDE_COVER"
-          echo "INCLUDE_TOC=$INCLUDE_TOC"
-          echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT"
-          echo "METADATA=$METADATA"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Install system dependencies
         run: |
