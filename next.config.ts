@@ -2,7 +2,21 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
-
+  
+  // Enable Turbopack in development
+  experimental: {
+    turbo: {
+      rules: {
+        // Add any module rules that were previously in webpack
+      },
+      resolveAlias: {
+        // Add any path aliases that were in webpack
+        '@': __dirname,
+      },
+    },
+  },
+  
+  // Keep webpack config for production build
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

@@ -1,3 +1,4 @@
+// lib/auth/api-auth.ts
 import { NextResponse } from 'next/server';
 import { auth } from '../auth';
 

@@ -1,6 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
+# Debug: Print environment variables (masking sensitive data)
+echo "[DEBUG] Environment variables:"
+printenv | grep -E 'API|BOOK|CONTENT|NODE_ENV|NEXT_PUBLIC_APP_URL' | while read -r line; do
+  if [[ $line == *"KEY"* || $line == *"TOKEN"* || $line == *"SECRET"* ]]; then
+    echo "${line%%=*}=[MASKED]"
+  else
+    echo "$line"
+  fi
+done
+
+# Trim whitespace from API key
+BOOKSHALL_API_KEY=$(echo -n "$BOOKSHALL_API_KEY" | tr -d '\r\n' | xargs)
+
 # Validate required environment variables
 : "${BOOKSHALL_API_KEY:?BOOKSHALL_API_KEY must be set in workflow environment}"
 
@@ -175,7 +188,12 @@ update_status() {
 
 # --- FETCH PAYLOAD ---
 log "Fetching book payload from $API_URL/books/by-id/$BOOK_ID/payload..."
+log "API Key length: ${#BOOKSHALL_API_KEY} characters"
 mkdir -p "./work/payload"
+
+# Debug request headers
+log "Request headers:"
+echo "x-api-key: ${BOOKSHALL_API_KEY:0:4}...${BOOKSHALL_API_KEY: -4}"
 
 # First, try to get the payload with verbose output
 log "Making API request..."

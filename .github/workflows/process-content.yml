@@ -236,14 +236,37 @@ jobs:
           # If we got here, the API call was successful
           echo "API test successful. Response received."
           
-          # Run the script with required environment variables
+      # Debug API key
+      - name: Debug API key
+        run: |
+          if [ -z "$BOOKSHALL_API_KEY" ]; then
+            echo "❌ BOOKSHALL_API_KEY is empty"
+          else
+            echo "✅ BOOKSHALL_API_KEY length: ${#BOOKSHALL_API_KEY}"
+          fi
+        env:
+          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
+
+      # Run the script with required environment variables
+      - name: Fetch book content
+        run: |
           chmod +x ./scripts/fetch-book.sh
-          BOOKSHALL_API_KEY="$BOOKSHALL_API_KEY" \
+          # Trim whitespace from API key before passing to script
+          TRIMMED_API_KEY=$(echo -n "$BOOKSHALL_API_KEY" | tr -d '\r\n' | xargs)
+          echo "::add-mask::$TRIMMED_API_KEY"
+          
+          BOOKSHALL_API_KEY="$TRIMMED_API_KEY" \
           API_URL="$API_URL" \
           BOOK_ID="$BOOK_ID" \
           CONTENT_ID="$CONTENT_ID" \
           METADATA="$METADATA" \
           ./scripts/fetch-book.sh
+        env:
+          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
+          API_URL: ${{ env.API_URL }}
+          BOOK_ID: ${{ env.BOOK_ID }}
+          CONTENT_ID: ${{ env.CONTENT_ID }}
+          METADATA: ${{ env.METADATA }}
 
       - name: Upload EPUB to R2
         env:

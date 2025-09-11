@@ -12,12 +12,7 @@ const ALLOWED_ORIGINS = [
 
 // List of paths that should always be allowed for CORS
 const PUBLIC_PATHS = [
-  '/api/auth/sign-in/social',
-  '/api/auth/callback/google',
-  '/api/auth/session',
-  '/api/auth/csrf',
-  '/api/auth/providers',
-  '/api/auth/get-session',
+  '/api/auth/',  // Allow all auth routes
   '/api/ci/process',
 ];
 
@@ -67,28 +62,34 @@ export async function middleware(request: NextRequest) {
     // Create a response object
     const response = NextResponse.next();
     
-    // Add CORS headers
-    if (normalizedOrigin && ALLOWED_ORIGINS.some(o => o === normalizedOrigin || o === origin)) {
+    // Always set CORS headers for API routes
+    if (normalizedOrigin && ALLOWED_ORIGINS.some(o => 
+      o === normalizedOrigin || 
+      o === origin || 
+      normalizeOrigin(o) === normalizedOrigin
+    )) {
       response.headers.set('Access-Control-Allow-Origin', normalizedOrigin);
       response.headers.set('Access-Control-Allow-Credentials', 'true');
       response.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
       response.headers.set(
         'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-api-key'
       );
+      response.headers.set('Vary', 'Origin');
+
+      // Handle preflight requests
+      if (request.method === 'OPTIONS') {
+        return new NextResponse(null, { 
+          status: 204, 
+          headers: response.headers 
+        });
+      }
     }
     
-    // Add CORS headers if the origin is allowed
-    if (ALLOWED_ORIGINS.some(o => normalizeOrigin(o) === normalizedOrigin)) {
-      response.headers.set('Access-Control-Allow-Origin', normalizedOrigin);
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      response.headers.set('Access-Control-Allow-Credentials', 'true');
-    }
-    
-    // Handle preflight requests
-    if (request.method === 'OPTIONS') {
-      return new NextResponse(null, { status: 204, headers: response.headers });
+    // Skip authentication for public paths
+    if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
+        PUBLIC_API_PATHS.some(p => pathname === p)) {
+      return response;
     }
     
     // Check for API key authentication for protected paths
@@ -102,12 +103,6 @@ export async function middleware(request: NextRequest) {
         return response;
       }
       console.log('API Key validation failed or not provided');
-    }
-
-    // Skip authentication for public paths
-    if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
-        PUBLIC_API_PATHS.some(p => pathname === p)) {
-      return response;
     }
     
     // Check for authenticated session
