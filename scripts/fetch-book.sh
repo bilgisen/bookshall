@@ -28,7 +28,9 @@ echo "==========================="
 METADATA="${METADATA:-{}}"
 
 # Debug: Print the raw metadata for troubleshooting
-echo "Raw metadata input: $METADATA"
+echo "=== RAW METADATA INPUT ==="
+echo "$METADATA"
+echo "========================="
 
 # Function to clean and validate JSON
 clean_and_validate_json() {
@@ -37,16 +39,29 @@ clean_and_validate_json() {
   # Debug: Print the input to the function
   echo "clean_and_validate_json input: $json"
   
-  # Remove surrounding single/double quotes if they exist
-  json=$(echo "$json" | sed 's/^[\"\x27]\|[\"\x27]$//g')
-  
-  # Debug: Print after removing quotes
-  echo "After removing quotes: $json"
-  
-  # If empty, return empty object
-  if [ -z "$json" ] || [ "$json" = "null" ]; then
+  # If input is empty or 'null', return empty object
+  if [ -z "$json" ] || [ "$json" = "null" ] || [ "$json" = "''" ] || [ "$json" = '""' ]; then
     echo '{}'
     return 0
+  fi
+  
+  # Remove surrounding single/double quotes if they exist
+  json=$(echo "$json" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^["\x27]//' -e 's/["\x27]$//')
+  
+  # Debug: Print after removing quotes
+  echo "After cleaning: $json"
+  
+  # If the string doesn't start with {, assume it's not a JSON object and wrap it
+  if [[ ! "$json" =~ ^\{.*\}$ ]]; then
+    # If it's not a JSON object, try to parse it as a string value
+    if [[ "$json" =~ ^[\"\'].*[\"\']$ ]]; then
+      # Already quoted string
+      json="{\"value\": $json}"
+    else
+      # Unquoted string, add quotes
+      json="{\"value\": \"$json\"}"
+    fi
+    echo "Wrapped metadata as: $json"
   fi
   
   # Try to parse with jq
@@ -62,28 +77,42 @@ clean_and_validate_json() {
 }
 
 # Clean and validate the JSON
-echo "Cleaning and validating JSON..."
+echo "=== VALIDATING METADATA ==="
+# First try to parse as is
 if ! CLEANED_METADATA=$(echo "$METADATA" | jq -c . 2>/dev/null); then
-  echo "::warning::Invalid JSON in metadata, using empty object"
-  METADATA='{}'
+  echo "Failed to parse metadata as JSON, trying to fix..."
+  
+  # If it's not valid JSON, try to parse it as a string
+  if [[ "$METADATA" =~ ^[\"\'].*[\"\']$ ]]; then
+    # It's already a quoted string
+    METADATA="{\"value\": $METADATA}"
+  else
+    # It's an unquoted string, add quotes
+    METADATA="{\"value\": \"$METADATA\"}"
+  fi
+  
+  echo "Reparsed metadata as: $METADATA"
+  
+  # Try parsing again
+  if ! CLEANED_METADATA=$(echo "$METADATA" | jq -c . 2>/dev/null); then
+    echo "::warning::Failed to parse metadata, using empty object"
+    METADATA='{}'
+  else
+    METADATA="$CLEANED_METADATA"
+  fi
 else
   METADATA="$CLEANED_METADATA"
-  SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null || true)
-  if [ -n "$SLUG" ]; then
-    echo "SLUG=$SLUG" >> $GITHUB_ENV
-  fi
 fi
-
-echo "Cleaned metadata output:"
-echo "$METADATA"
 
 # Extract slug if it exists
-SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null)
+SLUG=$(echo "$METADATA" | jq -r '.slug // empty' 2>/dev/null || true)
 if [ -n "$SLUG" ]; then
   echo "SLUG=$SLUG" >> $GITHUB_ENV
+  echo "Extracted slug: $SLUG"
 fi
 
-echo "Final metadata: $METADATA"
+echo "=== FINAL METADATA ==="
+echo "$METADATA"
 
 echo "Using metadata: $METADATA"
 

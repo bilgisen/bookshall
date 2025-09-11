@@ -242,6 +242,7 @@ jobs:
           API_URL="$API_URL" \
           BOOK_ID="$BOOK_ID" \
           CONTENT_ID="$CONTENT_ID" \
+          METADATA="$METADATA" \
           ./scripts/fetch-book.sh
 
       - name: Upload EPUB to R2
