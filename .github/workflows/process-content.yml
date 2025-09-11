@@ -199,11 +199,42 @@ jobs:
           echo "Book ID: $BOOK_ID"
           echo "User ID: $USER_ID"
           
-          # Test API access
-          if ! curl -s -H "Authorization: Bearer $TOKEN" "$API_URL/books/by-id/$BOOK_ID/payload" > /dev/null; then
-            echo "::error::Failed to authenticate with the API. Please check your token and permissions."
+          # Test API access with verbose output
+          echo "Testing API access to: $API_URL/books/by-id/$BOOK_ID/payload"
+          echo "Using token: ${TOKEN:0:10}...${TOKEN: -10} (${#TOKEN} chars)"
+          
+          # Run curl with verbose output and capture both stdout and stderr
+          mkdir -p ./work/debug
+          if ! curl -v \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "X-Request-ID: $(date +%s)" \
+            -H "X-GitHub-Event: workflow_dispatch" \
+            -o "./work/debug/api_test_response.json" \
+            "$API_URL/books/by-id/$BOOK_ID/payload" 2>"./work/debug/curl_debug.log"; then
+            
+            echo "::error::API request failed. Check the logs for details."
+            echo "=== CURL DEBUG LOG ==="
+            cat "./work/debug/curl_debug.log"
+            echo "=== END CURL DEBUG ==="
+            
+            if [ -f "./work/debug/api_test_response.json" ]; then
+              echo "=== API RESPONSE ==="
+              cat "./work/debug/api_test_response.json"
+              echo "=== END API RESPONSE ==="
+            fi
+            
+            # Check if it's an authentication error
+            if grep -q "HTTP/.* 401" "./work/debug/curl_debug.log"; then
+              echo "::error::Authentication failed. Please check your API token."
+            elif grep -q "HTTP/.* 404" "./work/debug/curl_debug.log"; then
+              echo "::error::API endpoint not found. Please check the URL and ensure the book ID is correct."
+            fi
+            
             exit 1
           fi
+          
+          # If we got here, the API call was successful
+          echo "API test successful. Response received."
           
           # Run the script
           chmod +x ./scripts/fetch-book.sh
