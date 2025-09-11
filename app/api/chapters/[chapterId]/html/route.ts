@@ -3,7 +3,6 @@ import { db } from '@/db/drizzle';
 import { eq } from 'drizzle-orm';
 import { books, chapters } from '@/db';
 import { generateCompleteDocumentHTML } from '@/lib/generateChapterHTML';
-import { authenticateRequest } from '@/lib/auth/api-auth';
 
 // Define types based on database schema
 type Book = {
@@ -75,11 +74,6 @@ export async function GET(
   // Await the params promise
   const { chapterId } = await params;
   try {
-    const authResult = await authenticateRequest(request);
-    if (authResult.type === 'unauthorized') {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
     // First, try to find the chapter by UUID
     let chapterResult = await db
       .select()
@@ -113,9 +107,9 @@ export async function GET(
       return new NextResponse('Book not found', { status: 404 });
     }
 
-    // Check if the user has access to this chapter
-    if (authResult.type === 'session' && bookResult.userId !== authResult.userId) {
-      return new NextResponse('Access denied', { status: 403 });
+    // For non-published books, only allow access to non-draft chapters
+    if (chapterResult.isDraft) {
+      return new NextResponse('Chapter not available', { status: 404 });
     }
 
     // Create typed objects

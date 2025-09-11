@@ -23,6 +23,7 @@ const PUBLIC_API_PATHS = [
   '/api/debug-env',
   '/api/books/by-id/', // This will make all /by-id/ endpoints public
   '/api/books/by-id/:id/payload', // Explicitly include the payload endpoint
+  '/api/chapters/', // Make all chapter endpoints public
 ];
 
 // List of paths that can be accessed with API key

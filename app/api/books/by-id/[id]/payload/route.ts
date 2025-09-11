@@ -55,10 +55,7 @@ interface ChapterNode {
 interface PayloadChapter {
   id: string;
   title: string;
-  slug: string;
   url: string;
-  content_url: string;
-  content: string;
   order: number;
   parent: string | null;
   title_tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
@@ -236,17 +233,12 @@ function flattenChapterTree(
   console.log('Flattening chapter tree, chapters count:', chapters.length);
   
   for (const chapter of chapters) {
-    const slug = `chapter-${chapter.id}`;
-    const url = `${baseUrl}/books/${bookSlug}/${slug}`;
-    const contentUrl = `${baseUrl}/api/chapters/${chapter.id}/content`;
+    const url = `${baseUrl}/api/chapters/${chapter.id}/html`;
     
     const payloadChapter: PayloadChapter = {
       id: chapter.id,
       title: chapter.title,
-      slug,
       url,
-      content_url: contentUrl,
-      content: chapter.content,
       order: chapter.order,
       parent: parentId,
       title_tag: `h${Math.min(chapter.level, 6)}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
