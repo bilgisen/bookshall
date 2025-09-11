@@ -236,9 +236,13 @@ jobs:
           # If we got here, the API call was successful
           echo "API test successful. Response received."
           
-          # Run the script with API key
+          # Run the script with API key and required environment variables
           chmod +x ./scripts/fetch-book.sh
-          GITHUB_ACTIONS_API_KEY="$GITHUB_ACTIONS_API_KEY" ./scripts/fetch-book.sh
+          GITHUB_ACTIONS_API_KEY="$GITHUB_ACTIONS_API_KEY" \
+          API_URL="$API_URL" \
+          BOOK_ID="$BOOK_ID" \
+          CONTENT_ID="$CONTENT_ID" \
+          ./scripts/fetch-book.sh
 
       - name: Upload EPUB to R2
         env:

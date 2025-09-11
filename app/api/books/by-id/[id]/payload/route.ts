@@ -277,18 +277,27 @@ export async function GET(
   // Await the params promise
   const { id } = await params;
   try {
+    // Get headers from the request
+    const headersObj = Object.fromEntries(request.headers.entries());
+    
     // Authenticate the request using api-auth helper
-    const authResult = await authenticateRequest(request);
+    const authResult = await authenticateRequest({
+      headers: headersObj
+    });
     
     if (authResult.type === 'unauthorized') {
+      console.error('Unauthorized request', { 
+        headers: Object.keys(headersObj),
+        authResult
+      });
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - Invalid or missing API key' },
         { status: 401 }
       );
     }
     
     // For session auth, we'll use the userId later for ownership checks
-    const userId = authResult.type === 'session' ? authResult.userId : null;
+    const userId = authResult.type === 'session' ? authResult.userId : 'github-actions';
 
     // Await params as required by Next.js 15
     const awaitedParams = await params;
