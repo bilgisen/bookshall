@@ -127,7 +127,7 @@ jobs:
           echo "☁️ Uploading EPUB to Cloudflare R2..."
           EPUB_FILE=$(ls *.epub | head -n1)
           aws s3 cp "$EPUB_FILE" s3://$R2_BUCKET/$CONTENT_ID.epub \
-            --endpoint-url=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+            --endpoint-url="$R2_ENDPOINT"
       
       - name: Upload artifacts on failure
         if: failure()
