@@ -27,9 +27,31 @@ export async function authenticateRequest(
       Object.entries(headersObj).map(([k, v]) => [k.toLowerCase(), v])
     );
 
-    // API key check
-    const apiKey = headersObj['x-api-key'] || headersObj['X-API-Key'];
-    if (apiKey && apiKey === process.env.BOOKSHALL_API_KEY) {
+    // API key check with detailed logging
+    const apiKey = headersObj['x-api-key'] || headersObj['X-API-Key'] || headersObj['x-api-key'];
+    const expectedApiKey = process.env.BOOKSHALL_API_KEY;
+    
+    // Log all headers for debugging
+    console.log('=== AUTHENTICATION DEBUG ===');
+    console.log('All headers:', JSON.stringify(headersObj, null, 2));
+    console.log('API Key from headers:', apiKey ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 3)}` : 'Not provided');
+    console.log('Expected API key:', expectedApiKey ? `${expectedApiKey.substring(0, 3)}...${expectedApiKey.substring(expectedApiKey.length - 3)}` : 'Not set');
+    console.log('Environment:', process.env.NODE_ENV);
+    
+    if (!apiKey) {
+      console.log('API key validation failed: No API key provided in headers');
+    } else if (!expectedApiKey) {
+      console.log('API key validation failed: BOOKSHALL_API_KEY is not set in environment');
+    } else if (apiKey !== expectedApiKey) {
+      console.log('API key validation failed: Key mismatch');
+      console.log('  Expected length:', expectedApiKey.length);
+      console.log('  Received length:', apiKey.length);
+      console.log('  Expected first 5 chars:', expectedApiKey.substring(0, 5));
+      console.log('  Received first 5 chars:', apiKey.substring(0, 5));
+      console.log('  Expected last 5 chars:', expectedApiKey.substring(expectedApiKey.length - 5));
+      console.log('  Received last 5 chars:', apiKey.substring(apiKey.length - 5));
+    } else {
+      console.log('API key validation successful');
       return { type: 'api-key' };
     }
 

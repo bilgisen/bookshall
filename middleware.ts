@@ -25,6 +25,14 @@ const PUBLIC_PATHS = [
 const PUBLIC_API_PATHS = [
   '/api/health',
   '/api/hello',
+  '/api/debug-env',
+];
+
+// List of paths that can be accessed with API key
+const API_KEY_PROTECTED_PATHS = [
+  '/api/books/by-id/',
+  '/api/chapters/',
+  '/api/publish/update',
 ];
 
 // List of paths that require authentication but have custom handling
@@ -83,6 +91,19 @@ export async function middleware(request: NextRequest) {
       return new NextResponse(null, { status: 204, headers: response.headers });
     }
     
+    // Check for API key authentication for protected paths
+    if (API_KEY_PROTECTED_PATHS.some(p => pathname.startsWith(p))) {
+      const apiKey = request.headers.get('x-api-key');
+      console.log('API Key check for path:', pathname);
+      console.log('API Key from headers:', apiKey ? `${apiKey.substring(0, 3)}...` : 'Not provided');
+      
+      if (apiKey && apiKey === process.env.BOOKSHALL_API_KEY) {
+        console.log('API Key validation successful');
+        return response;
+      }
+      console.log('API Key validation failed or not provided');
+    }
+
     // Skip authentication for public paths
     if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
         PUBLIC_API_PATHS.some(p => pathname === p)) {
