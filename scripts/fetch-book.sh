@@ -275,7 +275,7 @@ if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
 fi
 
 # output and common options
-PANDOC_ARGS+=( --output="$EPUB_FILENAME" --epub-version=3.0 )
+PANDOC_ARGS+=( --output="$EPUB_FILENAME" )
 
 # toc
 if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
