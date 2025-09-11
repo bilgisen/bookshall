@@ -162,7 +162,7 @@ update_status() {
 }
 
 # --- FETCH PAYLOAD ---
-log "Fetching book payload from $API_URL/books/by-id/$BOOK_ID/export..."
+log "Fetching book payload from $API_URL/books/by-id/$BOOK_ID/payload..."
 mkdir -p "./work/payload"
 
 # First, try to get the payload with verbose output
@@ -172,11 +172,11 @@ if ! curl -v \
   -H "X-Request-ID: $(uuidgen || date +%s)" \
   -H "X-GitHub-Event: workflow_dispatch" \
   -o "./work/payload/payload.json" \
-  "$API_URL/books/by-id/$BOOK_ID/export" 2>"./work/payload/curl_debug.log"; then
+  "$API_URL/books/by-id/$BOOK_ID/payload" 2>"./work/payload/curl_debug.log"; then
   
   error "Failed to fetch payload. HTTP Status: $(grep -o 'HTTP/[0-9.]* [0-9]*' "./work/payload/curl_debug.log" | tail -n1 || echo 'unknown')"
   log "=== Debug Info ==="
-  log "API URL: $API_URL/books/by-id/$BOOK_ID/export"
+  log "API URL: $API_URL/books/by-id/$BOOK_ID/payload"
   log "Token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
   log "Full curl debug output:"
   cat "./work/payload/curl_debug.log"
