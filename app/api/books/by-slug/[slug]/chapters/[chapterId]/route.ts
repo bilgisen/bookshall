@@ -5,13 +5,98 @@ import { and, eq } from 'drizzle-orm';
 import { chapters, books } from '@/db';
 import { generateJSON } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
-import { Chapter } from '@/types/chapter';
+
+// Define types for our response data
+interface ChapterContent {
+  type: 'doc' | string;  // Made type more specific with default value
+  content?: Array<{
+    type: string;
+    content?: Array<{
+      type: string;
+      text?: string;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+type ChapterResponse = {
+  id: string;
+  title: string | null;
+  content: ChapterContent | null;
+  excerpt: null;
+  order: number;
+  level: number;
+  isDraft: boolean;
+  wordCount: number;
+  readingTime: number | null;
+  parentChapterId: string | null;
+  bookId: string;
+  uuid: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: null;
+  book: {
+    id: string;
+    title: string;
+    slug: string;
+    author: string | null;
+    coverImageUrl: string | null;
+    language: string | null;
+    subtitle: string | null;
+    publisher: string | null;
+    publishYear: number | null;
+    isbn: string | null;
+    description: string | null;
+    isPublished: boolean;
+    publishedAt: null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+type UpdateFieldKey = 
+  | 'title'
+  | 'content'
+  | 'excerpt'
+  | 'order'
+  | 'level'
+  | 'isDraft'
+  | 'parentChapterId'
+  | 'wordCount'
+  | 'readingTime'
+  | 'updatedAt';
+
+type UpdateFieldValue = 
+  | string 
+  | number 
+  | boolean 
+  | ChapterContent 
+  | Date 
+  | null 
+  | undefined;
+
+type UpdateFields = Partial<Record<UpdateFieldKey, UpdateFieldValue>>;
+
+// Database update fields type (to match Drizzle's expectations)
+type DbUpdateFields = {
+  title?: string;
+  content?: string;  // Matches the database schema (not null in DB)
+  excerpt?: string | null;
+  order?: number;
+  level?: number;
+  isDraft?: boolean;
+  parentChapterId?: string | null;
+  wordCount?: number;
+  readingTime?: number | null;
+  updatedAt?: Date;
+};
 
 export async function GET(
   req: Request,
   { params }: { params: { slug: string; chapterId: string } }
 ) {
-  const { slug, chapterId } = params;
   console.log('GET /api/books/by-slug/[slug]/chapters/[chapterId] called');
   
   try {
@@ -35,14 +120,14 @@ export async function GET(
       .from(books)
       .where(
         and(
-          eq(books.slug, slug),
+          eq(books.slug, params.slug),
           eq(books.userId, sessionResponse.user.id)
         )
       )
       .limit(1);
 
     if (!book) {
-      console.log('Book not found for slug:', slug);
+      console.log('Book not found for slug:', params.slug);
       return NextResponse.json(
         { error: 'Book not found' }, 
         { status: 404 }
@@ -153,17 +238,23 @@ export async function GET(
     }
 
     // Ensure content is in proper Tiptap JSON format
-    let content = null;
+    let content: ChapterContent | null = null;
     if (chapterData.content !== null && chapterData.content !== undefined) {
       if (typeof chapterData.content === 'string') {
         try {
           // Try to parse as JSON (Tiptap format)
-          content = JSON.parse(chapterData.content);
+          const parsed = JSON.parse(chapterData.content);
+          // Ensure the parsed content has the correct type
+          if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+            content = parsed as ChapterContent;
+          } else {
+            throw new Error('Invalid content format');
+          }
         } catch {
           // If it's not JSON, it might be HTML - convert to Tiptap format
           if (chapterData.content.trim().startsWith('<')) {
             try {
-              content = generateJSON(chapterData.content, [StarterKit]);
+              content = generateJSON(chapterData.content, [StarterKit]) as ChapterContent;
             } catch {
               // If conversion fails, create basic Tiptap document
               content = {
@@ -179,7 +270,7 @@ export async function GET(
                     ]
                   }
                 ]
-              };
+              } satisfies ChapterContent;
             }
           } else {
             // Plain text
@@ -196,17 +287,17 @@ export async function GET(
                   ]
                 }
               ]
-            };
+            } satisfies ChapterContent;
           }
         }
       } else {
         // Already an object (Tiptap JSON format)
-        content = chapterData.content;
+        content = chapterData.content as ChapterContent;
       }
     }
 
     // Return the data in the expected format
-    const responseData = {
+    const responseData: ChapterResponse = {
       id: chapterData.id,
       title: chapterData.title,
       content: content,
@@ -261,7 +352,6 @@ export async function PUT(
   req: Request,
   { params }: { params: { slug: string; chapterId: string } }
 ) {
-  const { slug, chapterId } = params;
   console.log('PUT /api/books/by-slug/[slug]/chapters/[chapterId] called');
   try {
     const response = await auth.api.getSession({
@@ -281,7 +371,7 @@ export async function PUT(
       .from(books)
       .where(
         and(
-          eq(books.slug, slug),
+          eq(books.slug, params.slug),
           eq(books.userId, response.user.id)
         )
       )
@@ -377,9 +467,15 @@ export async function PUT(
     }
 
     // Prepare update data
-    const updateFields: Partial<Chapter> = {
+    const updateFields: UpdateFields = {
       ...(updateData.title && { title: updateData.title }),
-      ...(updateData.content !== undefined && { content: updateData.content }),
+      ...(updateData.content !== undefined && { 
+        content: typeof updateData.content === 'string' 
+          ? updateData.content 
+          : updateData.content === null 
+            ? '' 
+            : JSON.stringify(updateData.content) 
+      }),
       ...(updateData.excerpt !== undefined && { excerpt: updateData.excerpt }),
       ...(updateData.order !== undefined && { order: updateData.order }),
       ...(updateData.level !== undefined && { level: updateData.level }),
@@ -391,13 +487,66 @@ export async function PUT(
     };
 
     try {
+      // Convert UpdateFields to DbUpdateFields for database operation
+      const dbUpdateFields: DbUpdateFields = {};
+      
+      Object.entries(updateFields).forEach(([key, value]) => {
+        switch (key as UpdateFieldKey) {
+          case 'title':
+            if (typeof value === 'string') dbUpdateFields.title = value;
+            break;
+          case 'content':
+            if (value === null) {
+              // If content is null, set empty string to match DB schema
+              dbUpdateFields.content = '';
+            } else if (typeof value === 'object') {
+              // Ensure we have proper ChapterContent with type
+              const contentObj = value as ChapterContent;
+              if (!contentObj.type) {
+                contentObj.type = 'doc';  // Default type for Tiptap documents
+              }
+              dbUpdateFields.content = JSON.stringify(contentObj);
+            } else if (typeof value === 'string') {
+              dbUpdateFields.content = value;
+            } else {
+              // Fallback for any other case
+              dbUpdateFields.content = '';
+            }
+            break;
+          case 'excerpt':
+            if (value === null || typeof value === 'string') dbUpdateFields.excerpt = value;
+            break;
+          case 'order':
+            if (typeof value === 'number') dbUpdateFields.order = value;
+            break;
+          case 'level':
+            if (typeof value === 'number') dbUpdateFields.level = value;
+            break;
+          case 'isDraft':
+            if (typeof value === 'boolean') dbUpdateFields.isDraft = value;
+            break;
+          case 'parentChapterId':
+            if (value === null || typeof value === 'string') dbUpdateFields.parentChapterId = value;
+            break;
+          case 'wordCount':
+            if (typeof value === 'number') dbUpdateFields.wordCount = value;
+            break;
+          case 'readingTime':
+            if (value === null || typeof value === 'number') dbUpdateFields.readingTime = value;
+            break;
+          case 'updatedAt':
+            if (value instanceof Date) dbUpdateFields.updatedAt = value;
+            break;
+        }
+      });
+
       // Update the chapter
       const [updatedChapter] = await db
         .update(chapters)
-        .set(updateFields)
+        .set(dbUpdateFields)
         .where(
           and(
-            eq(chapters.id, chapterId),
+            eq(chapters.id, params.chapterId),
             eq(chapters.bookId, book.id)
           )
         )
@@ -436,7 +585,6 @@ export async function PATCH(
   req: Request,
   { params }: { params: { slug: string; chapterId: string } }
 ) {
-  const { slug, chapterId } = params;
   try {
     console.log('PATCH /api/books/by-slug/[slug]/chapters/[chapterId] called');
     const response = await auth.api.getSession({
@@ -456,7 +604,7 @@ export async function PATCH(
       .from(books)
       .where(
         and(
-          eq(books.slug, slug),
+          eq(books.slug, params.slug),
           eq(books.userId, response.user.id)
         )
       )
@@ -470,7 +618,7 @@ export async function PATCH(
     }
 
     // Ensure chapterId is always a string for database queries
-    const chapterIdParam = String(chapterId).trim();
+    const chapterIdParam = String(params.chapterId).trim();
     
     // Log the incoming parameters for debugging
     console.log('Processing chapter update for ID:', chapterIdParam, 'type:', typeof chapterIdParam);
@@ -489,7 +637,7 @@ export async function PATCH(
     // Get the update data from the request body
     const updateData = await req.json();
     
-    console.log('Received update data:', JSON.stringify(updateData, null, 2));
+    console.log('Received update ', JSON.stringify(updateData, null, 2));
     
     // First, try to find the chapter with the exact ID
     console.log('Querying for chapter with ID:', chapterIdParam, 'and book ID:', book.id);
@@ -502,14 +650,14 @@ export async function PATCH(
       
     // If not found, try to find by numeric ID (for backward compatibility)
     let chapterToUpdate = existingChapter;
-    if (!chapterToUpdate && !isNaN(Number(chapterId))) {
+    if (!chapterToUpdate && !isNaN(Number(params.chapterId))) {
       console.log('Chapter not found with UUID, trying numeric ID...');
       const numericChapters = await db
         .select()
         .from(chapters)
         .where(
           and(
-            eq(chapters.id, String(chapterId)), // Try with string ID
+            eq(chapters.id, String(params.chapterId)), // Try with string ID
             eq(chapters.bookId, book.id)
           )
         )
@@ -526,15 +674,15 @@ export async function PATCH(
       return NextResponse.json(
         { 
           error: 'Chapter not found or does not belong to this book',
-          details: { chapterId, bookId: book.id }
+          details: { chapterId: params.chapterId, bookId: book.id }
         },
         { status: 404 }
       );
     }
     
     // Validate update data
-    const allowedFields = ['title', 'content', 'order', 'level', 'parentChapterId', 'wordCount', 'readingTime'];
-    const validUpdate: Record<string, string | number | null | object> = {};
+    const allowedFields: UpdateFieldKey[] = ['title', 'content', 'order', 'level', 'parentChapterId', 'wordCount', 'readingTime'];
+    const validUpdate: DbUpdateFields = {};
     
     console.log('Allowed fields:', allowedFields);
     
@@ -543,12 +691,7 @@ export async function PATCH(
       console.log(`Checking field: ${field}, exists: ${field in updateData}, value:`, updateData[field]);
       
       if (field in updateData && updateData[field] !== undefined) {
-        // Handle content field specifically to preserve Tiptap JSON format
-        if (field === 'content') {
-          validUpdate[field] = updateData[field];
-        } else {
-          validUpdate[field] = updateData[field];
-        }
+        validUpdate[field] = updateData[field];
       }
     }
     
@@ -582,7 +725,7 @@ export async function PATCH(
       }
       
       // Prevent circular references
-      if (validUpdate.parentChapterId === chapterId) {
+      if (validUpdate.parentChapterId === params.chapterId) {
         return NextResponse.json(
           { error: 'A chapter cannot be its own parent' },
           { status: 400 }
@@ -592,26 +735,78 @@ export async function PATCH(
     
     // Add updatedAt timestamp
     validUpdate.updatedAt = new Date();
-    
-    // Create a properly typed update object
-    const updateValues: Record<string, any> = {};
-    
-    // Copy all valid fields
-    for (const [key, value] of Object.entries(validUpdate)) {
-      if (value !== undefined) {
-        updateValues[key] = value;
-      }
+  
+    // Ensure content is properly serialized
+    if ('content' in validUpdate && validUpdate.content !== undefined) {
+      validUpdate.content = typeof validUpdate.content === 'string' 
+        ? validUpdate.content 
+        : validUpdate.content === null 
+          ? '' 
+          : JSON.stringify(validUpdate.content);
     }
+  
+    console.log('Update values with dates:', JSON.stringify(validUpdate, null, 2));
     
-    console.log('Update values with dates:', JSON.stringify(updateValues, null, 2));
+    // Convert UpdateFields to DbUpdateFields for database operation
+    const dbUpdateFields: DbUpdateFields = {};
     
+    Object.entries(validUpdate).forEach(([key, value]) => {
+      switch (key as UpdateFieldKey) {
+        case 'title':
+          if (typeof value === 'string') dbUpdateFields.title = value;
+          break;
+        case 'content':
+          if (value === null) {
+            // If content is null, set empty string to match DB schema
+            dbUpdateFields.content = '';
+          } else if (typeof value === 'object') {
+            // Ensure we have proper ChapterContent with type
+            const contentObj: ChapterContent = {
+              type: 'doc',
+              ...(value as object)
+            };
+            dbUpdateFields.content = JSON.stringify(contentObj);
+          } else if (typeof value === 'string') {
+            dbUpdateFields.content = value;
+          } else {
+            // Fallback for any other case
+            dbUpdateFields.content = '';
+          }
+          break;
+        case 'excerpt':
+          if (value === null || typeof value === 'string') dbUpdateFields.excerpt = value;
+          break;
+        case 'order':
+          if (typeof value === 'number') dbUpdateFields.order = value;
+          break;
+        case 'level':
+          if (typeof value === 'number') dbUpdateFields.level = value;
+          break;
+        case 'isDraft':
+          if (typeof value === 'boolean') dbUpdateFields.isDraft = value;
+          break;
+        case 'parentChapterId':
+          if (value === null || typeof value === 'string') dbUpdateFields.parentChapterId = value;
+          break;
+        case 'wordCount':
+          if (typeof value === 'number') dbUpdateFields.wordCount = value;
+          break;
+        case 'readingTime':
+          if (value === null || typeof value === 'number') dbUpdateFields.readingTime = value;
+          break;
+        case 'updatedAt':
+          if (value instanceof Date) dbUpdateFields.updatedAt = value;
+          break;
+      }
+    });
+
     // Update the chapter
     const [updatedChapter] = await db
       .update(chapters)
-      .set(updateValues as any) // Type assertion to avoid TypeScript errors
+      .set(dbUpdateFields)
       .where(
         and(
-          eq(chapters.id, chapterId),
+          eq(chapters.id, params.chapterId),
           eq(chapters.bookId, book.id)
         )
       )

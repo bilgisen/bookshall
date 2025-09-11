@@ -119,6 +119,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
     startYOffset,
     endXOffset,
     endYOffset,
+    pathD
   ]);
 
   console.log("AnimatedBeam: pathD:", pathD);

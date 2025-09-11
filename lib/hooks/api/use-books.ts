@@ -11,7 +11,6 @@ type ApiResponse<T> = {
 };
 
 type BookResponse = ApiResponse<Book>;
-type BooksResponse = ApiResponse<Book[]>;
 
 const API_BASE_URL = '/api/books';
 
@@ -22,19 +21,11 @@ export function useBooks() {
     queryFn: async (): Promise<Book[]> => {
       const response = await fetch(API_BASE_URL);
       if (!response.ok) {
-        let errorMessage = 'Failed to fetch books';
-        try {
-          const errorData = await response.json() as { message?: string };
-          errorMessage = errorData.message || errorMessage;
-          // Create an error with status code
-          const error = new Error(errorMessage) as Error & { status?: number };
-          error.status = response.status;
-          throw error;
-        } catch (e) {
-          const error = new Error(errorMessage) as Error & { status?: number };
-          error.status = response.status;
-          throw error;
-        }
+        const errorData = await response.json() as { message?: string };
+        const errorMessage = errorData.message || 'Failed to fetch books';
+        const error = new Error(errorMessage) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
       }
       const result = await response.json();
       // Handle both direct array response and { data: [] } format
@@ -84,14 +75,6 @@ export interface UpdateBookInput extends Partial<CreateBookInput> {
   id: string;
 }
 
-// Helper function for common fetch options
-const getFetchOptions = (method: string, data?: unknown) => ({
-  method,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: data ? JSON.stringify(data) : undefined,
-});
 
 // Create a new book
 export function useCreateBook() {

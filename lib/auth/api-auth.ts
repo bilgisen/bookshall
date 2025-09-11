@@ -24,10 +24,6 @@ export async function authenticateRequest(
           ? Object.fromEntries(request.headers.entries())
           : request.headers;
 
-    const normalizedHeaders = Object.fromEntries(
-      Object.entries(headersObj).map(([k, v]) => [k.toLowerCase(), v])
-    );
-
     // API key check with detailed logging
     const apiKey = headersObj['x-api-key'] || headersObj['X-API-Key'] || headersObj['x-api-key'];
     const expectedApiKey = process.env.BOOKSHALL_API_KEY;

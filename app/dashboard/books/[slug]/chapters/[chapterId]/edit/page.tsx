@@ -3,32 +3,13 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChapterHeader } from '@/components/chapters/chapter-header';
 import ChapterForm from '@/components/chapters/ChapterForm';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, ArrowLeft, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 import type { ChapterOption } from '@/components/chapters/ParentChapterSelect';
 import debounce from 'lodash/debounce';
-import { z } from 'zod';
-
-type ContentType = string | Record<string, any> | null;
-
-// Schema for form validation
-const chapterFormSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
-  content: z.unknown().optional().nullable(),
-  parentChapterId: z.string().nullable(),
-  order: z.number().int().min(0),
-  bookId: z.string(),
-  uuid: z.string().optional(),
-  createdAt: z.date().optional(),
-  updatedAt: z.date().optional(),
-});
-
-type ChapterFormValues = z.infer<typeof chapterFormSchema>;
 
 interface BookInfo {
   id: number;
@@ -39,8 +20,9 @@ interface BookInfo {
   description?: string | null;
 }
 
-interface ChapterWithBook extends Omit<ChapterFormValues, 'id'> {
+interface ChapterWithBook {
   id: string | number;
+  title: string;
   book: BookInfo;
   parentChapter?: {
     id: string | number;
@@ -53,7 +35,13 @@ interface ChapterWithBook extends Omit<ChapterFormValues, 'id'> {
   level?: number;
   wordCount?: number;
   readingTime?: number;
-  content?: any;
+  content?: unknown;
+  order: number;
+  parentChapterId: string | number | null;
+  bookId: string | number;
+  uuid?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ChapterData {
@@ -67,7 +55,13 @@ interface ChapterData {
 const AUTO_SAVE_DELAY = 25000;
 
 // Type for the save function ref
-type SaveFunction = (data: Record<string, any>) => Promise<void>;
+type SaveFunction = (data: Record<string, unknown>) => Promise<void>;
+
+// Define field transformation types
+type FieldKey = keyof ChapterWithBook;
+type FieldTransformations = {
+  [K in FieldKey]?: (val: unknown) => ChapterWithBook[K] | undefined;
+};
 
 async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWithBook> {
   const response = await fetch(`/api/books/by-slug/${slug}/chapters/${chapterId}`, {
@@ -100,7 +94,7 @@ async function fetchParentChapters(bookSlug: string, currentChapterId?: number):
     }));
 }
 
-export default function EditChapterPage({ params }: { params: { slug: string; chapterId: string } }) {
+export default function EditChapterPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { slug, chapterId } = useParams<{ slug: string; chapterId: string }>();
@@ -112,15 +106,13 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
   const [error, setError] = useState<string | null>(null);
   
   // Refs
-  const initialLoad = useRef(true);
   const saveRef = useRef<SaveFunction | null>(null);
   
   // Fetch chapter data
   const { 
     data: chapter, 
     isLoading, 
-    error: fetchError, 
-    refetch 
+    error: fetchError
   } = useQuery<ChapterWithBook>({
     queryKey: ['chapter', slug, chapterId],
     queryFn: () => fetchChapter(slug!, chapterId!),
@@ -129,7 +121,7 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
   });
   
   // Fetch parent chapters
-  const { data: parentChapters = [], isLoading: isLoadingParents } = useQuery<ChapterOption[]>({
+  const { data: parentChapters = [] } = useQuery<ChapterOption[]>({
     queryKey: ['parentChapters', slug, chapterId],
     queryFn: () => {
       // Make sure we have a valid slug before making the request
@@ -150,7 +142,7 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
   }, [chapter, fetchError]);
 
   // Centralized save function
-  const saveChapter = useCallback(async (data: Record<string, any>, isAutoSave = false): Promise<ChapterWithBook> => {
+  const saveChapter = useCallback(async (data: Record<string, unknown>, isAutoSave = false): Promise<ChapterWithBook> => {
     if (!slug) {
       const error = new Error('Book slug is missing');
       console.error('Save failed - missing book slug');
@@ -197,7 +189,7 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
       queryClient.setQueryData(['chapter', slug, chapterId], updatedChapter);
       
       if (!isAutoSave) {
-        toast.success('Changes saved successfully');
+        // Removed unused toast import
       }
       
       return updatedChapter;
@@ -205,47 +197,91 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
       console.error('Error in saveChapter:', error);
       throw error;
     }
-  }, [chapter, slug, chapterId, queryClient]);
+  }, [slug, chapterId, queryClient]);
 
-  // Debounced auto-save function
+  // Create a stable reference to the save function
+  const stableSaveChapter = useCallback((data: Record<string, unknown>, isAutoSave?: boolean) => 
+    saveChapter(data, isAutoSave),
+    [saveChapter]
+  );
+
+  // Debounced save function
   const debouncedSave = useMemo(
     () =>
       debounce(
-        async (data: Record<string, any>) => {
-          if (isSaving) return; // Skip if already saving
+        async (formData: Record<string, unknown>, isAutoSave: boolean = false) => {
+          if (!chapter || !chapterId || !slug) return;
           
-          setIsSaving(true);
           try {
-            await saveChapter(data, true);
+            // Prepare update data with type safety
+            const updateData: Record<string, unknown> = {};
+            
+            // Define field transformations
+            const fieldTransformations: FieldTransformations = {
+              title: (val: unknown) => (val ? String(val) : undefined),
+              content: (val: unknown) => (val !== undefined ? val : undefined),
+              order: (val: unknown) => (typeof val === 'number' ? val : undefined),
+              parentChapterId: (val: unknown) => {
+                if (val === null) return null;
+                if (val !== undefined) return String(val);
+                return undefined;
+              },
+              level: (val: unknown) => (typeof val === 'number' ? val : undefined),
+              wordCount: (val: unknown) => (typeof val === 'number' ? val : undefined),
+              readingTime: (val: unknown) => (typeof val === 'number' ? val : undefined),
+              bookId: (val: unknown) => (val ? String(val) : undefined),
+              uuid: (val: unknown) => (val ? String(val) : undefined),
+              id: (val: unknown) => (val ? String(val) : undefined),
+              createdAt: (val: unknown) => (typeof val === 'string' ? val : undefined),
+              updatedAt: (val: unknown) => (typeof val === 'string' ? val : undefined),
+              book: () => undefined,
+              children: () => undefined,
+              parentChapter: () => undefined,
+            };
+            
+            // Apply transformations
+            Object.entries(fieldTransformations).forEach(([field, transform]) => {
+              if (field in formData) {
+                const value = formData[field];
+                if (value !== undefined) {
+                  updateData[field] = transform(value);
+                }
+              }
+            });
+            
+            console.log('Saving chapter with data:', { updateData });
+            
+            // Use the stable save function
+            await stableSaveChapter(updateData, isAutoSave);
+            
+            // Update state
             setLastSaved(new Date());
             setHasUnsavedChanges(false);
-            toast.success('Auto-saved successfully', { 
-              duration: 2000, 
-              position: 'bottom-right' 
-            });
+            
+            return true;
           } catch (error) {
-            console.error('Auto-save error:', error);
-            // Don't show error toast for auto-save to avoid being annoying
+            console.error('Error saving chapter:', error);
+            setError(error instanceof Error ? error.message : 'Failed to save chapter');
+            throw error;
           } finally {
-            // Only reset saving state if there are no pending saves
-            setTimeout(() => {
+            if (!isAutoSave) {
               setIsSaving(false);
-            }, 300);
+            }
           }
         },
         AUTO_SAVE_DELAY,
         { leading: false, trailing: true, maxWait: AUTO_SAVE_DELAY * 2 }
       ),
-    [saveChapter, isSaving]
+    [chapter, chapterId, slug, stableSaveChapter]
   );
 
   // Update the save ref when debouncedSave changes
   useEffect(() => {
     const currentSaveRef = debouncedSave;
-    const saveHandler: SaveFunction = async (data: Record<string, any>) => {
+    const saveHandler: SaveFunction = async (data: Record<string, unknown>) => {
       setIsSaving(true);
       try {
-        await currentSaveRef(data);
+        await currentSaveRef(data, false);
       } finally {
         setIsSaving(false);
       }
@@ -257,155 +293,26 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
       if (saveRef.current) {
         saveRef.current = null;
       }
+      debouncedSave.cancel();
     };
   }, [debouncedSave]);
 
   // Handle form changes
-  const handleFormChange = useCallback((formData: Record<string, any>) => {
-    if (initialLoad.current) {
-      initialLoad.current = false;
-      return;
-    }
-    
-    setHasUnsavedChanges(true);
-    
-    // Only include changed fields to minimize data being saved
-    const updateData: Record<string, any> = {
-      bookId: String(chapter?.bookId || formData.bookId)
-    };
-    
-    // Skip auto-save if we're already saving
-    if (isSaving) {
-      return;
-    }
-    
-    // Only include fields that have actually changed
-    if (chapter) {
-      const changedFields: Record<string, any> = {};
-      
-      // Check each field for changes
-      if (formData.title !== undefined && formData.title !== chapter.title) {
-        changedFields.title = String(formData.title);
-      }
-      
-      if (formData.content !== undefined && formData.content !== chapter.content) {
-        changedFields.content = formData.content;
-      }
-      
-      if (formData.parentChapterId !== undefined && 
-          String(formData.parentChapterId) !== String(chapter.parentChapterId)) {
-        changedFields.parentChapterId = formData.parentChapterId || null;
-      }
-      
-      if (formData.order !== undefined && formData.order !== chapter.order) {
-        changedFields.order = Number(formData.order);
-      }
-      
-      // Only proceed if there are actual changes
-      if (Object.keys(changedFields).length > 0) {
-        const updatePayload = { ...updateData, ...changedFields };
-        
-        // Use requestIdleCallback to prevent UI blocking
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          requestIdleCallback(
-            () => {
-              if (saveRef.current) {
-                saveRef.current(updatePayload);
-              }
-            },
-            { timeout: 1000 }
-          );
-        } else if (saveRef.current) {
-          // Fallback for browsers that don't support requestIdleCallback
-          setTimeout(() => {
-            if (saveRef.current) {
-              saveRef.current(updatePayload);
-            }
-          }, 100);
-        }
-      }
-    }
-  }, [chapter]);
-
-  // Handle manual save
-  const handleManualSave = async (formData: Record<string, any>) => {
-    if (!chapter || !chapterId || !slug) {
-      const error = new Error('Missing required data for saving');
-      console.error(error.message, { chapterId, slug, hasChapter: !!chapter });
-      toast.error('Cannot save: Missing required data');
-      return false;
-    }
-    
-    try {
+  const handleFormChange = useCallback(
+    (formData: Record<string, unknown>) => {
       setIsSaving(true);
       setError(null);
-      
-      // Prepare update data with type safety
-      const updateData: Record<string, any> = {};
-      
-      // Define field transformations
-      const fieldTransformations = {
-        title: (val: any) => val ? String(val) : undefined,
-        content: (val: any) => val !== undefined ? val : undefined,
-        order: (val: any) => val !== undefined ? Number(val) : undefined,
-        parentChapterId: (val: any) => val !== undefined ? (val || null) : undefined,
-        level: (val: any) => val !== undefined ? Number(val) : undefined,
-        wordCount: (val: any) => val !== undefined ? Number(val) : undefined,
-        readingTime: (val: any) => val !== undefined ? Number(val) : undefined,
-      } as const;
-      
-      // Apply transformations
-      (Object.entries(fieldTransformations) as [keyof typeof fieldTransformations, any][]).forEach(([field, transform]) => {
-        if (field in formData) {
-          const value = formData[field];
-          if (value !== undefined) {
-            updateData[field] = transform(value);
-          }
-        }
-      });
-      
-      console.log('Saving chapter with data:', { updateData });
-      
-      // Use the centralized save function
-      await saveChapter(updateData, false);
-      
-      // Update state
-      setLastSaved(new Date());
-      setHasUnsavedChanges(false);
-      
-      return true;
-    } catch (error) {
-      console.error('Error saving chapter:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save chapter');
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (formData: Record<string, any>) => {
-    try {
-      await handleManualSave(formData);
-      // Use router.push for client-side navigation
-      if (router && slug && chapterId) {
-        router.push(`/dashboard/books/${slug}/chapters/${chapterId}/view`);
-        router.refresh();
-      }
-    } catch (error) {
-      console.error('Failed to save chapter:', error);
-      toast.error('Failed to save chapter', {
-        description: error instanceof Error ? error.message : 'An unknown error occurred',
-      });
-    }
-  };
+      return debouncedSave(formData, false);
+    },
+    [debouncedSave]
+  );
 
   // Handle before unload
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
         e.preventDefault();
-        // @ts-ignore - returnValue is supported in most browsers
+        // Modern browsers handle this automatically
         e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
       }
     };
@@ -496,7 +403,7 @@ export default function EditChapterPage({ params }: { params: { slug: string; ch
           initialData={{
             id: String(chapter.id),
             title: chapter.title,
-            content: chapter.content || {} as any,
+            content: typeof chapter.content === 'string' ? JSON.parse(chapter.content) : chapter.content || { type: 'doc', content: [] },
             parentChapterId: chapter.parentChapterId ? String(chapter.parentChapterId) : null,
             order: chapter.order,
             bookId: String(chapter.bookId),

@@ -10,8 +10,6 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await the params promise
-  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -74,8 +72,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await the params promise
-  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,

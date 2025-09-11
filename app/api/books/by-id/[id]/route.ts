@@ -20,8 +20,6 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await the params promise
-  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -31,7 +29,6 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // params'i await et
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
@@ -92,8 +89,6 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await the params promise
-  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -103,14 +98,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // params'i await et
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
     }
 
     const body = await request.json();
-    let { 
+    const { 
       title, 
       author, 
       publisher, 
@@ -211,8 +205,6 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Await the params promise
-  const { id } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -222,7 +214,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // params'i await et
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });

@@ -27,14 +27,14 @@ export async function POST(
   try {
     // Log request headers for debugging (excluding sensitive data)
     const headers = Object.fromEntries(request.headers.entries());
-    const { authorization, cookie, ...safeHeaders } = headers;
+    const { cookie, authorization, ...safeHeaders } = headers;
     console.log('Request headers:', JSON.stringify(safeHeaders, null, 2));
     
     // Get session from request
     const session = await auth.api.getSession({
       headers: new Headers({
-        'cookie': headers.cookie || '',
-        'authorization': headers.authorization || '',
+        cookie: cookie || '',
+        authorization: authorization || '',
       }),
     });
     
@@ -134,8 +134,9 @@ export async function POST(
         try {
           const errorData = await ciResponse.json();
           errorText = JSON.stringify(errorData, null, 2);
-        } catch (e) {
-          errorText = await ciResponse.text();
+        } catch (parseError: unknown) {
+          errorText = await ciResponse.text().catch(() => 'Failed to extract error details');
+          console.error('Error parsing CI response:', parseError);
         }
         
         console.error('CI Process Error:', {
@@ -202,21 +203,19 @@ export async function POST(
           warning: 'Could not save workflow status to database'
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error triggering workflow:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Internal server error';
       return NextResponse.json(
-        { 
-          error: error instanceof Error ? error.message : 'Internal server error' 
-        },
+        { error: errorMessage },
         { status: 500 }
       );
     }
-  } catch (error) {
-    console.error('Error triggering workflow:', error);
+  } catch (error: unknown) {
+    console.error('Error in trigger-workflow route:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : 'Internal server error' 
-      },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }

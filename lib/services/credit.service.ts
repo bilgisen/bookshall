@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { creditTransactions, type CreditTransaction, type NewCreditTransaction } from '@/db/schema/credit';
+import { creditTransactions, type CreditTransaction } from '@/db/schema/credit';
 import { and, eq, sql, gte, lte, desc, count, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 

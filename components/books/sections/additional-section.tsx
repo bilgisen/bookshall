@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { BookFormValues } from "@/lib/validation/book";
 
 export function AdditionalSection() {
-  const { register, formState: { errors } } = useFormContext<BookFormValues>();
+  const { register } = useFormContext<BookFormValues>();
 
   return (
     <div className="space-y-6">
@@ -15,7 +15,7 @@ export function AdditionalSection() {
             <Label htmlFor="subtitle">Subtitle</Label>
             <Input
               id="subtitle"
-              placeholder="Book subtitle"
+              placeholder="Book&apos;s subtitle"
               {...register("subtitle")}
             />
           </div>
@@ -60,7 +60,7 @@ export function AdditionalSection() {
                 <option value="BIOGRAPHY">Biography</option>
                 <option value="HISTORY">History</option>
                 <option value="SELF_HELP">Self-Help</option>
-                <option value="CHILDREN">Children's</option>
+                <option value="CHILDREN">Children&apos;s</option>
                 <option value="YOUNG_ADULT">Young Adult</option>
                 <option value="COOKBOOK">Cookbook</option>
                 <option value="TRAVEL">Travel</option>

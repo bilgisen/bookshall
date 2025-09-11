@@ -6,7 +6,7 @@ import StepsSection from "@/components/homepage/steps";
 import AnimatedBeamDemo from "@/components/ab-block";
 
 export default async function Home() {
-  const subscriptionDetails = await getSubscriptionDetails();
+  await getSubscriptionDetails(); // Subscription details are not currently used
 
   return (
     <>

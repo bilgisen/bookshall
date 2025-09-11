@@ -193,7 +193,10 @@ export default function GenerateEbookPage() {
     }
   };
 
-  const handleOptionChange = (key: keyof PublishOptions, value: any) => {
+  const handleOptionChange = <K extends keyof PublishOptions>(
+    key: K,
+    value: PublishOptions[K]
+  ) => {
     setOptions(prev => ({ ...prev, [key]: value }));
   };
 

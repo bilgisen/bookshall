@@ -33,12 +33,6 @@ const API_KEY_PROTECTED_PATHS = [
   '/api/publish/update',
 ];
 
-// List of paths that require authentication but have custom handling
-const AUTH_REQUIRED_PATHS = [
-  '/api/trigger-workflow',
-  '/api/books',
-];
-
 // Function to normalize origin by ensuring consistent www/non-www usage
 function normalizeOrigin(origin: string): string {
   if (!origin) return '';
@@ -49,7 +43,7 @@ function normalizeOrigin(origin: string): string {
       url.hostname = url.hostname.replace('www.', '');
     }
     return url.toString().replace(/\/$/, ''); // Remove trailing slash if any
-  } catch (error) {
+  } catch {
     console.error('Invalid origin URL:', origin);
     return '';
   }
@@ -147,22 +141,6 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-function addCorsHeaders(response: NextResponse, origin: string): void {
-  // Normalize the origin for consistent comparison
-  const normalizedOrigin = normalizeOrigin(origin);
-  const normalizedAllowedOrigins = ALLOWED_ORIGINS.map(o => normalizeOrigin(o));
-  
-  // Check if the normalized origin is in the allowed list
-  const isAllowed = normalizedAllowedOrigins.includes(normalizedOrigin);
-  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
-  
-  // Set CORS headers
-  response.headers.set('Access-Control-Allow-Origin', allowedOrigin);
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Vary', 'Origin');
-}
 
 export const config = {
   matcher: [

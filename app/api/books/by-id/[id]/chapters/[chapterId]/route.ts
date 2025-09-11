@@ -4,14 +4,24 @@ import { db } from '@/db/drizzle';
 import { and, eq } from 'drizzle-orm';
 import { books, chapters } from '@/db';
 
+// Define type for chapter update data
+type ChapterUpdateData = Partial<{
+  title: string;
+  content: string;
+  parentChapterId: string | null;
+  order: number;
+  level: number;
+  wordCount: number;
+  readingTime: number;
+  updatedAt: Date;
+}>;
+
 // GET /api/books/by-id/[id]/chapters/[chapterId]
 // Get a specific chapter by ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string; chapterId: string } }
+  { params }: { params: Promise<{ id: string; chapterId: string }> }
 ) {
-  // Await the params promise
-  const { id, chapterId } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -85,12 +95,10 @@ export async function GET(
 // Update a chapter
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string; chapterId: string } }
+  { params }: { params: Promise<{ id: string; chapterId: string }> }
 ) {
-  // Await the params promise
-  const { id, chapterId } = await params;
   try {
-    console.log('PATCH request received with params:', params);
+    console.log('PATCH request received with params:', await params);
     
     const response = await auth.api.getSession({
       headers: request.headers,
@@ -104,7 +112,7 @@ export async function PATCH(
       );
     }
 
-    const { id: bookId, chapterId } = params;
+    const { id: bookId, chapterId } = await params;
     
     if (!bookId || !chapterId) {
       return NextResponse.json(
@@ -154,7 +162,7 @@ export async function PATCH(
     }
 
     // Prepare update data
-    const updateData: Record<string, any> = {
+    const updateData: ChapterUpdateData = {
       updatedAt: new Date(),
     };
 
@@ -193,10 +201,8 @@ export async function PATCH(
 // Delete a chapter
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string; chapterId: string } }
+  { params }: { params: Promise<{ id: string; chapterId: string }> }
 ) {
-  // Await the params promise
-  const { id, chapterId } = await params;
   try {
     const response = await auth.api.getSession({
       headers: request.headers,

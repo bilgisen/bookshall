@@ -4,63 +4,7 @@ import { eq } from 'drizzle-orm';
 import { books, chapters } from '@/db';
 import { generateCompleteDocumentHTML } from '@/lib/generateChapterHTML';
 
-// Define types based on database schema
-type Book = {
-  id: string;
-  userId: string;
-  title: string;
-  subtitle: string | null;
-  slug: string;
-  author: string;
-  contributor: string | null;
-  translator: string | null;
-  publisher: string | null;
-  publisherWebsite: string | null;
-  publishYear: number | null;
-  isbn: string | null;
-  genre: string | null;
-  series: string | null;
-  seriesIndex: number | null;
-  tags: string[] | null;
-  description: string | null;
-  language: string;
-  isPublished: boolean;
-  coverImageUrl: string | null;
-  epubUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-type Chapter = {
-  id: string;
-  uuid: string;
-  bookId: string;
-  parentChapterId: string | null;
-  title: string;
-  content: string;
-  order: number;
-  level: number;
-  isDraft: boolean;
-  wordCount: number;
-  readingTime: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-// Type for the query result with chapter and book data
-type ChapterWithBook = {
-  chapter: Omit<Chapter, 'createdAt' | 'updatedAt'> & {
-    createdAt: Date;
-    updatedAt: Date;
-    isDraft: boolean; // Ensure non-null
-  };
-  book: Omit<Book, 'createdAt' | 'updatedAt' | 'isPublished'> & {
-    createdAt: Date;
-    updatedAt: Date;
-    language: string; // Ensure non-null
-    isPublished: boolean; // Ensure non-null
-  };
-};
+// Database schema types are imported from @/db
 
 // Force dynamic route - required for API routes that need to access headers
 // and for routes that need to be called from external services like GitHub Actions

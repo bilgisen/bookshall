@@ -317,8 +317,8 @@ export default function ChapterViewPage() {
                             ]
                           };
                         }
-                      } catch (e) {
-                        console.warn('Failed to parse content as JSON, treating as plain text');
+                      } catch (error) {
+                        console.warn('Failed to parse content as JSON, treating as plain text', error);
                         // If it's not valid JSON but has HTML tags, render as HTML
                         if (typeof contentToRender === 'string' && /<[a-z][\s\S]*>/i.test(contentToRender)) {
                           return (
@@ -354,9 +354,28 @@ export default function ChapterViewPage() {
                   // 3. Handle Tiptap JSON content (object with type 'doc')
                   if (typeof contentToRender === 'object' && contentToRender !== null) {
                     try {
+                      // Define Tiptap document types
+                      interface TiptapNode {
+                        type: string;
+                        content?: TiptapNode[];
+                        [key: string]: unknown;
+                      }
+
+                      interface TiptapDocument extends TiptapNode {
+                        type: 'doc';
+                        content: TiptapNode[];
+                      }
+
                       // Type guard to check if it's a Tiptap document
-                      const isTiptapDoc = (obj: any): obj is { type: string; content: any[] } => {
-                        return 'type' in obj && obj.type === 'doc' && 'content' in obj;
+                      const isTiptapDoc = (obj: unknown): obj is TiptapDocument => {
+                        return (
+                          typeof obj === 'object' && 
+                          obj !== null && 
+                          'type' in obj && 
+                          obj.type === 'doc' && 
+                          'content' in obj && 
+                          Array.isArray(obj.content)
+                        );
                       };
 
                       if (isTiptapDoc(contentToRender)) {

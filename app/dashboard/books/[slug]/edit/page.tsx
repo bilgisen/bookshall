@@ -8,19 +8,11 @@ import { toast } from 'sonner';
 import { BookForm } from '@/components/books/book-form';
 import { BookHeader } from '@/components/books/book-header';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
 import type { Book } from '@/types/book';
 import { BOOK_GENRES } from '@/lib/validation/book';
 import type { BookFormValues } from '@/lib/validation/book';
 import type { BookGenre } from '@/types';
-
-// API Response Types
-interface ApiResponse<T> {
-  data?: T;
-  message?: string;
-  error?: string;
-}
 
 interface BookResponse extends Omit<Book, 'createdAt' | 'updatedAt' | 'created_at' | 'updated_at'> {
   // Add back the required fields from Book
@@ -41,7 +33,6 @@ export default function EditBookPage() {
   const [book, setBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   

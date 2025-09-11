@@ -1,5 +1,4 @@
 import pino from 'pino';
-import type { Logger } from 'pino';
 
 // Define log message structure
 type LogMessage = {

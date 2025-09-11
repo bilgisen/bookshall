@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 
-interface AuthSession {
-  user?: {
-    id: string;
-    email?: string;
-    name?: string;
-    image?: string;
-  };
-}
-
 export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
   { params }: { params: { filename: string } }
 ) {
-  // Await the params promise
-  const { filename } = await params;
   try {
     // Get session from request
     const session = await auth.api.getSession({
