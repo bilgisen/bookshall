@@ -162,17 +162,66 @@ update_status() {
 }
 
 # --- FETCH PAYLOAD ---
-log "Fetching book payload..."
-log "Using API endpoint: $API_URL"
-download_with_retry "$API_URL/books/by-id/$CONTENT_ID/export" "$PAYLOAD_DIR/payload.json"
+log "Fetching book payload from $API_URL/books/by-id/$BOOK_ID/export..."
+mkdir -p "./work/payload"
 
-BOOK_TITLE=$(jq -r '.book.title // "Untitled"' "$PAYLOAD_DIR/payload.json")
-BOOK_AUTHOR=$(jq -r '.book.author // "Unknown"' "$PAYLOAD_DIR/payload.json")
-BOOK_LANG=$(jq -r '.book.language // "en"' "$PAYLOAD_DIR/payload.json")
-TOC_DEPTH=$(jq -r '.options.tocDepth // 2' "$PAYLOAD_DIR/payload.json")
-INCLUDE_COVER=$(jq -r '.options.includeCover // true' "$PAYLOAD_DIR/payload.json")
-INCLUDE_TOC=$(jq -r '.options.includeTOC // true' "$PAYLOAD_DIR/payload.json")
-INCLUDE_IMPRINT=$(jq -r '.options.includeImprint // true' "$PAYLOAD_DIR/payload.json")
+# First, try to get the payload with verbose output
+log "Making API request..."
+if ! curl -v \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Request-ID: $(uuidgen || date +%s)" \
+  -H "X-GitHub-Event: workflow_dispatch" \
+  -o "./work/payload/payload.json" \
+  "$API_URL/books/by-id/$BOOK_ID/export" 2>"./work/payload/curl_debug.log"; then
+  
+  error "Failed to fetch payload. HTTP Status: $(grep -o 'HTTP/[0-9.]* [0-9]*' "./work/payload/curl_debug.log" | tail -n1 || echo 'unknown')"
+  log "=== Debug Info ==="
+  log "API URL: $API_URL/books/by-id/$BOOK_ID/export"
+  log "Token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
+  log "Full curl debug output:"
+  cat "./work/payload/curl_debug.log"
+  exit 1
+fi
+
+# Verify the payload file exists and is not empty
+if [ ! -s "./work/payload/payload.json" ]; then
+  error "Payload file is empty. Check API response:"
+  cat "./work/payload/curl_debug.log"
+  exit 1
+fi
+
+# Validate JSON structure
+if ! jq -e . "./work/payload/payload.json" >/dev/null 2>&1; then
+  error "Invalid JSON in payload. First 200 chars:"
+  head -c 200 "./work/payload/payload.json"
+  log "\n=== Full Response ==="
+  cat "./work/payload/payload.json"
+  log "\n=== Debug Info ==="
+  log "API URL: $API_URL/books/by-id/$BOOK_ID/export"
+  log "Response headers:"
+  grep -E '^< ' "./work/payload/curl_debug.log" || true
+  exit 1
+fi
+
+# Check if we got a JSON error response
+if jq -e '.error' "./work/payload/payload.json" >/dev/null 2>&1; then
+  error "API returned an error:"
+  jq '.' "./work/payload/payload.json"
+  exit 1
+fi
+
+log "Successfully received valid payload"
+log "Payload structure:"
+jq 'keys' "./work/payload/payload.json"
+log "Chapters count: $(jq '.chapters | length' "./work/payload/payload.json" 2>/dev/null || echo 'N/A')"
+
+BOOK_TITLE=$(jq -r '.book.title // "Untitled"' "./work/payload/payload.json")
+BOOK_AUTHOR=$(jq -r '.book.author // "Unknown"' "./work/payload/payload.json")
+BOOK_LANG=$(jq -r '.book.language // "en"' "./work/payload/payload.json")
+TOC_DEPTH=$(jq -r '.options.tocDepth // 2' "./work/payload/payload.json")
+INCLUDE_COVER=$(jq -r '.options.includeCover // true' "./work/payload/payload.json")
+INCLUDE_TOC=$(jq -r '.options.includeTOC // true' "./work/payload/payload.json")
+INCLUDE_IMPRINT=$(jq -r '.options.includeImprint // true' "./work/payload/payload.json")
 
 # --- DOWNLOAD CHAPTERS ---
 log "Downloading chapters..."
