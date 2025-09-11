@@ -58,9 +58,11 @@ jobs:
     env:
       NODE_ENV: production
       NEXT_PUBLIC_APP_URL: https://bookshall.com
+
+      # GitHub Token
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      # Input parameters
+
+      # Inputs
       BOOK_ID: ${{ github.event.inputs.book_id }}
       USER_ID: ${{ github.event.inputs.user_id }}
       SESSION_ID: ${{ github.event.inputs.session_id }}
@@ -70,8 +72,9 @@ jobs:
       INCLUDE_TOC: ${{ github.event.inputs.include_toc || 'true' }}
       INCLUDE_IMPRINT: ${{ github.event.inputs.include_imprint || 'true' }}
       TOC_LEVEL: ${{ github.event.inputs.toc_level || '3' }}
-      
-      # Cloudflare R2 Configuration
+      METADATA: ${{ github.event.inputs.metadata }}
+
+      # Cloudflare R2
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -84,40 +87,44 @@ jobs:
 
       - name: Debug environment
         run: |
-          echo "=== Environment Variables ==="
+          echo "=== Env vars ==="
           env | sort
-          echo "\n=== Input Parameters ==="
-          echo "BOOK_ID: $BOOK_ID"
-          echo "USER_ID: $USER_ID"
-          echo "SESSION_ID: $SESSION_ID"
-          echo "CONTENT_ID: $CONTENT_ID"
-          echo "INCLUDE_METADATA: $INCLUDE_METADATA"
-          echo "INCLUDE_COVER: $INCLUDE_COVER"
-          echo "INCLUDE_TOC: $INCLUDE_TOC"
-          echo "INCLUDE_IMPRINT: $INCLUDE_IMPRINT"
-          echo "TOC_LEVEL: $TOC_LEVEL"
-          echo "\n=== Current Directory ==="
-          pwd
-          ls -la
+          echo "=== Inputs ==="
+          echo "BOOK_ID=$BOOK_ID"
+          echo "USER_ID=$USER_ID"
+          echo "SESSION_ID=$SESSION_ID"
+          echo "CONTENT_ID=$CONTENT_ID"
+          echo "TOC_LEVEL=$TOC_LEVEL"
+          echo "INCLUDE_METADATA=$INCLUDE_METADATA"
+          echo "INCLUDE_COVER=$INCLUDE_COVER"
+          echo "INCLUDE_TOC=$INCLUDE_TOC"
+          echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT"
+          echo "METADATA=$METADATA"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl pandoc
-          # Install AWS CLI v2 for Cloudflare R2
+          sudo apt-get install -y jq curl unzip pandoc
+          # Install AWS CLI v2 (for R2)
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
+          unzip -q awscliv2.zip
           sudo ./aws/install --update
           aws --version
+          pandoc -v
 
       - name: Install project dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Make scripts executable
         run: |
@@ -125,15 +132,25 @@ jobs:
           chmod +x ./scripts/fetch-book.sh
 
       - name: Validate inputs
-        run: |
-          echo "Validating inputs..."
-          source ./scripts/validate-inputs.sh
+        run: ./scripts/validate-inputs.sh
 
-      - name: Run fetch-book script
+      - name: Fetch book content
+        run: ./scripts/fetch-book.sh
+
+      - name: Generate EPUB
         run: |
-          echo "Starting fetch-book script..."
-          ./scripts/fetch-book.sh
-          echo "Fetch book script completed with status: $?"
+          echo "📚 Generating EPUB..."
+          mkdir -p output
+          pandoc book.md \
+            --toc --toc-depth=$TOC_LEVEL \
+            --metadata-file=metadata.yaml \
+            -o output/book.epub
+
+      - name: Upload EPUB to R2
+        run: |
+          echo "☁️ Uploading EPUB to Cloudflare R2..."
+          aws s3 cp output/book.epub s3://$R2_BUCKET/$CONTENT_ID.epub \
+            --endpoint-url=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
 
       - name: Upload artifacts on failure
         if: failure()
