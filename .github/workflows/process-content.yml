@@ -71,8 +71,11 @@ jobs:
       INCLUDE_IMPRINT: ${{ github.event.inputs.include_imprint || 'true' }}
       TOC_LEVEL: ${{ github.event.inputs.toc_level || '3' }}
       METADATA: ${{ github.event.inputs.metadata }}
+      
+      # Authentication
+      BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
 
-      # Cloudflare R2
+      # Cloudflare R2 (Optional - only if needed)
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
