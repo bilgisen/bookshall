@@ -61,7 +61,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc awscli jq curl
+          sudo apt-get install -y jq curl pandoc unzip
+
+          # Install AWS CLI v2 manually
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+          aws --version
 
       - name: Validate & export inputs
         shell: bash
