@@ -186,7 +186,7 @@ jobs:
           # API configuration
           NEXT_PUBLIC_APP_URL: https://bookshall.com
           API_URL: https://bookshall.com/api
-          GITHUB_ACTIONS_API_KEY: ${{ secrets.GITHUB_ACTIONS_API_KEY }}
+          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
           # R2 storage configuration
           R2_ENDPOINT: https://f330373f7096cf2d6727c2d973b911d3.r2.cloudflarestorage.com
           R2_BUCKET: bookshall
