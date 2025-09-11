@@ -15,271 +15,125 @@ on:
         description: 'Session ID'
         required: true
         type: string
-      content_id:
-        description: 'Content ID'
-        required: true
-        type: string
-      include_metadata:
-        description: 'Include metadata in EPUB'
-        required: false
-        type: boolean
-        default: true
-      include_cover:
-        description: 'Include cover image'
-        required: false
-        type: boolean
-        default: true
-      include_toc:
-        description: 'Include table of contents'
-        required: false
-        type: boolean
-        default: true
-      toc_level:
-        description: 'Depth of table of contents (1-6)'
-        required: false
-        type: number
-        default: 3
-      include_imprint:
-        description: 'Include imprint page'
-        required: false
-        type: boolean
-        default: true
-      metadata:
-        description: 'Additional metadata (JSON string)'
-        required: false
-        type: string
-        default: '{}'
-
-permissions:
-  contents: read
-  actions: read
 
 jobs:
-  build-epub:
+  publish:
     runs-on: ubuntu-latest
     env:
-      NODE_ENV: production
-      NEXT_PUBLIC_APP_URL: https://bookshall.com
-      TOKEN: ${{ secrets.GH_PAT }}
-      REPO_OWNER: ${{ vars.REPO_OWNER || 'bilgisen' }}
-      REPO_NAME: ${{ vars.REPO_NAME || 'bookshall' }}
-      OIDC_AUDIENCE: ${{ vars.OIDC_AUDIENCE || 'https://api.bookshall.com/ci' }}
-      ALLOWED_REPO: ${{ vars.ALLOWED_REPO || 'bilgisen/bookshall' }}
-      ALLOWED_REF: ${{ vars.ALLOWED_REF || 'refs/heads/main' }}
-      ALLOWED_WORKFLOW: ${{ vars.ALLOWED_WORKFLOW || 'Publish Content' }}
-      OIDC_ISSUER: ${{ vars.OIDC_ISSUER || 'https://token.actions.githubusercontent.com' }}
-      OIDC_JWKS_URL: ${{ vars.OIDC_JWKS_URL || 'https://token.actions.githubusercontent.com/.well-known/jwks' }}
+      BOOK_ID: ${{ github.event.inputs.book_id }}
+      USER_ID: ${{ github.event.inputs.user_id }}
+      SESSION_ID: ${{ github.event.inputs.session_id }}
+      BASE_URL: https://bookshall.com
+      API_URL: https://bookshall.com/api
+      BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
 
     steps:
-      - name: Checkout repo
+      - name: Initial Debug - Print Environment
+        run: |
+          echo "🔄 Starting workflow execution"
+          echo "📋 Workflow Inputs:"
+          echo "  - Book ID: ${{ github.event.inputs.book_id }}"
+          echo "  - User ID: ${{ github.event.inputs.user_id }}"
+          echo "  - Session ID: ${{ github.event.inputs.session_id }}"
+          echo ""
+          echo "🔑 Checking environment variables:"
+          echo "  - BASE_URL: $BASE_URL"
+          echo "  - API_URL: $API_URL"
+          echo "  - BOOKSHALL_API_KEY: ${BOOKSHALL_API_KEY:0:4}...${BOOKSHALL_API_KEY: -4} (${#BOOKSHALL_API_KEY} chars)"
+          echo ""
+          echo "📂 Current directory:"
+          pwd
+          ls -la
+
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
+
+      - name: Debug - Check repository content
+        run: |
+          echo "📂 Repository content:"
+          ls -la
+          echo ""
+          echo "🔍 Git status:"
+          git status
+          echo ""
+          echo "🌿 Current branch:"
+          git branch --show-current
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Debug - Node.js and npm versions
+        run: |
+          echo "🟢 Node.js version: $(node -v)"
+          echo "📦 npm version: $(npm -v)"
+          echo "📦 pnpm version: $(pnpm -v)"
 
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y pandoc jq curl
-          npm install -g pnpm
-          pnpm install --no-frozen-lockfile
+          echo "📦 Installing dependencies..."
+          pnpm install --frozen-lockfile
+          echo "✅ Dependencies installed"
 
-      - name: Set environment variables
+      - name: Debug API key and environment
         run: |
-          export BOOK_ID="${{ inputs.book_id }}"
-          export USER_ID="${{ inputs.user_id }}"
-          export SESSION_ID="${{ inputs.session_id }}"
-          export CONTENT_ID="${{ inputs.content_id }}"
-          export COMBINED_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          mkdir -p ./work ./work/output ./work/payload ./work/chapters
-
-      - name: Validate inputs and set environment
-        shell: bash
-        env:
-          BOOK_ID: ${{ inputs.book_id }}
-          USER_ID: ${{ inputs.user_id }}
-          SESSION_ID: ${{ inputs.session_id }}
-          CONTENT_ID: ${{ inputs.content_id }}
-          TOC_LEVEL: ${{ inputs.toc_level || '3' }}
-          INCLUDE_METADATA: ${{ inputs.include_metadata || 'true' }}
-          INCLUDE_COVER: ${{ inputs.include_cover || 'true' }}
-          INCLUDE_TOC: ${{ inputs.include_toc || 'true' }}
-          INCLUDE_IMPRINT: ${{ inputs.include_imprint || 'true' }}
-          # Pass metadata as JSON string, will be parsed in the script
-          METADATA: ${{ inputs.metadata || '{}' }}
-          
-          # R2 Configuration
-          R2_ENDPOINT: https://f330373f7096cf2d6727c2d973b911d3.r2.cloudflarestorage.com
-          R2_BUCKET: bookshall
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || secrets.R2_UPLOAD_IMAGE_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY }}
-          R2_PUBLIC_URL: https://storage.bookshall.com
-        run: |
-          set -euo pipefail
-
-          # Required inputs from GitHub Actions
-          : "${BOOK_ID:?book_id is required}"
-          : "${USER_ID:?user_id is required}"
-          : "${SESSION_ID:?session_id is required}"
-          : "${CONTENT_ID:?content_id is required}"
-
-          # Default TOC_LEVEL if missing or invalid
-          TOC_LEVEL="${TOC_LEVEL:-3}"
-          if [[ "$TOC_LEVEL" -lt 1 || "$TOC_LEVEL" -gt 6 ]]; then
-            echo "::warning::toc_level must be between 1 and 6, defaulting to 3"
-            TOC_LEVEL=3
-          fi
-
-          # Optional boolean inputs with defaults
-          INCLUDE_METADATA="${INCLUDE_METADATA:-true}"
-          INCLUDE_COVER="${INCLUDE_COVER:-true}"
-          INCLUDE_TOC="${INCLUDE_TOC:-true}"
-          INCLUDE_IMPRINT="${INCLUDE_IMPRINT:-true}"
-
-          # Metadata JSON validation
-          METADATA="${METADATA:-{}}"
-          if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
-            echo "::warning::Invalid JSON in metadata, using empty object"
-            METADATA="{}"
-          else
-            SLUG=$(echo "$METADATA" | jq -r '.slug // empty')
-            if [ -n "$SLUG" ]; then
-              echo "SLUG=$SLUG" >> $GITHUB_ENV
-            fi
-          fi
-
-          # Export environment variables for next steps
-          {
-            echo "INCLUDE_METADATA=$INCLUDE_METADATA"
-            echo "INCLUDE_COVER=$INCLUDE_COVER"
-            echo "INCLUDE_TOC=$INCLUDE_TOC"
-            echo "TOC_LEVEL=$TOC_LEVEL"
-            echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT"
-            # Escape single quotes in METADATA for GITHUB_ENV
-            echo "METADATA=$(echo "$METADATA" | sed "s/'/'\\''/g")"
-          } >> "$GITHUB_ENV"
-
-          # Mask sensitive values if they exist
-          if [ -n "${R2_ACCESS_KEY_ID:-}" ]; then
-            echo "::add-mask::$R2_ACCESS_KEY_ID"
-          fi
-          if [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
-            echo "::add-mask::$R2_SECRET_ACCESS_KEY"
-          fi
-          if [ -n "${TOKEN:-}" ]; then
-            echo "::add-mask::$TOKEN"
-          fi
-
-      - name: Fetch book & generate EPUB
-        env:
-          # Use a dedicated service token or a pre-shared token with limited permissions
-          TOKEN: ${{ secrets.API_SERVICE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-          # Required IDs
-          BOOK_ID: ${{ inputs.book_id }}
-          USER_ID: ${{ inputs.user_id }}
-          SESSION_ID: ${{ inputs.session_id }}
-          CONTENT_ID: ${{ inputs.content_id }}
-          # EPUB generation options
-          TOC_LEVEL: ${{ inputs.toc_level || '3' }}
-          INCLUDE_METADATA: ${{ inputs.include_metadata || 'true' }}
-          INCLUDE_COVER: ${{ inputs.include_cover || 'true' }}
-          INCLUDE_TOC: ${{ inputs.include_toc || 'true' }}
-          INCLUDE_IMPRINT: ${{ inputs.include_imprint || 'true' }}
-          METADATA: ${{ inputs.metadata || '{}' }}
-          # API configuration
-          NEXT_PUBLIC_APP_URL: https://bookshall.com
-          API_URL: https://bookshall.com/api
-          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
-          # R2 storage configuration
-          R2_ENDPOINT: https://f330373f7096cf2d6727c2d973b911d3.r2.cloudflarestorage.com
-          R2_BUCKET: bookshall
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || secrets.R2_UPLOAD_IMAGE_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || secrets.R2_UPLOAD_IMAGE_SECRET_ACCESS_KEY }}
-          R2_PUBLIC_URL: https://storage.bookshall.com
-        run: |
-          # Debug information
-          echo "Using API endpoint: $API_URL"
-          echo "Book ID: $BOOK_ID"
-          echo "User ID: $USER_ID"
-          
-          # Test API access with verbose output
-          echo "Testing API access to: $API_URL/books/by-id/$BOOK_ID/payload"
-          echo "Using API key: ${BOOKSHALL_API_KEY:0:5}...${BOOKSHALL_API_KEY: -5} (${#BOOKSHALL_API_KEY} chars)"
-          
-          # Run curl with verbose output and capture both stdout and stderr
-          mkdir -p ./work/debug
-          if ! curl -v \
-            -H "x-api-key: $BOOKSHALL_API_KEY" \
-            -H "X-Request-ID: $(date +%s)" \
-            -H "X-GitHub-Event: workflow_dispatch" \
-            -o "./work/debug/api_test_response.json" \
-            "$API_URL/books/by-id/$BOOK_ID/payload" 2>"./work/debug/curl_debug.log"; then
-            
-            echo "::error::API request failed. Check the logs for details."
-            echo "=== CURL DEBUG LOG ==="
-            cat "./work/debug/curl_debug.log"
-            echo "=== END CURL DEBUG ==="
-            
-            if [ -f "./work/debug/api_test_response.json" ]; then
-              echo "=== API RESPONSE ==="
-              cat "./work/debug/api_test_response.json"
-              echo "=== END API RESPONSE ==="
-            fi
-            
-            # Check if it's an authentication error
-            if grep -q "HTTP/.* 401" "./work/debug/curl_debug.log"; then
-              echo "::error::Authentication failed. Please check your API token."
-            elif grep -q "HTTP/.* 404" "./work/debug/curl_debug.log"; then
-              echo "::error::API endpoint not found. Please check the URL and ensure the book ID is correct."
-            fi
-            
-            exit 1
-          fi
-          
-          # If we got here, the API call was successful
-          echo "API test successful. Response received."
-          
-      # Debug API key
-      - name: Debug API key
-        run: |
+          echo "🔑 Environment variables:"
+          printenv | sort
+          echo ""
+          echo "🔍 Checking API key:"
           if [ -z "$BOOKSHALL_API_KEY" ]; then
             echo "❌ BOOKSHALL_API_KEY is empty"
+            exit 1
           else
-            echo "✅ BOOKSHALL_API_KEY length: ${#BOOKSHALL_API_KEY}"
+            echo "✅ BOOKSHALL_API_KEY is set (${#BOOKSHALL_API_KEY} characters)"
+            echo "   First 4 chars: ${BOOKSHALL_API_KEY:0:4}..."
+            echo "   Last 4 chars: ${BOOKSHALL_API_KEY: -4}"
           fi
-        env:
-          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
 
-      # Run the script with required environment variables
+      - name: Debug network connectivity
+        run: |
+          echo "🌐 Testing network connectivity:"
+          echo " - Google DNS: $(ping -c 1 8.8.8.8 | grep 'bytes from' || echo '❌ Failed')"
+          echo " - Google.com: $(ping -c 1 google.com | grep 'bytes from' || echo '❌ Failed')"
+          echo " - API endpoint: $(curl -s -o /dev/null -w "%{http_code}" $API_URL/health || echo '❌ Failed')"
+
       - name: Fetch book content
         run: |
-          chmod +x ./scripts/fetch-book.sh
-          # Trim whitespace from API key before passing to script
-          TRIMMED_API_KEY=$(echo -n "$BOOKSHALL_API_KEY" | tr -d '\r\n' | xargs)
-          echo "::add-mask::$TRIMMED_API_KEY"
+          echo "📥 Starting to fetch book content..."
+          echo "🔍 Script location: $(ls -la ./scripts/fetch-book.sh)"
+          echo "🔍 Script permissions: $(ls -l ./scripts/fetch-book.sh)"
+          echo "📋 Environment for fetch-book.sh:"
+          echo "  - BOOK_ID: $BOOK_ID"
+          echo "  - BASE_URL: $BASE_URL"
+          echo "  - API_URL: $API_URL"
+          echo "  - BOOKSHALL_API_KEY: ${BOOKSHALL_API_KEY:0:4}...${BOOKSHALL_API_KEY: -4}"
           
-          BOOKSHALL_API_KEY="$TRIMMED_API_KEY" \
-          API_URL="$API_URL" \
-          BOOK_ID="$BOOK_ID" \
-          CONTENT_ID="$CONTENT_ID" \
-          METADATA="$METADATA" \
+          # Run with debug output
+          set -x  # Enable debug output
+          chmod +x ./scripts/fetch-book.sh
           ./scripts/fetch-book.sh
+          set +x  # Disable debug output
         env:
-          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
-          API_URL: ${{ env.API_URL }}
           BOOK_ID: ${{ env.BOOK_ID }}
-          CONTENT_ID: ${{ env.CONTENT_ID }}
-          METADATA: ${{ env.METADATA }}
+          BASE_URL: ${{ env.BASE_URL }}
+          API_URL: ${{ env.API_URL }}
+          BOOKSHALL_API_KEY: ${{ secrets.BOOKSHALL_API_KEY }}
+          DEBUG: "true"  # Enable debug mode for the script
 
-      - name: Upload EPUB to R2
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+      - name: Debug - List generated files
         run: |
-          FILE="./work/output/${CONTENT_ID}.epub"
-          KEY="books/${CONTENT_ID}-$(date +%s).epub"
-          curl -sSf -X PUT "${R2_ENDPOINT}/${R2_BUCKET}/$KEY" \
-            -H "Authorization: Bearer ${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}" \
-            -H "Content-Type: application/epub+zip" \
-            --upload-file "$FILE"
-          echo "EPUB_URL=${R2_PUBLIC_URL}/${R2_BUCKET}/$KEY" >> $GITHUB_OUTPUT
+          echo "📂 Generated files:"
+          find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -ls
+          echo ""
+
+      - name: Final status
+        if: always()
+        run: |
+          echo "🏁 Workflow completed with status: ${{ job.status }}"
+          echo "📊 Job status: ${{ job.status }}"
+          echo "🕒 Job started at: ${{ job.steps[*].startedAt }}"
+          echo "⏱️  Job completed at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
