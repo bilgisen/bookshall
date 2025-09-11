@@ -1,11 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Use TOKEN if available, otherwise use GITHUB_TOKEN
-export TOKEN="${TOKEN:-${GITHUB_TOKEN:-}}"
-
 # Validate required environment variables
-: "${TOKEN:?Either TOKEN or GITHUB_TOKEN must be set in workflow environment}"
+: "${BOOKSHALL_API_KEY:?BOOKSHALL_API_KEY must be set in workflow environment}"
 
 # Base URL for API requests
 BASE_URL="${API_URL:-${NEXT_PUBLIC_APP_URL:-https://bookshall.com}}"
@@ -104,26 +101,12 @@ download_with_retry() {
   # Debug info
   log "Downloading $url to $output"
   
-  # Determine if this is a chapter URL
-  local is_chapter_url=false
-  if [[ "$url" == *"/chapters/"* ]]; then
-    is_chapter_url=true
-    log "Detected chapter URL, using API key authentication"
-  else
-    log "Using token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
-  fi
-  
   for i in $(seq 1 $max_retries); do
     log "Attempt $i of $max_retries..."
     
-    # Build curl command with appropriate auth headers
+    # Always use BOOKSHALL_API_KEY for authentication
     local curl_cmd="curl -v"
-    
-    if [ "$is_chapter_url" = true ] && [ -n "${GITHUB_ACTIONS_API_KEY:-}" ]; then
-      curl_cmd+=" -H \"x-api-key: $GITHUB_ACTIONS_API_KEY\""
-    else
-      curl_cmd+=" -H \"Authorization: Bearer $TOKEN\""
-    fi
+    curl_cmd+=" -H \"x-api-key: $BOOKSHALL_API_KEY\""
     
     curl_cmd+=" -H \"X-Request-ID: $(uuidgen || date +%s)\""
     curl_cmd+=" -H \"X-GitHub-Event: workflow_dispatch\""
@@ -173,11 +156,11 @@ mkdir -p "./work/debug"
 
 # Make the API request with full debug output
 log "Sending request to: $API_URL/books/by-id/$BOOK_ID/payload"
-log "Using API key: ${GITHUB_ACTIONS_API_KEY:0:5}...${GITHUB_ACTIONS_API_KEY: -5} (${#GITHUB_ACTIONS_API_KEY} chars)"
+log "Using API key: ${BOOKSHALL_API_KEY:0:5}...${BOOKSHALL_API_KEY: -5} (${#BOOKSHALL_API_KEY} chars)"
 
 # Make the request and capture all output
 if ! curl -v \
-  -H "x-api-key: $GITHUB_ACTIONS_API_KEY" \
+  -H "x-api-key: $BOOKSHALL_API_KEY" \
   -H "X-Request-ID: $(uuidgen || date +%s)" \
   -H "X-GitHub-Event: workflow_dispatch" \
   -H "Accept: application/json" \

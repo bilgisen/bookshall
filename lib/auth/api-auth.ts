@@ -28,8 +28,8 @@ export async function authenticateRequest(
     );
 
     // API key check
-    const apiKey = normalizedHeaders['x-api-key'];
-    if (apiKey && apiKey === process.env.GITHUB_ACTIONS_API_KEY) {
+    const apiKey = headersObj['x-api-key'] || headersObj['X-API-Key'];
+    if (apiKey && apiKey === process.env.BOOKSHALL_API_KEY) {
       return { type: 'api-key' };
     }
 

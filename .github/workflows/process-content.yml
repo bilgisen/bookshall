@@ -201,12 +201,12 @@ jobs:
           
           # Test API access with verbose output
           echo "Testing API access to: $API_URL/books/by-id/$BOOK_ID/payload"
-          echo "Using API key: ${GITHUB_ACTIONS_API_KEY:0:5}...${GITHUB_ACTIONS_API_KEY: -5} (${#GITHUB_ACTIONS_API_KEY} chars)"
+          echo "Using API key: ${BOOKSHALL_API_KEY:0:5}...${BOOKSHALL_API_KEY: -5} (${#BOOKSHALL_API_KEY} chars)"
           
           # Run curl with verbose output and capture both stdout and stderr
           mkdir -p ./work/debug
           if ! curl -v \
-            -H "x-api-key: $GITHUB_ACTIONS_API_KEY" \
+            -H "x-api-key: $BOOKSHALL_API_KEY" \
             -H "X-Request-ID: $(date +%s)" \
             -H "X-GitHub-Event: workflow_dispatch" \
             -o "./work/debug/api_test_response.json" \
@@ -236,9 +236,9 @@ jobs:
           # If we got here, the API call was successful
           echo "API test successful. Response received."
           
-          # Run the script with API key and required environment variables
+          # Run the script with required environment variables
           chmod +x ./scripts/fetch-book.sh
-          GITHUB_ACTIONS_API_KEY="$GITHUB_ACTIONS_API_KEY" \
+          BOOKSHALL_API_KEY="$BOOKSHALL_API_KEY" \
           API_URL="$API_URL" \
           BOOK_ID="$BOOK_ID" \
           CONTENT_ID="$CONTENT_ID" \
