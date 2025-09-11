@@ -271,6 +271,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse> {
+  // Public route - no authentication required
   console.log('=== PAYLOAD ROUTE DEBUG ===');
   console.log('Request URL:', request.url);
   
@@ -413,8 +414,8 @@ export async function GET(
       metadata: {
         generated_at: new Date().toISOString(),
         generated_by: 'bookshall-epub-generator',
-        user_id: authResult.type === 'session' ? authResult.userId : 'github-actions',
-        user_email: 'github-actions@bookshall.com',
+        user_id: 'public-access',
+        user_email: 'public@bookshall.com',
       },
     };
 

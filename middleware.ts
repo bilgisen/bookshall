@@ -21,6 +21,8 @@ const PUBLIC_API_PATHS = [
   '/api/health',
   '/api/hello',
   '/api/debug-env',
+  '/api/books/by-id/', // This will make all /by-id/ endpoints public
+  '/api/books/by-id/:id/payload', // Explicitly include the payload endpoint
 ];
 
 // List of paths that can be accessed with API key
@@ -88,7 +90,17 @@ export async function middleware(request: NextRequest) {
     
     // Skip authentication for public paths
     if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
-        PUBLIC_API_PATHS.some(p => pathname === p)) {
+        PUBLIC_API_PATHS.some(p => {
+          // Handle exact matches
+          if (pathname === p) return true;
+          // Handle wildcard paths
+          if (p.includes('*')) {
+            const regex = new RegExp('^' + p.replace(/\*/g, '.*') + '$');
+            return regex.test(pathname);
+          }
+          // Handle prefix matches
+          return pathname.startsWith(p);
+        })) {
       return response;
     }
     
