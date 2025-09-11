@@ -167,19 +167,76 @@ mkdir -p "./work/payload"
 
 # First, try to get the payload with verbose output
 log "Making API request..."
+
+# Create debug directory
+mkdir -p "./work/debug"
+
+# Make the API request with full debug output
+log "Sending request to: $API_URL/books/by-id/$BOOK_ID/payload"
+log "Using API key: ${GITHUB_ACTIONS_API_KEY:0:5}...${GITHUB_ACTIONS_API_KEY: -5} (${#GITHUB_ACTIONS_API_KEY} chars)"
+
+# Make the request and capture all output
 if ! curl -v \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "x-api-key: $GITHUB_ACTIONS_API_KEY" \
   -H "X-Request-ID: $(uuidgen || date +%s)" \
   -H "X-GitHub-Event: workflow_dispatch" \
+  -H "Accept: application/json" \
+  -w "\n=== RESPONSE CODE: %{http_code} ===\n" \
   -o "./work/payload/payload.json" \
-  "$API_URL/books/by-id/$BOOK_ID/payload" 2>"./work/payload/curl_debug.log"; then
+  "$API_URL/books/by-id/$BOOK_ID/payload" \
+  > "./work/debug/curl_output.log" 2>"./work/debug/curl_debug.log"; then
   
-  error "Failed to fetch payload. HTTP Status: $(grep -o 'HTTP/[0-9.]* [0-9]*' "./work/payload/curl_debug.log" | tail -n1 || echo 'unknown')"
-  log "=== Debug Info ==="
-  log "API URL: $API_URL/books/by-id/$BOOK_ID/payload"
-  log "Token: ${TOKEN:0:5}...${TOKEN: -5} (${#TOKEN} chars)"
-  log "Full curl debug output:"
-  cat "./work/payload/curl_debug.log"
+  # If curl command failed, show detailed error info
+  error "Curl command failed with status $?"
+  
+  # Get HTTP status code if available
+  HTTP_STATUS=$(grep -oP '^< HTTP/\d\.\d \K\d+' "./work/debug/curl_debug.log" | tail -n1 || echo 'unknown')
+  error "API request failed with HTTP status: ${HTTP_STATUS}"
+  
+  # Show request headers
+  log "=== REQUEST HEADERS ==="
+  grep -E '^> ' "./work/debug/curl_debug.log" || true
+  
+  # Show response headers
+  log "=== RESPONSE HEADERS ==="
+  grep -E '^< ' "./work/debug/curl_debug.log" | grep -v '^< HTTP' || true
+  
+  # Show response body if it exists
+  if [ -f "./work/payload/payload.json" ] && [ -s "./work/payload/payload.json" ]; then
+    log "=== RESPONSE BODY ==="
+    cat "./work/payload/payload.json"
+    log "=== END RESPONSE BODY ==="
+  else
+    log "No response body received or empty response"
+  fi
+  
+  # Show full debug log
+  log "=== FULL CURL DEBUG LOG ==="
+  cat "./work/debug/curl_debug.log"
+  
+  # Special handling for common error codes
+  if [ "$HTTP_STATUS" = "401" ]; then
+    error "Authentication failed. Please check your API key."
+  elif [ "$HTTP_STATUS" = "404" ]; then
+    error "Book not found. Please check the book ID: $BOOK_ID"
+  elif [ "$HTTP_STATUS" = "500" ]; then
+    error "Server error. Please check the server logs."
+  fi
+  
+  exit 1
+fi
+
+# If we get here, the request was successful
+log "API request completed successfully"
+log "Response saved to ./work/payload/payload.json"
+
+# Verify the response is valid JSON
+if ! jq empty "./work/payload/payload.json" 2> "./work/debug/json_validation.log"; then
+  error "Invalid JSON in API response"
+  log "=== JSON VALIDATION ERROR ==="
+  cat "./work/debug/json_validation.log"
+  log "=== RESPONSE CONTENT ==="
+  cat "./work/payload/payload.json"
   exit 1
 fi
 
@@ -187,6 +244,36 @@ fi
 if [ ! -s "./work/payload/payload.json" ]; then
   error "Payload file is empty. Check API response:"
   cat "./work/payload/curl_debug.log"
+  exit 1
+fi
+
+# Display the API response content for debugging
+log "=== API RESPONSE CONTENT ==="
+cat "./work/payload/payload.json"
+log "=== END API RESPONSE CONTENT ==="
+
+# Check if we got a JSON error response
+if jq -e '.error' "./work/payload/payload.json" >/dev/null 2>&1; then
+  error "API returned an error:"
+  jq '.' "./work/payload/payload.json"
+  
+  # Extract and display specific error details
+  ERROR_MSG=$(jq -r '.error' "./work/payload/payload.json")
+  case $ERROR_MSG in
+    "Unauthorized")
+      error "Authentication failed. Please check your API token."
+      ;;
+    "Forbidden")
+      error "You don't have permission to access this resource."
+      ;;
+    "Book not found")
+      error "The requested book was not found. Book ID: $BOOK_ID"
+      ;;
+    *)
+      error "Unknown error: $ERROR_MSG"
+      ;;
+  esac
+  
   exit 1
 fi
 

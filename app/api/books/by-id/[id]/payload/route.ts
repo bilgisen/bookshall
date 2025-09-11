@@ -1,9 +1,10 @@
+// app/api/books/by-id/[id]/payload/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/db/drizzle';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { books, chapters } from '@/db';
-import { auth } from '@/lib/auth';
+import { authenticateRequest } from '@/lib/auth/api-auth';
 
 // Constants
 export const dynamic = 'force-dynamic';
@@ -276,17 +277,18 @@ export async function GET(
   // Await the params promise
   const { id } = await params;
   try {
-    // Authenticate the request
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user?.id) {
+    // Authenticate the request using api-auth helper
+    const authResult = await authenticateRequest(request);
+    
+    if (authResult.type === 'unauthorized') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+    
+    // For session auth, we'll use the userId later for ownership checks
+    const userId = authResult.type === 'session' ? authResult.userId : null;
 
     // Await params as required by Next.js 15
     const awaitedParams = await params;
@@ -344,8 +346,8 @@ export async function GET(
       isPublished: book.isPublished 
     });
 
-    // Verify ownership (if needed)
-    if (book.userId !== session.user.id) {
+    // Verify ownership for session-based auth
+    if (authResult.type === 'session' && book.userId !== authResult.userId) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -429,8 +431,8 @@ export async function GET(
       metadata: {
         generated_at: new Date().toISOString(),
         generated_by: 'bookshall-epub-generator',
-        user_id: session.user.id,
-        user_email: session.user.email || undefined,
+        user_id: authResult.type === 'session' ? authResult.userId : 'github-actions',
+        user_email: 'github-actions@bookshall.com',
       },
     };
 
