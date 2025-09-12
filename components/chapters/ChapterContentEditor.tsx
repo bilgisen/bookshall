@@ -28,15 +28,50 @@ export default function ChapterContentEditor({
   placeholder = 'Add your chapter content here...',
   className,
 }: ChapterContentEditorProps) {
-  // Tiptap'e string gönderecek şekilde normalize et
+  // Normalize content for Tiptap
   const editorContent = React.useMemo(() => {
-    if (!value) return '';
-    if (typeof value === 'string') return value;
-    try {
-      return JSON.stringify(value); // JSON doc gönderildiğinde
-    } catch {
-      return '';
+    // If value is null or undefined, return empty doc structure
+    if (value === null || value === undefined) {
+      return { type: 'doc', content: [{ type: 'paragraph' }] };
     }
+    
+    // If it's already an object with the expected structure, return it
+    if (typeof value === 'object' && value !== null && 'type' in value) {
+      return value;
+    }
+    
+    // If it's a string, determine if it's HTML or JSON
+    if (typeof value === 'string') {
+      // Check if it's HTML (contains HTML tags)
+      const isHTML = /<[a-z][\s\S]*>/i.test(value);
+      
+      if (isHTML) {
+        // For HTML content, return it as is - the editor will parse it
+        return value;
+      }
+      
+      // Try to parse as JSON
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      } catch {
+        // If it's not JSON, treat as plain text
+        return {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: value }]
+            }
+          ]
+        };
+      }
+    }
+    
+    // Fallback to empty document
+    return { type: 'doc', content: [{ type: 'paragraph' }] };
   }, [value]);
 
   const isEditorDisabled = readOnly || disabled;

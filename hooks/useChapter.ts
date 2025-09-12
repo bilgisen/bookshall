@@ -37,7 +37,13 @@ export function useChapter({ bookSlug, chapterId, enabled = true }: UseChapterOp
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/books/by-slug/${bookSlug}/chapters/${chapterId}`, {
+      // Use different endpoints for view and edit modes
+      const isEditPage = window.location.pathname.includes('/edit');
+      const endpoint = isEditPage 
+        ? `/api/books/by-slug/${bookSlug}/chapters/${chapterId}`
+        : `/api/books/by-slug/${bookSlug}/chapters/${chapterId}/view`;
+
+      const response = await fetch(endpoint, {
         credentials: 'include',
         headers: {
           'Cache-Control': 'no-cache',
@@ -63,12 +69,21 @@ export function useChapter({ bookSlug, chapterId, enabled = true }: UseChapterOp
         throw new Error('Book slug and chapter ID are required');
       }
 
+      // Ensure content is properly stringified if it's an object
+      const payload = {
+        ...updatedChapter,
+        // If content is an object, stringify it, otherwise use as is
+        content: updatedChapter.content && typeof updatedChapter.content === 'object' 
+          ? JSON.stringify(updatedChapter.content)
+          : updatedChapter.content
+      };
+
       const response = await fetch(`/api/books/by-slug/${bookSlug}/chapters/${chapterId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedChapter),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -79,7 +94,7 @@ export function useChapter({ bookSlug, chapterId, enabled = true }: UseChapterOp
 
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chapter', bookSlug, chapterId] });
       queryClient.invalidateQueries({ queryKey: ['chapters', bookSlug] });
       toast.success('Chapter updated successfully');

@@ -20,6 +20,17 @@ import type { ChapterOption } from './ParentChapterSelect';
 import ParentChapterSelect from './ParentChapterSelect';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
+import { generateJSON } from '@tiptap/html';
+import { Document } from '@tiptap/extension-document';
+import { Text } from '@tiptap/extension-text';
+import { Paragraph } from '@tiptap/extension-paragraph';
+import { Heading } from '@tiptap/extension-heading';
+import { Bold } from '@tiptap/extension-bold';
+import { Italic } from '@tiptap/extension-italic';
+import { ListItem } from '@tiptap/extension-list-item';
+import { BulletList } from '@tiptap/extension-bullet-list';
+import { OrderedList } from '@tiptap/extension-ordered-list';
+import { Link as TiptapLink } from '@tiptap/extension-link';
 import { Loader2 } from 'lucide-react';
 import { chapterFormSchema, type ChapterFormValues } from '@/lib/validation/chapter';
 import { authClient } from '@/lib/auth-client';
@@ -71,18 +82,81 @@ export default function ChapterForm({
   const formContent = useMemo(() => {
     const content = initialData?.content;
     
-    // If content is null or undefined, return empty string
+    // If content is null or undefined, return empty doc structure
     if (content === null || content === undefined) {
-      return '';
+      return { type: 'doc', content: [] };
     }
     
-    // If it's already a string, return as is
-    if (typeof content === 'string') {
+    // If it's already an object with the expected structure, return as is
+    if (typeof content === 'object' && content !== null && 'type' in content && 'content' in content) {
       return content;
     }
     
-    // If it's an object (Tiptap JSON), return as is - ChapterContentEditor will handle it
-    return content;
+    // If it's a string, process it
+    if (typeof content === 'string') {
+      const trimmedContent = content.trim();
+      
+      // Check if it's HTML
+      const isHtml = /<[a-z][\s\S]*>/i.test(trimmedContent);
+      
+      if (isHtml) {
+        try {
+          // For HTML content, convert to Tiptap JSON format
+          return generateJSON(trimmedContent, [
+            Document,
+            Text,
+            Paragraph,
+            Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }),
+            Bold,
+            Italic,
+            ListItem,
+            BulletList,
+            OrderedList,
+            TiptapLink.configure({ openOnClick: false }),
+          ]);
+        } catch (error) {
+          console.error('Error converting HTML to Tiptap JSON:', error);
+          // Fallback to plain text
+          return {
+            type: 'doc',
+            content: [{
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: trimmedContent.replace(/<[^>]*>/g, ' ')
+              }]
+            }]
+          };
+        }
+      }
+      
+      // Try to parse as JSON
+      try {
+        const parsed = JSON.parse(trimmedContent);
+        if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+          return parsed;
+        }
+      } catch {
+        // If it's not valid JSON, create a doc with the text as content
+        return {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: content
+                }
+              ]
+            }
+          ]
+        };
+      }
+    }
+    
+    // Default fallback
+    return { type: 'doc', content: [] };
   }, [initialData?.content]);
 
   // Create base values with proper string types for IDs
@@ -117,21 +191,22 @@ export default function ChapterForm({
     // @ts-expect-error - Type inference issue between react-hook-form and zod
     resolver: zodResolver(chapterFormSchema),
     defaultValues: {
-      bookId: defaultValues.bookId ? String(defaultValues.bookId) : '',
-      parentChapterId: defaultValues.parentChapterId ? String(defaultValues.parentChapterId) : null,
       title: defaultValues.title || '',
-      // Handle both string and object content types
+      // Only include slug if it exists in defaultValues
+      ...(defaultValues.slug !== undefined && { slug: defaultValues.slug }),
       content: (() => {
         if (!defaultValues.content) return '';
         if (typeof defaultValues.content === 'string') return defaultValues.content;
         return JSON.stringify(defaultValues.content);
       })(),
+      parentChapterId: defaultValues.parentChapterId ? String(defaultValues.parentChapterId) : null,
       order: Number(defaultValues.order) || 0,
       level: Number(defaultValues.level) || 1,
       wordCount: Number(defaultValues.wordCount) || 0,
       readingTime: defaultValues.readingTime ? Number(defaultValues.readingTime) : null,
       id: defaultValues.id ? String(defaultValues.id) : undefined,
       uuid: defaultValues.uuid,
+      bookId: String(bookId), // Ensure bookId is always set
     },
   });
   
@@ -150,15 +225,50 @@ export default function ChapterForm({
     watch: () => FormValues;
   };
   
+  // Ensure parentChapters is always an array and properly formatted
+  const safeParentChapters = React.useMemo(() => {
+    if (!Array.isArray(parentChapters)) {
+      console.warn('parentChapters is not an array, defaulting to empty array');
+      return [];
+    }
+    
+    const formattedChapters = parentChapters.map(chapter => ({
+      ...chapter,
+      id: String(chapter.id),
+      disabled: !!chapter.disabled,
+      level: chapter.level || 0
+    }));
+    
+    console.log('Formatted parent chapters:', formattedChapters);
+    return formattedChapters;
+  }, [parentChapters]);
+  
   // Wrap the async submit handler to match the expected type
   const handleFormSubmit = (data: FormValues) => {
     onSubmit(data).catch(console.error);
   };
 
   // Handle form submission with proper typing
-  const onSubmit = async (formValues: FormValues) => {
+  const onSubmit = async (data: ChapterFormValues) => {
     try {
       setIsLoading(true);
+      
+      // Prepare the form data
+      const formData = {
+        ...data,
+        bookId: Number(bookId),
+        parentChapterId: data.parentChapterId ? Number(data.parentChapterId) : null,
+      };
+      
+      // Ensure content is properly formatted
+      if (formData.content) {
+        if (typeof formData.content === 'string' && formData.content.trim().startsWith('<')) {
+          // If it's HTML, leave it as is
+        } else if (typeof formData.content === 'object') {
+          // If it's an object, stringify it
+          formData.content = JSON.stringify(formData.content);
+        }
+      }
       
       const session = await authClient.getSession();
       const sessionId = session?.data?.session?.id;
@@ -172,15 +282,13 @@ export default function ChapterForm({
       
       // Prepare the chapter data for the API
       const chapterPayload = {
-        ...formValues,
-        bookId: String(bookId), // Ensure bookId is a string
-        parentChapterId: formValues.parentChapterId || null,
-        order: Number(formValues.order) || 0,
-        level: Number(formValues.level) || 1,
-        wordCount: Number(formValues.wordCount) || 0,
-        readingTime: formValues.readingTime ? Number(formValues.readingTime) : null,
-        uuid: formValues.uuid,
-        ...(formValues.id && { id: String(formValues.id) }),
+        ...formData,
+        order: Number(formData.order) || 0,
+        level: Number(formData.level) || 1,
+        wordCount: Number(formData.wordCount) || 0,
+        readingTime: formData.readingTime ? Number(formData.readingTime) : null,
+        uuid: formData.uuid,
+        ...(formData.id && { id: String(formData.id) }),
       };
       
       // For PATCH requests, we should have an ID from initialData
@@ -198,9 +306,9 @@ export default function ChapterForm({
       console.log('Making API request:', {
         method: initialData ? 'PATCH' : 'POST',
         url: apiUrl,
-        hasId: !!formValues.id,
+        hasId: !!formData.id,
         slug,
-        chapterId: formValues.id
+        chapterId: formData.id
       });
 
       const response = await fetch(apiUrl, {
@@ -286,14 +394,22 @@ export default function ChapterForm({
                 <FormItem>
                   <FormLabel className="text-sm text-muted-foreground">Parent Chapter (Optional)</FormLabel>
                   <FormControl>
-                    <ParentChapterSelect
-                      parentChapters={parentChapters}
-                      value={field.value?.toString() ?? ''}
-                      onChange={(value: string | null) => 
-                        field.onChange(value ? Number(value) : null)
-                      }
-                      disabled={isLoading}
-                    />
+                    <div className="w-full">
+                      <ParentChapterSelect
+                        parentChapters={safeParentChapters}
+                        value={field.value !== null && field.value !== undefined ? String(field.value) : null}
+                        onChange={(value: string | null) => {
+                          field.onChange(value ? Number(value) : null);
+                        }}
+                        disabled={isLoading}
+                        placeholder="Select parent chapter"
+                      />
+                      {safeParentChapters.length === 0 && !isLoading && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          No other chapters available to select as parent
+                        </p>
+                      )}
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

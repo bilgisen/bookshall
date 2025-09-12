@@ -433,6 +433,7 @@ export function generateImprintHTML(book: BookImprintData): string {
     </style>
   </head>
   <body>
+    <h1>${meta.title}</h1>
     ${content}
   </body>
 </html>`;
@@ -561,6 +562,7 @@ export function generateCompleteDocumentHTML(title: string, content: string, met
   </head>
 
   <body>
+    <h1>${meta.title}</h1>
     ${content}
   </body>
 </html>`;

@@ -1,8 +1,6 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { SectionCards } from "./_components/section-cards";
-import { ChartAreaInteractive } from "./_components/chart-interactive";
 import { CreditWidget } from "./_components/credit-widget";
 
 export default async function Dashboard() {
@@ -27,11 +25,7 @@ export default async function Dashboard() {
         </div>
         
         <div className="grid gap-6">
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="space-y-6 md:col-span-2">
-              <SectionCards />
-              <ChartAreaInteractive />
-            </div>
+          <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-6">
               <CreditWidget userId={result.session.userId} />
             </div>

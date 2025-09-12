@@ -26,7 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface MinimalTiptapProps {
-  content?: string;
+  content?: string | object | null;
   onChange?: (content: string) => void;
   placeholder?: string;
   editable?: boolean;
@@ -40,84 +40,111 @@ function MinimalTiptap({
   editable = true,
   className,
 }: MinimalTiptapProps) {
+  const [isMounted, setIsMounted] = React.useState(false);
+  
+  React.useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
   const editor = useEditor({
+    content: isMounted ? content : '',
     extensions: [
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
           HTMLAttributes: {
-            class: 'prose-h1 sm:prose-h2 lg:prose-h3'
-          },
+            class: 'prose-h1 sm:prose-h2 lg:prose-h3 mt-4 mb-2'
+          }
         },
         paragraph: {
-          HTMLAttributes: { class: 'prose-p' },
-        },
-        blockquote: {
-          HTMLAttributes: { class: 'prose-blockquote' },
-        },
-        codeBlock: {
-          HTMLAttributes: { class: 'prose-code' },
+          HTMLAttributes: {
+            class: 'prose-p my-2'
+          }
         },
         bulletList: {
-          keepMarks: true,
-          keepAttributes: false,
-          HTMLAttributes: { class: 'list-disc pl-4' },
+          HTMLAttributes: {
+            class: 'prose-ul list-disc pl-6 my-2'
+          }
         },
         orderedList: {
-          keepMarks: true,
-          keepAttributes: false,
-          HTMLAttributes: { class: 'list-decimal pl-4' },
+          HTMLAttributes: {
+            class: 'prose-ol list-decimal pl-6 my-2'
+          }
         },
+        listItem: {
+          HTMLAttributes: {
+            class: 'prose-li my-1'
+          }
+        },
+        blockquote: {
+          HTMLAttributes: {
+            class: 'prose-blockquote border-l-4 border-gray-300 pl-4 my-2 italic'
+          }
+        },
+        codeBlock: {
+          HTMLAttributes: {
+            class: 'prose-code bg-gray-100 dark:bg-gray-800 p-1 rounded'
+          }
+        }
       }),
       Placeholder.configure({
-        placeholder,
-      }),
+        placeholder
+      })
     ],
-    content: '',
     editable,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
-      onChange?.(editor.getHTML());
+      if (onChange) {
+        onChange(editor.getHTML());
+      }
     },
     editorProps: {
       attributes: {
         class: cn(
           'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl',
-          'dark:prose-invert max-w-none focus:outline-none',
-          'min-h-[500px] p-24 border-0'
+          'focus:outline-none min-h-[200px] p-4',
+          'dark:prose-invert',
+          className
         ),
       },
     },
+    parseOptions: {
+      preserveWhitespace: 'full',
+    },
   });
 
+  // Update content when the content prop changes
   React.useEffect(() => {
-    if (!editor || content === undefined) return;
-
-    const current = editor.getHTML();
-    if (current === content) return;
-
+    if (!editor) return;
+    
     try {
-      if (typeof content === 'object' && 'type' in content) {
+      // Don't update if content is the same
+      const currentContent = editor.getHTML();
+      const contentString = typeof content === 'string' ? content : JSON.stringify(content || '');
+      
+      if (currentContent === contentString) return;
+      
+      // If content is empty, clear the editor
+      if (!content) {
+        editor.commands.clearContent();
+        return;
+      }
+      
+      // Handle HTML content
+      if (typeof content === 'string' && (content.startsWith('<') || content.includes('<'))) {
         editor.commands.setContent(content);
       } else if (typeof content === 'string') {
-        if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-          try {
-            const parsed = JSON.parse(content);
-            editor.commands.setContent(parsed);
-          } catch {
-            editor.commands.setContent(content);
-          }
-        } else {
-          editor.commands.setContent(content);
-        }
-      } else {
-        editor.commands.setContent('');
+        // Handle plain text
+        editor.commands.setContent(`<p>${content}</p>`);
+      } else if (content) {
+        // Handle JSON content
+        editor.commands.setContent(content);
       }
     } catch (error) {
       console.error('[MinimalTiptap] Error setting content:', error);
-      editor.commands.setContent('');
+      editor.commands.setContent('<p>Error loading content</p>');
     }
-  }, [editor, content]);
+  }, [editor, content, isMounted]);
 
   React.useEffect(() => {
     return () => editor?.destroy();

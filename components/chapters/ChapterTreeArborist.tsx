@@ -5,6 +5,7 @@ import { Tree, NodeRendererProps, NodeApi } from 'react-arborist';
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 import { GripVertical, Eye, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -195,7 +196,7 @@ export function ChapterTreeArborist({
       <div 
         ref={dragHandle}
         style={style}
-        className={`flex items-center px-2 py-1 hover:bg-gray-100 ${isSelected ? 'bg-blue-50' : ''}`}
+        className={`flex items-center px-2 py-1 hover:bg-card ${isSelected ? 'bg-accent' : ''} rounded transition-colors`}
         onClick={() => onSelectChapter?.(chapter)}
       >
         <div className="flex items-center flex-1">
@@ -211,16 +212,11 @@ export function ChapterTreeArborist({
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewChapter({
-                  ...chapter,
-                  title: chapter.name || chapter.title, // Ensure title is present
-                  children: undefined // Remove children to avoid circular references
-                });
-              }}
+              asChild
             >
-              <Eye className="h-3.5 w-3.5" />
+              <Link href={`/dashboard/books/${bookSlug}/chapters/${chapter.id}/view`}>
+                <Eye className="h-4 w-4" />
+              </Link>
             </Button>
           )}
           {onEditChapter && (

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 interface BooksMenuProps {
   slug?: string;  // Book slug for navigation (made optional)
   bookId?: string; // Book ID for direct operations
+  chapterId?: string; // Chapter ID for chapter-specific actions
   onView?: () => void;
   onEdit?: () => void;
   onDelete?: () => Promise<{ success: boolean; error?: string }>;

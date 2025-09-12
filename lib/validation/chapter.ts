@@ -9,6 +9,11 @@ export const chapterFormSchema = z.object({
     .nullable()
     .optional(),
   title: z.string().min(1, 'Title is required').max(255, 'Title is too long'),
+  slug: z.string()
+    .min(1, 'Slug is required')
+    .max(255, 'Slug is too long')
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be URL-friendly')
+    .optional(),
   content: z.union([
     z.string().min(1, 'Content is required'),
     z.object({

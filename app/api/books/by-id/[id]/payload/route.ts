@@ -72,6 +72,9 @@ interface EbookPayload {
     stylesheet_url: string;
     subtitle?: string;
     description?: string;
+    publisher?: string;
+    isbn?: string;
+    publish_year?: number;
     chapters: PayloadChapter[];
   };
   options: {
@@ -307,6 +310,9 @@ export async function GET(
         coverImageUrl: true,
         isPublished: true,
         userId: true,
+        publisher: true,
+        isbn: true,
+        publishYear: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -391,6 +397,9 @@ export async function GET(
         language: options.language,
         description: book.description || undefined,
         subtitle: book.subtitle || undefined,
+        publisher: book.publisher || undefined,
+        isbn: book.isbn || undefined,
+        publish_year: book.publishYear || undefined,
         output_filename: outputFilename,
         cover_url: book.coverImageUrl || '',
         stylesheet_url: `${baseUrl}/styles/epub.css`,
