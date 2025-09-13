@@ -156,7 +156,8 @@ export default function ViewBookPage() {
         <div className="container mx-auto">
           <BookHeader 
             title={book.title} 
-            description={book.description}
+    
+            author={book.author}
             slug={book.slug}
           />
         </div>
@@ -242,7 +243,7 @@ export default function ViewBookPage() {
         
         <aside className="space-y-4">
           {book.coverImageUrl ? (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-hidden">
               <Image
                 src={book.coverImageUrl}
                 alt={`Cover of ${book.title}`}

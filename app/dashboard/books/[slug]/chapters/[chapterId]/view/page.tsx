@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
 import { ChapterHeader } from '@/components/chapters/chapter-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { ArrowLeft, Edit, BookOpen, Calendar, Clock, FileText, Bookmark } from 'lucide-react';
+import { BookOpen, Calendar, Clock, FileText, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { JSONContent } from '@tiptap/core';
@@ -132,7 +132,12 @@ export default function ChapterViewPage() {
       <div className="flex flex-col min-h-screen">
         <div className="bg-background border-b">
           <div className="container mx-auto px-4 py-6">
-            <ChapterHeader title="" bookName="" />
+            <ChapterHeader 
+              title="" 
+              bookName="" 
+              bookSlug={typeof slug === 'string' ? slug : ''}
+              chapterId={typeof chapterId === 'string' ? chapterId : ''}
+            />
           </div>
         </div>
       </div>
@@ -142,29 +147,30 @@ export default function ChapterViewPage() {
   if (isError || !chapter) {
     const errorMessage = error?.message || 'Failed to load chapter';
     return (
-      <div className="container mx-auto py-8 px-4 max-w-4xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error Loading Chapter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive mb-4">
-              {errorMessage}. Please try again.
-            </p>
-            <div className="flex space-x-4">
-              <Button variant="outline" onClick={() => router.back()}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Go Back
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/dashboard/books">
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  View All Books
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="container w-full p-8">
+        <ChapterHeader 
+          title="Error Loading Chapter"
+          bookName=""
+          bookSlug={typeof slug === 'string' ? slug : ''}
+          chapterId={typeof chapterId === 'string' ? chapterId : ''}
+        />
+        <div className="mt-8">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-destructive mb-4">
+                {errorMessage}. Please try again.
+              </p>
+              <div className="flex space-x-4">
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/books">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    View All Books
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -174,35 +180,24 @@ export default function ChapterViewPage() {
     : 'Not available';
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl space-y-8">
+    <div className="container w-full p-8">
       <ChapterHeader
         title={chapter.title}
         bookName={chapter.book.title}
-        action={
-          <div className="flex space-x-2">
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-            <Link href={`/dashboard/books/${chapter.book.slug}/chapters/${chapter.id}/edit`}>
-              <Button size="sm">
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            </Link>
-          </div>
-        }
+        bookSlug={chapter.book.slug}
+        chapterId={chapter.id}
       />
 
       <div className="overflow-hidden">
-        <div className="p-6">
+        <div className="p-8">
           {chapter.content ? (
-            <div className="w-full max-w-none">
+            <div className="w-4xl mx-auto">
+              <h1 className="text-4xl font-bold pb-8 tracking-tight">{chapter.title}</h1>
               <ChapterContentRenderer 
                 content={chapter.content} 
                 className="prose dark:prose-invert max-w-none"
               />
-              <div className="mt-8 pt-4 border-t flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+              <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center">
                   <Calendar className="mr-1 h-4 w-4" />
                   <span>Last updated: {formattedDate}</span>

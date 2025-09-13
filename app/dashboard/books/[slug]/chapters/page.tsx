@@ -51,7 +51,9 @@ export default function BookChaptersPage() {
       <div className="w-full">
         <ChapterHeader 
           title="Chapters" 
-          bookName={book.title} 
+          bookName={book.title}
+          bookSlug={book.slug}
+          chapterId=""
         />
         
       </div>

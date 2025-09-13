@@ -26,7 +26,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Overview", href: "/dashboard", icon: HomeIcon },
-  { label: "Chat", href: "/dashboard/chat", icon: MessageCircleIcon },
+  { label: "Books", href: "/dashboard/Books", icon: MessageCircleIcon },
   { label: "Upload", href: "/dashboard/upload", icon: Upload },
   { label: "Payment Gated", href: "/dashboard/payment", icon: Banknote },
 ];
@@ -34,12 +34,12 @@ const navItems: NavItem[] = [
 export default function DashboardSideBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <div
       className={clsx(
-        "min-[1024px]:block hidden border-r h-full bg-card transition-all duration-300",
+        "min-[1024px]:block hidden border-r h-full bg-card/50 transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >

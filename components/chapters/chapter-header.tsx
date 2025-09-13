@@ -5,36 +5,59 @@ import Link from 'next/link';
 import { Separator } from "@/components/ui/separator";
 import { BooksMenu } from "@/components/books/books-menu";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, ListOrdered, BookOpen } from "lucide-react";
 
 interface ChapterHeaderProps {
   title: string;
   bookName: string;
+  bookSlug: string;
+  chapterId: string;
   action?: React.ReactNode;
 }
 
 export function ChapterHeader({
   title,
   bookName,
+  bookSlug,
+  chapterId,
   action,
 }: ChapterHeaderProps) {
-  const params = useParams();
-  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          <p className="text-muted-foreground mt-1">From: {bookName}</p>
+          <p className="text-muted-foreground mt-1">
+            <Link href={`/dashboard/books/${bookSlug}`} className="hover:underline flex items-center">
+              <BookOpen className="h-4 w-4 mr-1" />
+              {bookName}
+            </Link>
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Add Chapter Button */}
           <Button asChild variant="outline" size="sm" className="gap-2">
-            <Link href={`/dashboard/books/${slug}/chapters/new`}>
+            <Link href={`/dashboard/books/${bookSlug}/chapters/new`}>
               <Plus className="h-4 w-4" />
-              Add chapter
+              Add Chapter
             </Link>
           </Button>
-          {action || <BooksMenu slug={slug} bookId="new" hideEdit />}
+          
+          {/* Table of Contents Button */}
+          <Button asChild variant="outline" size="icon" title="Table of Contents">
+            <Link href={`/dashboard/books/${bookSlug}/chapters`}>
+              <ListOrdered className="h-4 w-4" />
+              <span className="sr-only">Table of Contents</span>
+            </Link>
+          </Button>
+          
+          {/* Kebab Menu */}
+          <BooksMenu 
+            slug={bookSlug} 
+            bookId={chapterId}
+            chapterId={chapterId}
+            hideEdit={false}
+          />
         </div>
       </div>
       <Separator />
