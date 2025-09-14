@@ -1,24 +1,27 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { NextRequest } from 'next/server';
-import { CreditService, type CreditSummary, type TransactionHistoryResult } from '@/lib/services/credit.service';
+import { CreditService } from '@/lib/services/credit';
+import type { CreditSummary, TransactionHistoryResult } from '@/lib/services/credit/credit.types';
+import { getSessionUser } from '@/lib/auth/session-utils';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   try {
-    // Await the params promise
-    const { userId } = await params;
+    const { userId } = params;
     
-    // Get the session using the request headers
-    const response = await auth.api.getSession({
-      headers: request.headers,
-    });
-    const session = response;
+    // Get the authenticated user
+    const { user, errorResponse } = await getSessionUser(request);
+    if (!user || errorResponse) {
+      return errorResponse || new NextResponse('Unauthorized', { status: 401 });
+    }
+    
+    const currentUserId = user.id;
+    const userRole = user.role;
 
     // Verify the user is authenticated and can access this data
-    if (!session?.user?.id || session.user.id !== userId) {
+    if (!currentUserId || (currentUserId !== userId && userRole !== 'admin')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -32,7 +35,7 @@ export async function GET(
 
     // Get balance, transaction history, and summary in parallel
     const [balance, history, summary] = await Promise.all([
-      CreditService.getBalance(userId).catch(() => 0), // Return 0 if there's an error
+      CreditService.getBalance(userId).catch(() => 0),
       CreditService.getTransactionHistory(userId, limit, offset)
         .catch((error) => {
           console.error('Error getting transaction history:', error);

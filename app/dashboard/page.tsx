@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { CreditWidget } from "./_components/credit-widget";
+import { CreditWidget } from "@/components/credits/credit-widget";
 
 export default async function Dashboard() {
   const result = await auth.api.getSession({
@@ -25,10 +25,11 @@ export default async function Dashboard() {
         </div>
         
         <div className="grid gap-6">
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-6">
-              <CreditWidget userId={result.session.userId} />
+              <CreditWidget />
             </div>
+            {/* Add more widgets here */}
           </div>
         </div>
       </div>

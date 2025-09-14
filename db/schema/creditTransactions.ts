@@ -1,16 +1,11 @@
-import { pgTable, uuid, integer, varchar, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
-import { user } from '../../auth-schema';
-
-export const transactionType = pgEnum('transaction_type', ['earn', 'spend']);
+import { pgTable, uuid, text, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
 
 export const creditTransactions = pgTable('credit_transactions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  type: transactionType('type').notNull(),
+  userId: text('user_id').notNull(),
+  type: text('type').$type<'earn' | 'spend'>().notNull(),
   amount: integer('amount').notNull(),
-  reason: varchar('reason', { length: 255 }),
+  reason: text('reason'),
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -18,5 +13,4 @@ export const creditTransactions = pgTable('credit_transactions', {
 
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
 export type NewCreditTransaction = typeof creditTransactions.$inferInsert;
-
 export type TransactionType = 'earn' | 'spend';

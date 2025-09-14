@@ -1,8 +1,19 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { config } from 'dotenv';
 import postgres from 'postgres';
 
-// Use the unpooled connection string for direct connections
-const connectionString = 'postgresql://neondb_owner:npg_CcS1MwP7xFoE@ep-snowy-bar-agtaujj1.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+interface DatabaseTable {
+  table_name: string;
+}
+
+// Load environment variables
+config({ path: '.env' });
+
+if (!process.env.POSTGRES_URL_NON_POOLING) {
+  throw new Error('POSTGRES_URL_NON_POOLING environment variable is required');
+}
+
+// Use the connection string from environment variables
+const connectionString = process.env.POSTGRES_URL_NON_POOLING;
 
 async function testConnection() {
   try {
@@ -21,8 +32,6 @@ async function testConnection() {
       max_lifetime: 60 * 30,
     });
     
-    const db = drizzle(client);
-
     // Test a simple query
     console.log('Running test query...');
     const result = await client`SELECT 1 as test`;
@@ -37,7 +46,7 @@ async function testConnection() {
     `;
     console.log('Available tables:', tables);
 
-    if (tables.some((t: any) => t.table_name === 'credit_transactions')) {
+    if (tables.some((t: DatabaseTable) => t.table_name === 'credit_transactions')) {
       console.log('credit_transactions table exists');
       const count = await client`SELECT COUNT(*) as count FROM credit_transactions`;
       console.log('Number of transactions:', count[0]?.count);
@@ -46,10 +55,10 @@ async function testConnection() {
     }
 
     console.log('Database connection test completed successfully!');
-  } catch (error) {
-    console.error('Database connection test failed:', error);
-  } finally {
-    process.exit(0);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Connection error:', errorMessage);
+    process.exit(1);
   }
 }
 

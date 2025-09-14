@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Balance</title>
+    <script>
+        async function checkBalance() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Fetching balance...';
+            
+            try {
+                const response = await fetch('/api/credits/balance', {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>Response Status: ${response.status} ${response.statusText}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    <h4>Response Headers:</h4>
+                    <pre>${JSON.stringify(Object.fromEntries([...response.headers.entries()]), null, 2)}</pre>
+                `;
+                
+                console.log('Balance API response:', data);
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${error.message}`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Check Credit Balance</h1>
+    <button onclick="checkBalance()">Check Balance</button>
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+        Click the button to check your balance
+    </div>
+</body>
+</html>

@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import postgres from 'postgres';
 
 // Load environment variables
-config({ path: '.env.local' });
+config({ path: '.env' });
 
 if (!process.env.POSTGRES_URL_NON_POOLING) {
   throw new Error('POSTGRES_URL_NON_POOLING environment variable is required');

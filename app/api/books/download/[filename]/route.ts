@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
     // Get session from request
@@ -26,7 +26,7 @@ export async function GET(
     // 3. Stream the file back to the user
     
     // For now, we'll return a placeholder response
-    const { filename } = params;
+    const { filename } = await params;
     
     // Verify the file is an EPUB
     if (!filename.endsWith('.epub')) {

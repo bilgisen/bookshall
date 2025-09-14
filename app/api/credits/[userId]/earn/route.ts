@@ -1,27 +1,28 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { CreditService } from '@/lib/services/credit/credit.service';
 import { auth } from '@/lib/auth';
-import { CreditService } from '@/lib/services/credit.service';
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   // Await the params promise
   const { userId } = await params;
   try {
-    const session = await auth();
-
-    // Verify the user is authenticated and has permission to earn credits
-    if (!session?.user?.id) {
+    // Get the session using the auth handler
+    const session = await auth.handler(request);
+    if (!session.ok) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+    
+    const user = await session.json();
 
     // Only allow users to earn credits for themselves or admins to do it for others
-    const isAdmin = session.user.role === 'admin';
-    if (session.user.id !== userId && !isAdmin) {
+    const isAdmin = user.role === 'admin';
+    if (user.id !== userId && !isAdmin) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -47,12 +48,19 @@ export async function POST(
     }
 
     // Add credits to user's account
-    await CreditService.earnCredits(
+    const result = await CreditService.earnCredits(
       userId,
       amount,
       reason,
-      metadata
+      metadata as Record<string, string | number | boolean | null>
     );
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Failed to earn credits' },
+        { status: 400 }
+      );
+    }
 
     // Get updated balance
     const newBalance = await CreditService.getBalance(userId);

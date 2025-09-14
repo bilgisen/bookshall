@@ -1,14 +1,22 @@
 // app/api/books/by-id/[id]/payload/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
-import { db } from '@/db/drizzle';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { chapters } from '@/db';
+import { db } from '@/lib/db/edge-client';
+import { books, chapters } from '@/db/edge-schema';
+import { createClient } from '@supabase/supabase-js';
 
 // Constants
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
-export const runtime = 'nodejs';
+export const runtime = 'edge';
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
 // Types and Schemas
 const PublishOptionsSchema = z.object({
@@ -33,23 +41,13 @@ const PublishOptionsSchema = z.object({
 }));
 
 // Data Types
-interface ChapterNode {
-  id: string;
+import type { Chapter } from '@/db/edge-schema';
+
+interface ChapterNode extends Omit<Chapter, 'parentChapterId' | 'bookId'> {
   bookId: string;
-  title: string;
-  content: string;
-  order: number;
   parentChapterId: string | null;
-  level: number;
-  isDraft: boolean;
-  wordCount: number;
-  readingTime: number | null;
-  createdAt: Date;
-  updatedAt: Date;
   children: ChapterNode[];
-  slug?: string;
-  uuid?: string;
-  publishedAt?: Date | null;
+  // Remove slug and publishedAt as they're not part of the Chapter type
 }
 
 interface PayloadChapter {
@@ -63,7 +61,7 @@ interface PayloadChapter {
 
 interface EbookPayload {
   book: {
-    slug: string;
+    id: string;
     title: string;
     author: string;
     language: string;
@@ -105,26 +103,30 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
     
     // Fetch all non-draft chapters for the book with explicit field selection
     console.log('Fetching chapters for bookId:', bookId);
-    const allChapters = await db.select({
-      id: chapters.id,
-      bookId: chapters.bookId,
-      title: chapters.title,
-      content: chapters.content,
-      order: chapters.order,
-      level: chapters.level,
-      parentChapterId: chapters.parentChapterId,
-      isDraft: chapters.isDraft,
-      wordCount: chapters.wordCount,
-      readingTime: chapters.readingTime,
-      uuid: chapters.uuid,
-      createdAt: chapters.createdAt,
-      updatedAt: chapters.updatedAt
-    }).from(chapters).where(
-      and(
-        eq(chapters.bookId, bookId),
-        eq(chapters.isDraft, false)
+    const allChapters = await db
+      .select({
+        id: chapters.id,
+        bookId: chapters.bookId,
+        title: chapters.title,
+        content: chapters.content,
+        order: chapters.order,
+        level: chapters.level,
+        parentChapterId: chapters.parentChapterId,
+        isDraft: chapters.isDraft,
+        wordCount: chapters.wordCount,
+        readingTime: chapters.readingTime,
+        uuid: chapters.uuid,
+        createdAt: chapters.createdAt,
+        updatedAt: chapters.updatedAt,
+      })
+      .from(chapters)
+      .where(
+        and(
+          eq(chapters.bookId, bookId),
+          eq(chapters.isDraft, false)
+        )
       )
-    ).orderBy(chapters.order);
+      .orderBy(chapters.order);
     
     console.log(`Found ${allChapters.length} non-draft chapters for book ${bookId}`);
 
@@ -226,7 +228,7 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
 
 function flattenChapterTree(
   chapters: ChapterNode[],
-  bookSlug: string,
+  bookId: string,
   baseUrl: string,
   level = 1,
   parentId: string | null = null
@@ -236,29 +238,45 @@ function flattenChapterTree(
   console.log('Flattening chapter tree, chapters count:', chapters.length);
   
   for (const chapter of chapters) {
-    const url = `${baseUrl}/api/chapters/${chapter.id}/html`;
-    
-    const payloadChapter: PayloadChapter = {
-      id: chapter.id,
-      title: chapter.title,
-      url,
-      order: chapter.order,
-      parent: parentId,
-      title_tag: `h${Math.min(chapter.level, 6)}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
-    };
-    
-    result.push(payloadChapter);
-    console.log(`Flattened chapter: ${chapter.title} (ID: ${chapter.id})`);
-    
-    // Add children recursively
-    if (chapter.children.length > 0) {
-      result = result.concat(
-        flattenChapterTree(chapter.children, bookSlug, baseUrl, level + 1, chapter.id)
-      );
-    }
-  }
   
-  return result;
+// Determine the appropriate heading level based on the chapter's level
+const titleTag = `h${Math.min(6, Math.max(1, chapter.level))}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+  
+const url = `${baseUrl}/api/books/${bookId}/chapters/${chapter.id}`;
+  
+const payloadChapter: PayloadChapter = {
+id: chapter.id,
+title: chapter.title,
+url,
+order: chapter.order,
+parent: parentId,
+title_tag: titleTag,
+};
+  
+console.log(`Flattened chapter: ${chapter.title} (ID: ${chapter.id}, Level: ${chapter.level}, Order: ${chapter.order})`);
+  
+// Add the current chapter to the result
+result.push(payloadChapter);
+  
+// Process children recursively if they exist
+if (chapter.children && chapter.children.length > 0) {
+result = result.concat(
+flattenChapterTree(chapter.children, bookId, baseUrl, level + 1, chapter.id)
+);
+}
+}
+  
+return result;
+}
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      ...corsHeaders,
+    },
+  });
 }
 
 // Main Handler
@@ -266,19 +284,55 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse> {
-  // Public route - no authentication required
-  console.log('=== PAYLOAD ROUTE DEBUG ===');
-  console.log('Request URL:', request.url);
+// Public route - no authentication required
+console.log('=== PAYLOAD ROUTE DEBUG ===');
+console.log('Request URL:', request.url);
   
+
   try {
-    // Public access mode - no authentication required
-    console.log('Public access mode enabled for book payload');
-    
-    // Get the book ID from params
-    const { id: bookId } = params;
-    
+    const { id: bookId } = await params;
+
+    // Get the authorization token
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.split(' ')[1];
+
+    // If token is provided, verify it
+    if (token) {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error) {
+          console.error('Authentication error:', error);
+          return new NextResponse(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Invalid or expired token' 
+            }),
+            { 
+              status: 401,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            }
+          );
+        }
+        
+        // User is authenticated, you can use user.id for authorization if needed
+        console.log('Authenticated user:', user.id);
+      } catch (error) {
+        console.error('Error verifying token:', error);
+        // Continue with unauthenticated access
+      }
+    }
+
     console.log('GET /api/books/by-id/[id]/payload called with bookId:', bookId);
-    
+
     if (!bookId) {
       return NextResponse.json(
         { error: 'Book ID is required' },
@@ -294,153 +348,159 @@ export async function GET(
       include_imprint: queryParams.include_imprint || queryParams.includeImprint,
       generate_toc: queryParams.generate_toc || queryParams.includeTOC,
     });
-    
+
     // Get the book with all necessary fields
     console.log('Fetching book with ID:', bookId);
-    const book = await db.query.books.findFirst({
-      where: (books, { eq }) => eq(books.id, bookId),
-      columns: {
-        id: true,
-        title: true,
-        slug: true,
-        author: true,
-        description: true,
-        language: true,
-        subtitle: true,
-        coverImageUrl: true,
-        isPublished: true,
-        userId: true,
-        publisher: true,
-        isbn: true,
-        publishYear: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    
-    if (!book) {
-      console.error('Book not found with ID:', bookId);
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
-    
-    console.log('Found book:', { 
-      id: book.id, 
-      title: book.title,
-      isPublished: book.isPublished 
-    });
-    
-    // Skip ownership check in public mode
-    console.log('Skipping ownership check in public access mode');
+    try {
+      const [book] = await db
+        .select({
+          id: books.id,
+          title: books.title,
+          slug: books.slug,
+          author: books.author,
+          description: books.description,
+          language: books.language,
+          subtitle: books.subtitle,
+          coverImageUrl: books.coverImageUrl,
+          isPublished: books.isPublished,
+          userId: books.userId,
+          publisher: books.publisher,
+          isbn: books.isbn,
+          publishYear: books.publishYear,
+          createdAt: books.createdAt,
+          updatedAt: books.updatedAt,
+        })
+        .from(books)
+        .where(eq(books.id, bookId))
+        .limit(1);
 
-    // Build chapter tree and flatten for payload
-    console.log('Building chapter tree for book ID:', bookId);
-    const chapterTree = await buildChapterTree(bookId);
-    console.log('Chapter tree built, root chapters count:', chapterTree.length);
-    
-    // Debug: Check if we have any chapters in the database for this book
-    const debugChapters = await db.select({
-      id: chapters.id,
-      title: chapters.title,
-      parentChapterId: chapters.parentChapterId,
-      order: chapters.order,
-      isDraft: chapters.isDraft,
-      bookId: chapters.bookId,
-      level: chapters.level,
-      content: chapters.content
-    }).from(chapters).where(
-      and(
-        eq(chapters.bookId, bookId),
-        eq(chapters.isDraft, false)
-      )
-    ).orderBy(chapters.order);
-    
-    console.log('Debug - Total non-draft chapters in database for this book:', debugChapters.length);
-    if (debugChapters.length > 0) {
-      console.log('Debug - Sample chapter from database:', {
-        id: debugChapters[0].id,
-        bookId: debugChapters[0].bookId,
-        title: debugChapters[0].title,
-        parentChapterId: debugChapters[0].parentChapterId,
-        order: debugChapters[0].order,
-        level: debugChapters[0].level,
-        isDraft: debugChapters[0].isDraft,
-        contentLength: debugChapters[0].content?.length || 0
-      });
-    } else {
-      // Check if there are any chapters at all (including drafts)
-      const anyChapters = await db.select({ count: sql<number>`count(*)` })
-        .from(chapters)
-        .where(eq(chapters.bookId, bookId));
-      
-      console.log(`Debug - Total chapters (including drafts): ${anyChapters[0]?.count || 0}`);
-    }
-    
-    const baseUrl = getBaseUrl(request);
-    console.log('Base URL:', baseUrl);
-    
-    const payloadChapters = flattenChapterTree(chapterTree, book.slug, baseUrl);
-    console.log('Flattened payload chapters count:', payloadChapters.length);
+      if (!book) {
+        console.error('Book not found with ID:', bookId);
+        return new NextResponse(
+          JSON.stringify({
+            success: false,
+            error: 'Book not found or not published',
+          }),
+          { 
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
 
-    // Generate output filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const outputFilename = `${book.slug}-${timestamp}.epub`;
-
-    // Construct final payload
-    const payload: EbookPayload = {
-      book: {
-        slug: book.slug,
+      console.log('Found book:', { 
+        id: book.id, 
         title: book.title,
-        author: book.author || '',
-        language: options.language,
-        description: book.description || undefined,
-        subtitle: book.subtitle || undefined,
-        publisher: book.publisher || undefined,
-        isbn: book.isbn || undefined,
-        publish_year: book.publishYear || undefined,
-        output_filename: outputFilename,
-        cover_url: book.coverImageUrl || '',
-        stylesheet_url: `${baseUrl}/styles/epub.css`,
-        chapters: payloadChapters,
-      },
-      options: {
-        generate_toc: options.includeTOC,
-        toc_depth: options.tocLevel,
-        embed_metadata: options.includeMetadata,
-        include_imprint: options.includeImprint,
-        cover: options.includeCover,
-      },
-      metadata: {
-        generated_at: new Date().toISOString(),
-        generated_by: 'bookshall-epub-generator',
-        user_id: 'public-access',
-        user_email: 'public@bookshall.com',
-      },
-    };
+        isPublished: book.isPublished 
+      });
 
-    console.log('Generated payload with chapters:', payload.book.chapters.length);
+      // Skip ownership check in public mode
+      console.log('Skipping ownership check in public access mode');
 
-    // Return the payload
-    return NextResponse.json(payload);
-  } catch (error) {
-    console.error('Error generating payload', { 
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      error: error
-    });
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid parameters', details: error.issues },
-        { status: 400 }
+      // Build chapter tree and flatten for payload
+      console.log('Building chapter tree for book ID:', bookId);
+      const chapterTree = await buildChapterTree(bookId);
+      console.log('Chapter tree built, root chapters count:', chapterTree.length);
+
+      // Get the base URL for building chapter URLs
+      const baseUrl = getBaseUrl(request);
+
+      // Flatten the chapter tree for the payload
+      const flattenedChapters = flattenChapterTree(chapterTree, bookId, baseUrl);
+      console.log('Flattened chapters count:', flattenedChapters.length);
+
+      // Build the final payload
+      const payload: EbookPayload = {
+        book: {
+          id: book.id,
+          title: book.title,
+          author: book.author || 'Unknown Author',
+          language: book.language || 'en',
+          output_filename: `${book.slug || 'book'}.epub`,
+          cover_url: book.coverImageUrl || `${baseUrl}/images/default-cover.jpg`,
+          stylesheet_url: `${baseUrl}/styles/ebook.css`,
+          subtitle: book.subtitle ?? undefined,
+          description: book.description ?? undefined,
+          publisher: book.publisher ?? undefined,
+          isbn: book.isbn ?? undefined,
+          publish_year: book.publishYear ? parseInt(book.publishYear.toString(), 10) : undefined,
+          chapters: flattenedChapters,
+        },
+        options: {
+          generate_toc: options.includeTOC,
+          toc_depth: options.tocLevel,
+          embed_metadata: options.includeMetadata,
+          include_imprint: options.includeImprint,
+          cover: true,
+        },
+        metadata: {
+          generated_at: new Date().toISOString(),
+          generated_by: 'bookshall-api',
+          user_id: book.userId,
+          user_email: undefined,
+        },
+      };
+
+      // Return the final payload
+      console.log('Generated payload with chapters:', payload.book.chapters.length);
+      return new NextResponse(JSON.stringify(payload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
+      });
+    } catch (error) {
+      console.error('Error processing book payload:', error);
+
+      if (error instanceof z.ZodError) {
+        return new NextResponse(
+          JSON.stringify({
+            success: false,
+            error: 'Invalid parameters',
+            details: error.issues,
+          }),
+          { 
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+
+      return new NextResponse(
+        JSON.stringify({
+          success: false,
+          error: 'Internal server error',
+        }),
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        }
       );
     }
-    
-    return NextResponse.json(
-      { error: 'Failed to generate payload' },
-      { status: 500 }
+  } catch (error) {
+    console.error('Unexpected error in GET handler:', error);
+    return new NextResponse(
+      JSON.stringify({
+        success: false,
+        error: 'An unexpected error occurred',
+      }),
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
     );
   }
 }

@@ -82,8 +82,9 @@ export const userPreferences = pgTable("user_preferences", {
 	userId: text().notNull(),
 	language: text().default('tr'),
 	theme: text().default('light'),
-	notifications: jsonb().default({"push":true,"email":true,"newsletter":true}),
-	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	notifications: jsonb().default(
+		sql`'{"email":true,"push":true,"newsletter":true}'::jsonb`
+	),	
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	foreignKey({

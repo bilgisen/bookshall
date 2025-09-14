@@ -3,6 +3,7 @@ import { db } from '@/db/drizzle';
 import { books, chapters } from '@/db';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
+import { CreditService } from '@/lib/services/credit/credit.service';
 
 // Helper function to build the where clause
 const whereClause = (id: string, userId: string) => {
@@ -220,11 +221,27 @@ export async function DELETE(
     }
 
     await db.transaction(async (tx) => {
+      // First get the book to ensure it exists and belongs to the user
+      const book = await tx.query.books.findFirst({
+        where: whereClause(id, response.user.id)
+      });
+
+      if (!book) {
+        throw new Error('Book not found');
+      }
+
       // First delete all chapters for this book
       await tx.delete(chapters).where(eq(chapters.bookId, id));
+      
       // Then delete the book
-      await tx.delete(books).where(
-        whereClause(id, response.user.id)
+      await tx.delete(books).where(whereClause(id, response.user.id));
+      
+      // Refund the book creation cost (250 credits)
+      await CreditService.earnCredits(
+        response.user.id,
+        250, // Hardcoded book creation cost
+        'REFUND_BOOK_DELETION',
+        { bookId: id }
       );
     });
 

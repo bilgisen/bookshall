@@ -24,13 +24,13 @@ export default async function CreditsPage() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-1">
-          <CreditWidget userId={result.session.userId} showTopUpButton={false} />
+          <CreditWidget showTopUpButton={false} />
         </div>
         
         <div className="md:col-span-2">
           <div className="rounded-lg border bg-card p-6">
             <h2 className="text-xl font-semibold mb-4">Transaction History</h2>
-            <CreditBalance userId={result.session.userId} showHistory={true} />
+            <CreditBalance showHistory={true} />
           </div>
         </div>
       </div>

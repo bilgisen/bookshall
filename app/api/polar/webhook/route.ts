@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { CreditService } from '@/lib/services/credit.service';
+import { CreditService } from '@/lib/services/credit/credit.service';
 
 // Define types for Polar webhook
 class PolarWebhook {
@@ -183,7 +183,7 @@ async function handleSubscriptionEvent(subscriptionData: unknown) {
         subscriptionId: subscription.id,
         planId: product.id,
         planName: product.name,
-        billingCycle: subscription.billing_cycle,
+        ...(subscription.billing_cycle ? { billingCycle: subscription.billing_cycle } : {}),
         amount: subscription.amount || 0,
         currency: subscription.currency || 'USD',
         status: subscription.status,

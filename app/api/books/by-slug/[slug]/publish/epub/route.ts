@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { triggerEpubWorkflow, PublishOptions } from '@/lib/workflows/trigger-epub';
+import { books, chapters } from '@/db/schema';
+import { and, eq, asc } from 'drizzle-orm';
 
 interface PublishRequest {
   options?: Partial<PublishOptions>;
@@ -20,9 +22,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = params;
+  // Handle async params
+  const { slug } = await params;
   try {
     // Get session from request
     const session = await auth.api.getSession({
@@ -39,40 +42,43 @@ export async function POST(
     const userId = session.user.id;
 
     // Query the database for the specific book belonging to the user
-    const book = await db.query.books.findFirst({
-      where: (books, { and, eq }) =>
-        and(eq(books.slug, slug), eq(books.userId, userId)),
-      columns: {
-        id: true,
-        title: true,
-        slug: true,
-        author: true,
-        description: true,
-        coverImageUrl: true,
-      },
-      with: {
-        chapters: {
-          where: (chapters, { eq }) => eq(chapters.isDraft, false),
-          orderBy: (chapters, { asc }) => [asc(chapters.order)],
-          columns: {
-            id: true,
-            title: true,
-            content: true,
-            order: true,
-            level: true,
-            parentChapterId: true,
-          },
-        },
-      },
-    });
+    const bookResult = await db.select({
+      id: books.id,
+      title: books.title,
+      slug: books.slug,
+      author: books.author,
+      description: books.description,
+      coverImageUrl: books.coverImageUrl,
+    }).from(books)
+      .where(and(eq(books.slug, slug), eq(books.userId, userId)))
+      .limit(1);
 
-    // Handle case where book is not found or doesn't belong to the user
-    if (!book) {
+    if (bookResult.length === 0) {
       return NextResponse.json(
         { error: 'Book not found' },
         { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    const book = bookResult[0];
+
+    // Fetch non-draft chapters for the book
+    const bookChapters = await db.select({
+      id: chapters.id,
+      title: chapters.title,
+      content: chapters.content,
+      order: chapters.order,
+      level: chapters.level,
+      parentChapterId: chapters.parentChapterId,
+    }).from(chapters)
+      .where(and(eq(chapters.bookId, book.id), eq(chapters.isDraft, false)))
+      .orderBy(asc(chapters.order));
+
+    // Attach chapters to book object to match expected structure
+    const bookWithChapters = {
+      ...book,
+      chapters: bookChapters,
+    };
 
     // Parse request body
     const { options = {}, metadata = {} } = (await request.json()) as PublishRequest;

@@ -1,177 +1,112 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSessionCookie } from 'better-auth/cookies';
+import { NextResponse, type NextRequest } from 'next/server';
+import { auth } from '@/lib/auth';
 
-// List of allowed origins (add your frontend URLs here)
+// Use Node.js runtime instead of Edge Runtime
+export const runtime = 'nodejs';
+
+// Middleware configuration
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
+  ],
+};
+
+// List of paths that don't require authentication
+const PUBLIC_PATHS = [
+  '^/$',                    // Root path
+  '^/sign-in',              // Sign in page
+  '^/sign-up',              // Sign up page
+  '^/auth/.*',             // Auth pages and callbacks
+  '^/api/auth/.*',         // All auth API routes
+  '^/api/health',          // Health check
+  '^/api/hello',           // Test endpoint
+  '^/api/books/by-id/.*/payload', // Public book payloads
+  '^/api/chapters/.*/content',    // Public chapter content
+  '^/api/books/by-slug/.*/cover', // Public book covers
+];
+
+// List of allowed origins
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:3001',
   'https://bookshall.com',
-  'https://www.bookshall.com',
-];
+  'https://www.bookshall.com'
+].map(origin => origin.trim());
 
-// List of paths that should always be allowed for CORS
-const PUBLIC_PATHS = [
-  '/api/auth/',  // Allow all auth routes
-  '/api/ci/process',
-];
-
-// List of paths that don't require authentication
-const PUBLIC_API_PATHS = [
-  '/api/health',
-  '/api/hello',
-  '/api/debug-env',
-  '/api/books/by-id/', // This will make all /by-id/ endpoints public
-  '/api/books/by-id/:id/payload', // Explicitly include the payload endpoint
-  '/api/chapters/', // Make all chapter endpoints public
-  '/api/books/by-slug/', // Make book by-slug endpoints public
-  '/api/books/by-slug/*/chapters/', // Make chapter listing public
-  '/api/books/by-slug/*/chapters/*', // Make specific chapter endpoints public
-  '/api/books/by-slug/*/imprint', // Make imprint endpoint public
-  '/api/books/by-slug/*/imprint/' // Make imprint endpoint public with trailing slash
-];
-
-// List of paths that can be accessed with API key
-const API_KEY_PROTECTED_PATHS = [
-  '/api/books/by-id/',
-  '/api/chapters/',
-  '/api/publish/update',
-];
-
-// Function to normalize origin by ensuring consistent www/non-www usage
-function normalizeOrigin(origin: string): string {
-  if (!origin) return '';
-  try {
-    const url = new URL(origin);
-    // Convert all to non-www for consistency
-    if (url.hostname.startsWith('www.')) {
-      url.hostname = url.hostname.replace('www.', '');
-    }
-    return url.toString().replace(/\/$/, ''); // Remove trailing slash if any
-  } catch {
-    console.error('Invalid origin URL:', origin);
-    return '';
-  }
-}
-
+/**
+ * Middleware to handle authentication and CORS
+ */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const origin = request.headers.get('origin') || '';
-  const normalizedOrigin = normalizeOrigin(origin);
+  const isApiRoute = pathname.startsWith('/api/');
+  const isPublicPath = PUBLIC_PATHS.some(path => new RegExp(path).test(pathname));
   
-  // Handle CORS for all API routes
-  if (pathname.startsWith('/api/')) {
-    // Create a response object
-    const response = NextResponse.next();
+  // Handle CORS preflight requests
+  if (request.method === 'OPTIONS') {
+    const response = new NextResponse(null, { status: 204 });
+    const origin = request.headers.get('origin') || '';
     
-    // Always set CORS headers for API routes
-    if (normalizedOrigin && ALLOWED_ORIGINS.some(o => 
-      o === normalizedOrigin || 
-      o === origin || 
-      normalizeOrigin(o) === normalizedOrigin
-    )) {
-      response.headers.set('Access-Control-Allow-Origin', normalizedOrigin);
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       response.headers.set('Access-Control-Allow-Credentials', 'true');
-      response.headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-      response.headers.set(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-api-key'
-      );
-      response.headers.set('Vary', 'Origin');
+      response.headers.set('Access-Control-Max-Age', '86400'); // 24 hours
+    }
+    return response;
+  }
 
-      // Handle preflight requests
-      if (request.method === 'OPTIONS') {
-        return new NextResponse(null, { 
-          status: 204, 
-          headers: response.headers 
-        });
-      }
-    }
-    
-    // Check if path is in public paths
-    const isPublicPath = PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
-      PUBLIC_API_PATHS.some(p => {
-        // Handle exact matches
-        if (pathname === p || pathname === p.replace(/\/$/, '') || pathname === `${p}/`) {
-          return true;
-        }
-        
-        // Handle wildcard paths
-        if (p.includes('*')) {
-          // Convert path pattern to regex
-          let pattern = p
-            .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // escape regex special chars
-            .replace(/\*/g, '[^/]+'); // replace * with non-slash chars
-          
-          // Make sure pattern matches whole path segments
-          if (!pattern.endsWith('$') && !pattern.endsWith('/')) {
-            pattern = `${pattern}(?:/|$)`;
-          }
-          
-          const regex = new RegExp(`^${pattern}`);
-          return regex.test(pathname);
-        }
-        
-        // Handle prefix matches with or without trailing slash
-        return pathname.startsWith(p) || 
-               pathname.startsWith(p.replace(/\/$/, '')) || 
-               pathname.startsWith(`${p}/`);
-      });
+  // Skip authentication for public paths and non-API routes
+  if (isPublicPath || !isApiRoute) {
+    return NextResponse.next();
+  }
 
-    if (isPublicPath) {
-      console.log(`Allowing public access to: ${pathname}`);
-      return response;
-    }
-    
-    // Check for API key authentication for protected paths
-    if (API_KEY_PROTECTED_PATHS.some(p => pathname.startsWith(p))) {
-      const apiKey = request.headers.get('x-api-key');
-      console.log('API Key check for path:', pathname);
-      console.log('API Key from headers:', apiKey ? `${apiKey.substring(0, 3)}...` : 'Not provided');
-      
-      if (apiKey && apiKey === process.env.BOOKSHALL_API_KEY) {
-        console.log('API Key validation successful');
-        return response;
-      }
-      console.log('API Key validation failed or not provided');
-    }
-    
-    // Check for authenticated session
-    const session = await getSessionCookie(request);
-    if (!session) {
+  try {
+    // Get session using better-auth
+    const session = await auth.api.getSession({
+      headers: Object.fromEntries(request.headers.entries())
+    });
+
+    // If no session and it's an API route that requires auth
+    if (!session?.user?.id && !isPublicPath && isApiRoute) {
       return new NextResponse(
-        JSON.stringify({ error: 'Authentication required' }),
+        JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    
-    return response;
-  }
-  
-  // Handle dashboard routes
-  if (pathname.startsWith('/dashboard')) {
-    const session = await getSessionCookie(request);
-    
-    // Redirect to login if not authenticated
-    if (!session) {
-      const url = new URL('/auth/signin', request.url);
-      url.searchParams.set('callbackUrl', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
+
+    // Clone the request headers and add user info for API routes
+    const requestHeaders = new Headers(request.headers);
+    if (session?.user) {
+      requestHeaders.set('x-user-id', session.user.id);
+      if (session.user.role) {
+        requestHeaders.set('x-user-role', session.user.role);
+      }
     }
-    
-    return NextResponse.next();
+
+    // Create a new response with the new headers
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+
+    // Set CORS headers for all responses
+    const origin = request.headers.get('origin') || '';
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Middleware error:', error);
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal Server Error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
-  
-  return NextResponse.next();
 }
-
-
-export const config = {
-  matcher: [
-    '/api/:path*',
-    '/dashboard/:path*',
-    '/sign-in',
-    '/sign-up',
-    '/api/auth/:path*'
-  ],
-};

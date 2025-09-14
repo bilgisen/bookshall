@@ -1,33 +1,27 @@
-import { config } from "dotenv";
-import postgres from 'postgres';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import * as schema from './schema';
-
-// Load environment variables
-config({ path: ".env.local" });
-
-if (!process.env.POSTGRES_URL_NON_POOLING) {
-  throw new Error('POSTGRES_URL_NON_POOLING environment variable is required');
-}
-
-// Create the database client with Supabase configuration
-const client = postgres(process.env.POSTGRES_URL_NON_POOLING, {
-  ssl: 'require',
-  max: 10,
-  idle_timeout: 20,
-  max_lifetime: 60 * 60,
-  connection: {
-    options: `-c search_path=public`,
-  },
-});
+import { drizzle } from 'drizzle-orm/vercel-postgres';
+import { sql } from '@vercel/postgres';
+import * as schema from './edge-schema';
 
 // Create the drizzle instance with the schema
-const db = drizzle(client, { 
+export const db = drizzle(sql, { 
   schema,
   logger: process.env.NODE_ENV === 'development',
 });
 
-export { db, client };
+// Re-export schema and types for convenience
+export * from './edge-schema';
 
+// Export database types
 export type Database = typeof db;
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// Helper function to execute raw SQL queries
+export async function executeQuery<T = any>(query: string, params?: any[]): Promise<{ rows: T[] }> {
+  try {
+    const result = await sql.unsafe(query, params || []);
+    return { rows: result.rows };
+  } catch (error) {
+    console.error('Database query error:', error);
+    throw error;
+  }
+}

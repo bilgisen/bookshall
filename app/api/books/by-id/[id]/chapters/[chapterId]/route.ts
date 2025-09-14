@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { and, eq } from 'drizzle-orm';
 import { books, chapters } from '@/db';
+import { CreditService } from '@/lib/services/credit/credit.service';
 
 // Define type for chapter update data
 type ChapterUpdateData = Partial<{
@@ -243,6 +244,25 @@ export async function DELETE(
       );
     }
 
+    // Get the chapter first to ensure it exists
+    const [chapter] = await db
+      .select()
+      .from(chapters)
+      .where(
+        and(
+          eq(chapters.id, chapterId),
+          eq(chapters.bookId, bookId)
+        )
+      )
+      .limit(1);
+
+    if (!chapter) {
+      return NextResponse.json(
+        { error: 'Chapter not found' },
+        { status: 404 }
+      );
+    }
+
     // Delete the chapter
     await db
       .delete(chapters)
@@ -252,6 +272,18 @@ export async function DELETE(
           eq(chapters.bookId, bookId)
         )
       );
+
+    // Refund the chapter creation cost (10 credits)
+    await CreditService.earnCredits(
+      response.user.id,
+      10, // Hardcoded chapter creation cost
+      'REFUND_CHAPTER_DELETION',
+      { 
+        bookId,
+        chapterId,
+        chapterTitle: chapter.title
+      }
+    );
 
     return new Response(null, { status: 204 });
   } catch (error) {

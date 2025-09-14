@@ -1,0 +1,12 @@
+-- Update the user_id column in credit_transactions to text type to match auth system
+ALTER TABLE credit_transactions 
+  ALTER COLUMN user_id TYPE text 
+  USING user_id::text;
+
+-- Recreate the foreign key constraint
+ALTER TABLE credit_transactions
+  DROP CONSTRAINT IF EXISTS credit_transactions_user_id_fkey;
+
+ALTER TABLE credit_transactions
+  ADD CONSTRAINT credit_transactions_user_id_fkey 
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE;

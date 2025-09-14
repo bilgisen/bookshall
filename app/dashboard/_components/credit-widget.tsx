@@ -7,11 +7,10 @@ import { CreditCard, Plus } from 'lucide-react';
 import Link from 'next/link';
 
 type CreditWidgetProps = {
-  userId: string;
   showTopUpButton?: boolean;
 };
 
-export function CreditWidget({ userId, showTopUpButton = true }: CreditWidgetProps) {
+export function CreditWidget({ showTopUpButton = true }: CreditWidgetProps) {
   return (
     <Card className="w-full">
       <CardHeader className="pb-2">
@@ -35,7 +34,7 @@ export function CreditWidget({ userId, showTopUpButton = true }: CreditWidgetPro
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <CreditBalance userId={userId} showHistory={false} />
+          <CreditBalance showHistory={false} />
         </div>
       </CardContent>
       {showTopUpButton && (

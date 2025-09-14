@@ -1,4 +1,5 @@
 // src/db/schema.ts
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -10,6 +11,7 @@ import {
   AnyPgColumn,
   uniqueIndex,
   uuid,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -34,10 +36,9 @@ function pgEnumIfNeeded() {
   // I keep this small helper to avoid duplicate-declare issues during dev.
   // (If you want explicit enums now, I can replace these with explicit pgEnum calls.)
   // For migrations, explicit pgEnum(...) is preferred.
-  return ((name: string, values: string[]) => {
-    // @ts-ignore - placeholder for pgEnum usage in dev environments
-    return ({} as any);
-  }) as any;
+  // This is a type-safe way to create a placeholder for pgEnum
+  type PgEnumType<T extends string> = (name: string, values: T[]) => T;
+  return (() => ({})) as unknown as PgEnumType<string>;
 }
 
 /* ============================
@@ -179,11 +180,9 @@ export const userPreferences = pgTable("user_preferences", {
     .references(() => user.id, { onDelete: "cascade" }),
   language: text("language").default("tr"),
   theme: text("theme").default("light"),
-  notifications: jsonb("notifications").default({
-    email: true,
-    push: true,
-    newsletter: true,
-  }),
+  notifications: jsonb("notifications").default(
+    sql`'{"email":true,"push":true,"newsletter":true}'::jsonb`
+  ),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -313,7 +312,7 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
-export const verificationRelations = relations(verification, ({ one }) => ({
+export const verificationRelations = relations(verification, () => ({
   // no direct relations aside from maybe userIdentifier mapping; kept empty intentionally
 }));
 
@@ -422,3 +421,34 @@ export type NewChapter = typeof chapters.$inferInsert;
 
 export type WorkflowStatus = typeof workflowStatus.$inferSelect;
 export type NewWorkflowStatus = typeof workflowStatus.$inferInsert;
+
+// User Balances
+export const userBalances = pgTable('user_balances', {
+  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  balance: integer('balance').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type UserBalance = typeof userBalances.$inferSelect;
+export type NewUserBalance = typeof userBalances.$inferInsert;
+
+// Credit Transactions
+export const transactionType = pgEnum('transaction_type', ['earn', 'spend']);
+
+export const creditTransactions = pgTable('credit_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  type: transactionType('type').notNull(),
+  amount: integer('amount').notNull(),
+  reason: text('reason'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type NewCreditTransaction = typeof creditTransactions.$inferInsert;
+export type TransactionType = 'earn' | 'spend';

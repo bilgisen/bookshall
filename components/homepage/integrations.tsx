@@ -12,7 +12,7 @@ export default function Integrations() {
   return (
     <section>
       <div className="pt-0 pb-8">
-        <div className="mx-auto max-w-5xl px-6">
+        <div className="mx-auto max-w-6xl px-6">
      
           <div className="text-center">
           <div className="inline-block px-3 py-2 mt-8 text-xl text-primary">

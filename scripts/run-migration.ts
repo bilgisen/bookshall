@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Load environment variables
-config({ path: '.env.local' });
+config({ path: '.env' });
 
 if (!process.env.POSTGRES_URL_NON_POOLING) {
   throw new Error('POSTGRES_URL_NON_POOLING environment variable is required');

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { bookId: string; filename: string } }
+  { params }: { params: Promise<{ bookId: string; filename: string }> }
 ) {
   try {
     // Get session from request
@@ -20,7 +20,7 @@ export async function GET(
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { bookId, filename } = params;
+    const { bookId, filename } = await params;
 
     if (!bookId || !filename) {
       return new NextResponse('Book ID and filename are required', { status: 400 });

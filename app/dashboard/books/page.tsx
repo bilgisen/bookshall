@@ -19,13 +19,13 @@ async function fetchBooks(): Promise<Book[]> {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch('/api/books/by-slug', {
+    const response = await fetch('/api/books', {
       method: 'GET',
       credentials: 'include',
       headers: {
         'Cache-Control': 'no-cache',
         'Content-Type': 'application/json',
-        'Cookie': `session=${session.session.id}`
+        'authorization': `Bearer ${session.session.id}`
       },
     });
 

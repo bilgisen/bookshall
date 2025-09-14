@@ -433,7 +433,7 @@ export function generateImprintHTML(book: BookImprintData): string {
     </style>
   </head>
   <body>
-    <h1>${meta.title}</h1>
+    <h1>${escapeHtml(meta.title)}</h1>
     ${content}
   </body>
 </html>`;
@@ -450,6 +450,19 @@ interface ChapterMetadata {
 }
 
 /**
+ * Escapes HTML special characters to prevent XSS
+ */
+function escapeHtml(unsafe?: string): string {
+  if (!unsafe) return '';
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
  * Generates a complete HTML document with the provided chapter content
  * This version includes meta tags and styling as per the provided template
  */
@@ -462,12 +475,13 @@ export function generateCompleteDocumentHTML(title: string, content: string, met
     level: 1,
     title_tag: 'h1',
     title: title,
-    ...metadata
+    ...(metadata || {})
   };
 
   const parentChapterMeta = meta.parent_chapter ? `
-    <meta name="parent_chapter" content="${meta.parent_chapter}" />` : '';
+    <meta name="parent_chapter" content="${escapeHtml(meta.parent_chapter)}" />` : '';
 
+  // Create the HTML document with proper escaping of variables
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -475,14 +489,14 @@ export function generateCompleteDocumentHTML(title: string, content: string, met
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Recommended Metadata -->
-    <meta name="book" content="${meta.book}" />
-    <meta name="chapter_id" content="${meta.chapter_id}" />${parentChapterMeta}
+    <meta name="book" content="${escapeHtml(meta.book)}" />
+    <meta name="chapter_id" content="${escapeHtml(meta.chapter_id)}" />${parentChapterMeta}
     <meta name="order" content="${meta.order}" />
     <meta name="level" content="${meta.level}" />
-    <meta name="title_tag" content="${meta.title_tag}" />
-    <meta name="title" content="${meta.title}" />
+    <meta name="title_tag" content="${escapeHtml(meta.title_tag)}" />
+    <meta name="title" content="${escapeHtml(meta.title)}" />
 
-    <title>${meta.title} | ${meta.book}</title>
+    <title>${escapeHtml(meta.title)} | ${escapeHtml(meta.book)}</title>
 
     <style>
       body {
@@ -500,41 +514,46 @@ export function generateCompleteDocumentHTML(title: string, content: string, met
         margin-bottom: 1em;
       }
 
-      figure {
-        margin: 2em 0;
+      h1 {
+        font-size: 2rem;
         text-align: center;
       }
 
-      img {
-        max-width: 100%;
-        height: auto;
+      h2 {
+        font-size: 1.5rem;
       }
 
-      figcaption {
-        font-size: 0.9em;
-        color: gray;
-        margin-top: 0.5em;
+      h3 {
+        font-size: 1.25rem;
       }
 
-      .footnotes {
-        margin-top: 3em;
-        font-size: 0.9em;
-        border-top: 1px dotted #ccc;
-        padding-top: 1em;
+      p {
+        margin: 1em 0;
+        text-align: justify;
       }
 
-      .footnotes ol {
-        margin-left: 1.5em;
+      h2 {
+        text-align: center;
+        font-size: 1.5rem;
+        margin-bottom: 2em;
       }
 
-      .footnotes li {
-        margin-bottom: 0.5em;
+      .section {
+        margin-bottom: 2em;
       }
 
-      a.footnote-ref {
-        vertical-align: super;
-        font-size: 0.8em;
+      .label {
+        font-weight: bold;
+        margin-right: 0.5em;
+      }
+
+      a {
+        color: #2563eb;
         text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
       }
 
       /* Print styles */
@@ -562,7 +581,7 @@ export function generateCompleteDocumentHTML(title: string, content: string, met
   </head>
 
   <body>
-    <h1>${meta.title}</h1>
+    <h1>${escapeHtml(meta.title)}</h1>
     ${content}
   </body>
 </html>`;
