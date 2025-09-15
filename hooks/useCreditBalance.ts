@@ -1,16 +1,9 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCurrentUserBalance } from '@/lib/actions/credits';
-
-interface BalanceWithDetails {
-  userId: string;
-  balance: number;
-  lastUpdated: string | null;
-  currency: string;
-}
-
-type CreditBalance = BalanceWithDetails;
+import { CreditService } from '@/lib/services/credit/credit.service';
+import { auth } from '@/lib/auth';
+import type { BalanceWithDetails } from '@/lib/services/credit/credit.types';
 
 interface UseCreditBalanceOptions {
   refetchInterval?: number;
@@ -25,35 +18,46 @@ export function useCreditBalance({
   
   const { 
     data, 
-    isLoading, 
+    isLoading,
     error,
     refetch,
     isRefetching,
-  } = useQuery<CreditBalance>({
+  } = useQuery<BalanceWithDetails>({
     queryKey: ['credits', 'balance'],
-    queryFn: getCurrentUserBalance,
+    queryFn: async () => {
+      try {
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        return CreditService.getBalanceWithDetails(session.user.id);
+      } catch (error) {
+        console.error('Error fetching balance:', error);
+        throw error;
+      }
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchOnWindowFocus: true,
     enabled,
+    retry: 2,
   });
 
   return {
-    ...(data || {
-      userId: '',
-      balance: 0,
-      lastUpdated: null,
-      currency: 'credits'
-    }),
+    userId: data?.userId || '',
     balance: data?.balance ?? 0,
-    currency: data?.currency ?? 'credits',
     lastUpdated: data?.lastUpdated ? new Date(data.lastUpdated) : null,
+    currency: 'credits',
     isLoading,
     isRefetching,
-    error,
+    error: error as Error | null,
+    isError: !!error,
     refetch,
     invalidate: () => {
-      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
+      return queryClient.invalidateQueries({ 
+        queryKey: ['credits', 'balance'],
+        refetchType: 'active',
+      });
     },
   };
 }

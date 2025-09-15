@@ -5,6 +5,18 @@ import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { CreditService } from '@/lib/services/credit/credit.service';
 
+// Define the user type from your auth system
+type AuthUser = {
+  id: string;
+  email: string;
+  // Add other user properties as needed
+};
+
+type AuthResponse = {
+  user: AuthUser | null;
+  // Add other auth response properties as needed
+};
+
 // Helper function to build the where clause
 const whereClause = (id: string, userId: string) => {
   return and(
@@ -24,7 +36,7 @@ export async function GET(
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
-    });
+    }) as AuthResponse;
     
     if (!response?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -36,7 +48,7 @@ export async function GET(
     }
 
     const book = await db.query.books.findFirst({
-      where: whereClause(id, response.user.id),
+      where: whereClause(id, response.user?.id || ''),
       columns: {
         id: true,
         userId: true,
@@ -93,7 +105,7 @@ export async function PUT(
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
-    });
+    }) as AuthResponse;
     
     if (!response?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -209,7 +221,7 @@ export async function DELETE(
   try {
     const response = await auth.api.getSession({
       headers: request.headers,
-    });
+    }) as AuthResponse;
     
     if (!response?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -220,25 +232,31 @@ export async function DELETE(
       return NextResponse.json({ error: 'Book ID is required' }, { status: 400 });
     }
 
+    const userId = response.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID not found in session' }, { status: 401 });
+    }
+
     await db.transaction(async (tx) => {
       // First get the book to ensure it exists and belongs to the user
       const book = await tx.query.books.findFirst({
-        where: whereClause(id, response.user.id)
+        where: whereClause(id, userId)
       });
 
       if (!book) {
         throw new Error('Book not found');
       }
 
-      // First delete all chapters for this book
-      await tx.delete(chapters).where(eq(chapters.bookId, id));
-      
+      // Find and delete all chapters associated with the book
+      await tx.delete(chapters)
+        .where(eq(chapters.bookId, id));
+
       // Then delete the book
-      await tx.delete(books).where(whereClause(id, response.user.id));
+      await tx.delete(books).where(whereClause(id, userId));
       
       // Refund the book creation cost (250 credits)
       await CreditService.earnCredits(
-        response.user.id,
+        userId,
         250, // Hardcoded book creation cost
         'REFUND_BOOK_DELETION',
         { bookId: id }

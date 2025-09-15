@@ -1,57 +1,15 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCurrentUserBalance, getTransactionHistory, earnCredits, spendCredits } from '@/lib/actions/credits';
+import { CreditService } from '@/lib/services/credit/credit.service';
+import { auth } from '@/lib/auth';
 import { toast } from 'sonner';
-
-interface BalanceWithDetails {
-  userId: string;
-  balance: number;
-  lastUpdated: string | null;
-  currency: string;
-}
-
-type CreditBalance = BalanceWithDetails & {
-  updatedAt: string;
-};
-
-type CreditTransaction = {
-  id: string;
-  amount: number;
-  type: 'earn' | 'spend';
-  reason: string | null;
-  metadata: unknown;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
-};
-
-type TransactionHistory = {
-  transactions: CreditTransaction[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
-};
-
-interface CreditOperationResult {
-  success: boolean;
-  balance: number;
-  transaction?: {
-    id: string;
-    amount: number;
-    type: 'earn' | 'spend';
-    reason: string | null;
-    metadata: unknown;
-    createdAt: Date | string;
-    updatedAt: Date | string;
-    userId: string;
-  };
-  error?: string;
-  code?: string;
-}
+import type { 
+  TransactionHistoryResult,
+  TransactionMetadata,
+  BalanceWithDetails,
+  CreditOperationResult
+} from '@/lib/services/credit/credit.types';
 
 interface UseCreditsOptions {
   limit?: number;
@@ -66,234 +24,228 @@ export function useCredits({
   
   // Get user's balance with automatic refetching
   const { 
-    data: balance, 
+    data: balanceData, 
     isLoading: isLoadingBalance,
     error: balanceError,
-    refetch: refetchBalance 
-  } = useQuery<CreditBalance>({
+    refetch: refetchBalance,
+  } = useQuery<BalanceWithDetails>({
     queryKey: ['credits', 'balance'],
     queryFn: async () => {
-      console.log('Fetching balance...');
       try {
-        const balance = await getCurrentUserBalance();
-        console.log('Raw balance from API:', balance);
-        
-        const result = {
-          ...balance,
-          updatedAt: balance.lastUpdated || new Date().toISOString()
-        };
-        
-        console.log('Processed balance result:', result);
-        return result;
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        return CreditService.getBalanceWithDetails(session.user.id);
       } catch (error) {
-        console.error('Error in balance query:', error);
+        console.error('Error fetching balance:', error);
         throw error;
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchOnWindowFocus: true,
-    onSuccess: (data) => {
-      console.log('Balance query successful:', data);
-    },
-    onError: (error) => {
-      console.error('Balance query error:', error);
-    }
+    retry: 2,
   });
 
-  // Get transaction history with pagination
-  const { 
-    data: transactionsData, 
+  // Get transaction history
+  const {
+    data: transactionsData = { transactions: [], pagination: { total: 0, limit, offset: 0, hasMore: false } },
     isLoading: isLoadingTransactions,
     error: transactionsError,
-    refetch: refetchTransactions
-  } = useQuery<TransactionHistory>({
-    queryKey: ['credits', 'transactions', limit],
+    refetch: refetchTransactions,
+  } = useQuery<TransactionHistoryResult>({
+    queryKey: ['credits', 'transactions', { limit }],
     queryFn: async () => {
-      const result = await getTransactionHistory(limit);
-      return {
-        transactions: result.transactions.map(tx => {
-          // Ensure all required fields are present
-          const transaction: CreditTransaction = {
-            id: tx.id,
-            amount: tx.amount,
-            type: tx.type,
-            reason: tx.reason ?? null,
-            metadata: tx.metadata ?? {},
-            createdAt: tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt),
-            updatedAt: tx.updatedAt instanceof Date ? tx.updatedAt : new Date(tx.updatedAt),
-            userId: tx.userId
-          };
-          return transaction;
-        }),
-        pagination: result.pagination
-      };
+      try {
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        return CreditService.getTransactionHistory(
+          session.user.id,
+          limit,
+          0
+        );
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+        throw error;
+      }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true,
+    retry: 2,
   });
 
-  // Unified credit mutation with optimistic updates
-  const creditMutation = useMutation<
-    CreditOperationResult,
-    Error,
-    { amount: number; type: 'earn' | 'spend'; reason?: string; metadata?: Record<string, unknown> }
-  >({
-    mutationFn: async ({ amount, type, reason, metadata }) => {
-      if (type === 'earn') {
-        return earnCredits(amount, reason, metadata);
-      } else {
-        return spendCredits(amount, reason, metadata);
+  // Earn credits mutation
+  const earnMutation = useMutation<CreditOperationResult, Error, { 
+    amount: number; 
+    reason: string; 
+    metadata?: TransactionMetadata;
+  }>({
+    mutationFn: async ({ amount, reason, metadata = {} }) => {
+      try {
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        
+        return CreditService.earnCredits(
+          session.user.id,
+          amount,
+          reason,
+          metadata
+        );
+      } catch (error) {
+        console.error('Error earning credits:', error);
+        throw error;
       }
     },
-    onMutate: async (variables) => {
-      // Cancel any outgoing refetches
+    onMutate: async ({ amount }) => {
       await queryClient.cancelQueries({ queryKey: ['credits', 'balance'] });
       
-      // Snapshot the previous values
-      const previousBalance = queryClient.getQueryData<CreditBalance>(['credits', 'balance']);
-      const previousTransactions = queryClient.getQueryData<TransactionHistory>(['credits', 'transactions', limit]);
+      const previousBalance = queryClient.getQueryData<{ balance: number }>(['credits', 'balance']);
       
-      // Optimistically update the balance
       if (previousBalance) {
-        const newBalance = variables.type === 'earn'
-          ? (previousBalance.balance || 0) + variables.amount
-          : (previousBalance.balance || 0) - variables.amount;
-          
-        queryClient.setQueryData<CreditBalance>(['credits', 'balance'], {
-          ...previousBalance,
-          balance: newBalance,
-        });
+        queryClient.setQueryData<{ balance: number }>(
+          ['credits', 'balance'],
+          (old) => ({
+            ...(old || { balance: 0 }),
+            balance: (old?.balance || 0) + amount,
+          })
+        );
       }
       
-      // Optimistically update the transaction list
-      if (previousTransactions) {
-        const now = new Date();
-        const newTransaction: CreditTransaction = {
-          id: `temp-${Date.now()}`,
-          amount: variables.amount,
-          type: variables.type,
-          reason: variables.reason || null,
-          metadata: variables.metadata || {},
-          createdAt: now,
-          updatedAt: now,
-          userId: previousBalance?.userId || 'unknown',
-        };
-        
-        queryClient.setQueryData<TransactionHistory>(['credits', 'transactions', limit], {
-          ...previousTransactions,
-          transactions: [newTransaction, ...previousTransactions.transactions],
-          pagination: {
-            ...previousTransactions.pagination,
-            total: previousTransactions.pagination.total + 1,
-          },
-        });
-      }
-      
-      return { previousBalance, previousTransactions };
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        // Update the balance
-        queryClient.setQueryData<CreditBalance>(['credits', 'balance'], (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            balance: data.balance,
-            lastUpdated: new Date().toISOString(),
-          };
-        });
-
-        // Update the transaction list if there's a transaction
-        if (data.transaction) {
-          queryClient.setQueryData<TransactionHistory>(
-            ['credits', 'transactions', limit],
-            (old) => {
-              if (!old) return old;
-              
-              // Remove the temporary transaction if it exists
-              const transactions = old.transactions.filter(
-                (tx) => !tx.id.startsWith('temp-')
-              );
-              
-              // Create a properly typed transaction
-              const tx = data.transaction!;
-              const newTransaction: CreditTransaction = {
-                id: tx.id,
-                amount: tx.amount,
-                type: tx.type,
-                reason: tx.reason ?? null,
-                metadata: tx.metadata ?? {},
-                createdAt: tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt),
-                updatedAt: tx.updatedAt instanceof Date ? tx.updatedAt : new Date(tx.updatedAt),
-                userId: tx.userId || 'unknown',
-              };
-              
-              return {
-                ...old,
-                transactions: [newTransaction, ...transactions],
-                pagination: {
-                  ...old.pagination,
-                  total: old.pagination.total + 1,
-                },
-              };
-            }
-          );
-        }
-      }
+      return { previousBalance };
     },
     onError: (error, variables, context) => {
-      // Rollback on error
       if (context?.previousBalance) {
-        queryClient.setQueryData(['credits', 'balance'], context.previousBalance);
+        queryClient.setQueryData<{ balance: number }>(
+          ['credits', 'balance'], 
+          context.previousBalance
+        );
       }
-      if (context?.previousTransactions) {
-        queryClient.setQueryData(['credits', 'transactions', limit], context.previousTransactions);
-      }
-      
-      toast.error(`Failed to ${variables.type} credits: ${error.message}`);
+      toast.error(`Failed to earn credits: ${error.message}`);
     },
     onSettled: () => {
-      // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ['credits'] });
+      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
+      queryClient.invalidateQueries({ queryKey: ['credits', 'transactions'] });
     },
   });
-  
-  // Helper functions for specific operations
-  const earn = (amount: number, reason?: string, metadata?: Record<string, unknown>) => 
-    creditMutation.mutateAsync({ amount, type: 'earn', reason, metadata });
-    
-  const spend = (amount: number, reason?: string, metadata?: Record<string, unknown>) => 
-    creditMutation.mutateAsync({ amount, type: 'spend', reason, metadata });
 
-  // Refresh functions
-  const refresh = () => {
-    refetchBalance();
-    refetchTransactions();
+  // Spend credits mutation
+  const spendMutation = useMutation<CreditOperationResult, Error, { 
+    amount: number; 
+    reason: string; 
+    metadata?: TransactionMetadata;
+  }>({
+    mutationFn: async ({ amount, reason, metadata = {} }) => {
+      try {
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        
+        return CreditService.spendCredits(
+          session.user.id,
+          amount,
+          reason,
+          metadata
+        );
+      } catch (error) {
+        console.error('Error spending credits:', error);
+        throw error;
+      }
+    },
+    onMutate: async ({ amount }) => {
+      await queryClient.cancelQueries({ queryKey: ['credits', 'balance'] });
+      
+      const previousBalance = queryClient.getQueryData<{ balance: number }>(['credits', 'balance']);
+      const currentBalance = previousBalance?.balance || 0;
+      
+      if (currentBalance < amount) {
+        throw new Error('Insufficient balance');
+      }
+      
+      if (previousBalance) {
+        queryClient.setQueryData<{ balance: number }>(
+          ['credits', 'balance'],
+          (old) => ({
+            ...(old || { balance: 0 }),
+            balance: (old?.balance || 0) - amount,
+          })
+        );
+      }
+      
+      return { previousBalance };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousBalance) {
+        queryClient.setQueryData<{ balance: number }>(
+          ['credits', 'balance'], 
+          context.previousBalance
+        );
+      }
+      toast.error(`Failed to spend credits: ${error.message}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
+      queryClient.invalidateQueries({ queryKey: ['credits', 'transactions'] });
+    },
+  });
+
+  // Helper function to invalidate all credit-related queries
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ 
+        queryKey: ['credits'],
+        refetchType: 'active'
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['credits', 'balance'],
+        refetchType: 'active'
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['credits', 'transactions'],
+        refetchType: 'active'
+      })
+    ]);
   };
 
   return {
     // Balance
-    balance: balance?.balance || 0,
-    isLoading: isLoadingBalance || isLoadingTransactions,
+    balance: balanceData?.balance || 0,
+    balanceData,
     isLoadingBalance,
     balanceError,
+    refetchBalance,
     
     // Transactions
     transactions: transactionsData?.transactions || [],
-    transactionsData,
+    totalTransactions: transactionsData?.pagination?.total || 0,
     isLoadingTransactions,
     transactionsError,
+    refetchTransactions,
     
     // Mutations
-    earn,
-    spend,
-    isMutating: creditMutation.isPending,
-    error: creditMutation.error,
+    earnCredits: earnMutation.mutateAsync,
+    isEarning: earnMutation.isPending,
+    spendCredits: spendMutation.mutateAsync,
+    isSpending: spendMutation.isPending,
     
-    // Refresh functions
-    refresh,
-    refreshBalance: refetchBalance,
-    refreshTransactions: refetchTransactions,
+    // Helper functions
+    hasSufficientCredits: (amount: number) => {
+      return (balanceData?.balance || 0) >= amount;
+    },
+    
+    // Utility functions
+    invalidate,
+    refetchAll: async () => {
+      await Promise.all([
+        refetchBalance(),
+        refetchTransactions(),
+      ]);
+    },
   };
 }
 

@@ -1,27 +1,47 @@
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import { sql } from '@vercel/postgres';
-import * as schema from './edge-schema';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres, { Parameter } from "postgres"; // Import Parameter type
+import * as schema from "./schema";
+import { env } from "@/lib/env";
 
-// Create the drizzle instance with the schema
-export const db = drizzle(sql, { 
-  schema,
-  logger: process.env.NODE_ENV === 'development',
+if (!env.databaseUrl) {
+  throw new Error("Database connection string is not configured.");
+}
+
+const client = postgres(env.databaseUrl, {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  ssl: "require",
+  transform: {
+    value: {
+      from: (val: unknown) => {
+        if (typeof val === "bigint") {
+          return val < BigInt(Number.MAX_SAFE_INTEGER) ? Number(val) : val.toString();
+        }
+        return val;
+      },
+    },
+  },
 });
 
-// Re-export schema and types for convenience
-export * from './edge-schema';
+export const db = drizzle(client, {
+  schema,
+  logger: process.env.NODE_ENV === "development",
+});
 
-// Export database types
+export * from "./schema";
 export type Database = typeof db;
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-// Helper function to execute raw SQL queries
-export async function executeQuery<T = any>(query: string, params?: any[]): Promise<{ rows: T[] }> {
+export async function executeQuery<T>(
+  query: string,
+  params: Parameter[] = [] // Use the Parameter type from postgres
+): Promise<{ rows: T[] }> {
   try {
-    const result = await sql.unsafe(query, params || []);
-    return { rows: result.rows };
+    const result = await client.unsafe<T[]>(query, params);
+    return { rows: result };
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error("Error executing query:", error);
     throw error;
   }
 }

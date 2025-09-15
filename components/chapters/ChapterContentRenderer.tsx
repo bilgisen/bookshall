@@ -45,9 +45,21 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
     return <p className="text-muted-foreground">No content available</p>;
   }
 
-  // Handle string content (could be HTML or plain text)
+  // Handle string content (could be HTML, JSON string, or plain text)
   if (typeof content === 'string') {
     const trimmedContent = content.trim();
+    
+    // Check if it's a JSON string that needs to be parsed
+    if ((trimmedContent.startsWith('{') && trimmedContent.endsWith('}')) || 
+        (trimmedContent.startsWith('[') && trimmedContent.endsWith(']'))) {
+      try {
+        const parsedContent = JSON.parse(trimmedContent);
+        return <RenderContentObject content={parsedContent} className={className} />;
+      } catch (e) {
+        console.warn('Content looks like JSON but could not be parsed:', e);
+        // Continue to handle as HTML or plain text
+      }
+    }
     
     // Check if it's HTML content
     const isHtml = /<[a-z][\s\S]*>/i.test(trimmedContent) || 

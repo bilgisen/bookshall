@@ -1,19 +1,18 @@
+// lib/services/credit/credit.repository.ts
 import { and, eq, gte, lte, desc, sql } from 'drizzle-orm';
-import { userBalances, creditTransactions } from '@/db/schema';
-import { db } from '@/lib/db';
-import type { CreditTransaction } from '@/db/schema';
+import { db } from '@/db/drizzle';
+import type { Database, DbTransaction } from '@/db/drizzle';
+import * as schema from '@/db/schema';
+import type { CreditTransaction, TransactionMetadata } from './credit.types';
 import type { UserBalance } from './credit.types';
-import type { PgTransaction } from 'drizzle-orm/pg-core';
-import type { PostgresJsDatabase, PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js';
-import type { TablesRelationalConfig } from 'drizzle-orm/relations';
+import { isUniqueConstraintError } from './credit.utils';
+
+// Get tables from schema
+const { creditTransactions, userBalances } = schema;
 
 // Export types for use in other files
-export type DbType = PostgresJsDatabase<typeof import('@/db/schema')>;
-export type TxType = PgTransaction<
-  PostgresJsQueryResultHKT,
-  typeof import('@/db/schema'),
-  TablesRelationalConfig
->;
+export type DbType = Database;
+export type TxType = DbTransaction;
 import { 
   handleDbError, 
   DEFAULT_BALANCE,
@@ -26,56 +25,112 @@ export async function getUserBalance(
   dbOrTx: DbType | TxType,
   userId: string
 ): Promise<UserBalance> {
-  console.log(`[getUserBalance] Getting balance for user: ${userId}`);
+  const logPrefix = `[getUserBalance:${userId}]`;
+  console.log(`${logPrefix} Starting balance check`);
+  
   try {
-    // Log the database connection details for debugging
-    console.log(`[getUserBalance] Database connection type: ${dbOrTx === db ? 'Direct DB' : 'Transaction'}`);
+    // Validate user ID
+    if (!userId || typeof userId !== 'string') {
+      const error = new Error(`Invalid user ID: ${userId}`);
+      console.error(logPrefix, 'Invalid user ID:', userId);
+      throw error;
+    }
+
+    // Log database connection type for debugging
+    const connectionType = dbOrTx === db ? 'Direct DB' : 'Transaction';
+    console.log(`${logPrefix} Using connection: ${connectionType}`);
     
-    // First try to get existing balance
-    console.log(`[getUserBalance] Executing query: SELECT balance, updated_at FROM user_balances WHERE user_id = '${userId}'`);
-    
+    // Try to get existing balance
+    console.log(`${logPrefix} Querying user_balances table`);
     const result = await dbOrTx
       .select({
         balance: userBalances.balance,
         updatedAt: userBalances.updatedAt
       })
       .from(userBalances)
-      .where(eq(userBalances.userId, userId));
+      .where(eq(userBalances.userId, userId))
+      .limit(1);
     
-    console.log(`[getUserBalance] Raw query result:`, JSON.stringify(result, null, 2));
+    console.log(`${logPrefix} Query result:`, JSON.stringify(result, null, 2));
     
-    // If balance exists, return it
+    // If balance exists, validate and return it
     if (result.length > 0) {
       const balanceRecord = result[0];
-      console.log(`[getUserBalance] Found existing balance for user ${userId}:`, balanceRecord);
+      const balanceValue = balanceRecord.balance;
+      const updatedAt = balanceRecord.updatedAt;
       
-      // Log additional debug info
-      console.log(`[getUserBalance] Balance value: ${balanceRecord.balance}, Type: ${typeof balanceRecord.balance}`);
-      console.log(`[getUserBalance] Last updated: ${balanceRecord.updatedAt}`);
+      // Validate balance value
+      if (typeof balanceValue !== 'number' || isNaN(balanceValue) || balanceValue < 0) {
+        console.error(`${logPrefix} Invalid balance value:`, balanceValue);
+        // Attempt to fix invalid balance
+        await dbOrTx
+          .update(userBalances)
+          .set({
+            balance: DEFAULT_BALANCE,
+            updatedAt: new Date()
+          })
+          .where(eq(userBalances.userId, userId));
+        
+        console.log(`${logPrefix} Reset invalid balance to default (${DEFAULT_BALANCE})`);
+        return { 
+          userId,
+          balance: DEFAULT_BALANCE, 
+          updatedAt: new Date() 
+        };
+      }
       
-      return balanceRecord;
+      console.log(`${logPrefix} Valid balance found:`, { balance: balanceValue, updatedAt });
+      return { 
+        userId,
+        balance: balanceValue, 
+        updatedAt: updatedAt || new Date() 
+      };
     }
     
     // If no balance exists, create a new one with default balance
-    console.log(`[getUserBalance] No balance record found for user ${userId}, creating new one with default balance: ${DEFAULT_BALANCE}`);
+    console.log(`${logPrefix} No balance record found, creating new one`);
+    
+    const newBalance = {
+      userId,
+      balance: DEFAULT_BALANCE,
+      updatedAt: new Date()
+    };
+    
     try {
-      const [newBalance] = await dbOrTx
+      await dbOrTx
         .insert(userBalances)
         .values({
           userId,
           balance: DEFAULT_BALANCE,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning({
-          balance: userBalances.balance,
-          updatedAt: userBalances.updatedAt
+          createdAt: newBalance.updatedAt,
+          updatedAt: newBalance.updatedAt
         });
       
-      console.log(`[getUserBalance] Created new balance record for user ${userId}:`, newBalance);
-      return newBalance || { balance: DEFAULT_BALANCE, updatedAt: new Date() };
+      console.log(`${logPrefix} Created new balance record`);
+      return newBalance;
     } catch (insertError) {
-      console.error(`[getUserBalance] Error creating new balance record for user ${userId}:`, insertError);
+      // Handle race condition where balance might have been created by another request
+      if (isUniqueConstraintError(insertError)) {
+        console.log(`${logPrefix} Race condition detected, fetching existing balance`);
+        const [existing] = await dbOrTx
+          .select({
+            balance: userBalances.balance,
+            updatedAt: userBalances.updatedAt
+          })
+          .from(userBalances)
+          .where(eq(userBalances.userId, userId));
+          
+        if (existing) {
+          console.log(`${logPrefix} Retrieved balance after race condition:`, existing);
+          return {
+            userId,
+            balance: existing.balance,
+            updatedAt: existing.updatedAt
+          };
+        }
+      }
+      
+      console.error(`${logPrefix} Failed to create balance record:`, insertError);
       throw insertError;
     }
   } catch (error) {
@@ -88,47 +143,38 @@ export async function updateUserBalance(
   dbOrTx: DbType | TxType,
   userId: string, 
   amount: number
-) {
+): Promise<UserBalance> {
   try {
-    const now = new Date();
-    
-    // Try to update existing balance
-    const updatedBalance = await dbOrTx
+    const [updated] = await dbOrTx
       .update(userBalances)
       .set({
         balance: sql`${userBalances.balance} + ${amount}`,
-        updatedAt: now
+        updatedAt: new Date()
       })
       .where(eq(userBalances.userId, userId))
-      .returning({ balance: userBalances.balance });
-    
-    // If no rows updated, insert new balance
-    if (updatedBalance.length === 0) {
-      const newBalance = await dbOrTx
-        .insert(userBalances)
-        .values({
-          userId,
-          balance: amount,
-          createdAt: now,
-          updatedAt: now
-        })
-        .onConflictDoUpdate({
-          target: [userBalances.userId], // Changed to array
-          set: {
-            balance: sql`${userBalances.balance} + ${amount}`,
-            updatedAt: now
-          }
-        })
-        .returning({ 
-          balance: userBalances.balance 
-        });
-      
-      return newBalance[0].balance;
+      .returning({ 
+        balance: userBalances.balance,
+        updatedAt: userBalances.updatedAt
+      });
+
+    if (!updated) {
+      throw new Error('Failed to update user balance');
     }
-    
-    return updatedBalance[0].balance;
+
+    // Ensure we return a complete UserBalance object
+    return {
+      userId,
+      balance: updated.balance,
+      updatedAt: updated.updatedAt || new Date()
+    } as UserBalance;
   } catch (error) {
-    return handleDbError(error, 'updateUserBalance');
+    console.error('Error in updateUserBalance:', error);
+    // Return a default UserBalance with the provided userId
+    return {
+      userId,
+      balance: 0,
+      updatedAt: new Date()
+    } as UserBalance;
   }
 }
 
@@ -136,29 +182,43 @@ export async function updateUserBalance(
 export async function createTransaction(
   dbOrTx: DbType | TxType,
   transaction: Omit<CreditTransaction, 'id' | 'createdAt' | 'updatedAt'>
-) {
+): Promise<CreditTransaction> {
   try {
-    const result = await dbOrTx
-      .insert(creditTransactions)
-      .values({
-        ...transaction,
-        id: crypto.randomUUID(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-      .returning({
-        id: creditTransactions.id,
-        userId: creditTransactions.userId,
-        amount: creditTransactions.amount,
-        type: creditTransactions.type,
-        reason: creditTransactions.reason,
-        metadata: creditTransactions.metadata,
-        createdAt: creditTransactions.createdAt
-      });
+    // Ensure metadata is properly typed and has an index signature
+    const metadata: TransactionMetadata = transaction.metadata ? 
+      { ...transaction.metadata } as TransactionMetadata : 
+      {} as TransactionMetadata;
     
-    return result[0];
+    // Create a new transaction with all required fields
+    const newTransaction = {
+      userId: transaction.userId,
+      amount: transaction.amount,
+      type: transaction.type,
+      reason: transaction.reason || null,
+      metadata,
+      id: crypto.randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const [result] = await dbOrTx
+      .insert(creditTransactions)
+      .values(newTransaction)
+      .returning();
+
+    // Ensure the returned transaction has proper typing
+    return {
+      id: result.id,
+      userId: result.userId,
+      amount: result.amount,
+      type: result.type as 'earn' | 'spend',
+      reason: result.reason,
+      metadata: (result.metadata || {}) as TransactionMetadata,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt || result.createdAt || new Date()
+    } as CreditTransaction;
   } catch (error) {
-    return handleDbError(error, 'createTransaction');
+    return handleDbError<CreditTransaction>(error, 'createTransaction');
   }
 }
 
@@ -171,38 +231,67 @@ export async function getTransactionHistory(
   endDate?: Date
 ): Promise<{ transactions: CreditTransaction[]; total: number }> {
   try {
-    // Build conditions
-    const conditions = [eq(creditTransactions.userId, userId)];
+    // Validate and adjust limit
+    const adjustedLimit = Math.min(limit, MAX_LIMIT);
     
-    if (startDate) {
-      conditions.push(gte(creditTransactions.createdAt, startDate));
-    }
-    
-    if (endDate) {
-      conditions.push(lte(creditTransactions.createdAt, endDate));
-    }
-    
-    // Get total count
-    const countResult = await dbOrTx
-      .select({ count: sql`count(*)::int` })
+    // Build the base query with explicit field selection for better type safety
+    const query = dbOrTx
+      .select({
+        id: creditTransactions.id,
+        userId: creditTransactions.userId,
+        amount: creditTransactions.amount,
+        type: creditTransactions.type,
+        reason: creditTransactions.reason,
+        metadata: creditTransactions.metadata,
+        createdAt: creditTransactions.createdAt,
+        updatedAt: creditTransactions.updatedAt
+      })
       .from(creditTransactions)
-      .where(and(...conditions));
-    
-    const total = countResult[0]?.count || 0;
-    
-    // Get paginated results
-    const transactions = await dbOrTx
-      .select()
-      .from(creditTransactions)
-      .where(and(...conditions))
+      .where(
+        and(
+          eq(creditTransactions.userId, userId),
+          startDate ? gte(creditTransactions.createdAt, startDate) : undefined,
+          endDate ? lte(creditTransactions.createdAt, endDate) : undefined
+        )
+      )
       .orderBy(desc(creditTransactions.createdAt))
-      .limit(Math.min(limit, MAX_LIMIT))
+      .limit(adjustedLimit)
       .offset(offset);
+
+    // Get total count for pagination
+    const countQuery = dbOrTx
+      .select({ count: sql<number>`count(*)` })
+      .from(creditTransactions)
+      .where(
+        and(
+          eq(creditTransactions.userId, userId),
+          startDate ? gte(creditTransactions.createdAt, startDate) : undefined,
+          endDate ? lte(creditTransactions.createdAt, endDate) : undefined
+        )
+      )
+      .then((res) => Number(res[0]?.count ?? 0));
+
+    const [transactions, total] = await Promise.all([query, countQuery]);
+
+    // Ensure all transactions have proper typing with explicit type assertion
+    const typedTransactions: CreditTransaction[] = transactions.map(tx => ({
+      id: tx.id,
+      userId: tx.userId,
+      amount: tx.amount,
+      type: tx.type as 'earn' | 'spend',
+      reason: tx.reason,
+      metadata: (tx.metadata || {}) as TransactionMetadata, // Explicitly type metadata
+      createdAt: tx.createdAt,
+      updatedAt: tx.updatedAt || tx.createdAt || new Date()
+    } as CreditTransaction));
     
-    return { transactions, total };
+    return {
+      transactions: typedTransactions,
+      total
+    };
   } catch (error) {
     console.error('Error in getTransactionHistory:', error);
-    // Return empty result in case of error
+    console.error('Error in getTransactionHistory:', error);
     return { transactions: [], total: 0 };
   }
 }
@@ -214,32 +303,73 @@ export async function getCreditSummary(
   try {
     const [earnedResult, spentResult] = await Promise.all([
       dbOrTx
-        .select({ total: sql`COALESCE(SUM(amount), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
         .from(creditTransactions)
         .where(
           and(
             eq(creditTransactions.userId, userId),
-            eq(creditTransactions.type, 'earn' as const)
+            sql`${creditTransactions.amount} > 0`
           )
         ),
       dbOrTx
-        .select({ total: sql`COALESCE(SUM(amount), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
         .from(creditTransactions)
         .where(
           and(
             eq(creditTransactions.userId, userId),
-            eq(creditTransactions.type, 'spend' as const)
+            sql`${creditTransactions.amount} < 0`
           )
         )
     ]);
 
     return {
       earned: Number(earnedResult[0]?.total) || 0,
-      spent: Number(spentResult[0]?.total) || 0
+      spent: Math.abs(Number(spentResult[0]?.total)) || 0
     };
   } catch (error) {
     console.error('Error in getCreditSummary:', error);
-    // Return default values in case of error
+    console.error('Error in getCreditSummary:', error);
     return { earned: 0, spent: 0 };
+  }
+}
+
+// ... (rest of the code remains the same)
+
+// Fetch a single transaction by ID
+export async function getTransactionById(
+  dbOrTx: DbType | TxType,
+  id: string
+): Promise<CreditTransaction | null> {
+  try {
+    const [tx] = await dbOrTx
+      .select({
+        id: creditTransactions.id,
+        userId: creditTransactions.userId,
+        amount: creditTransactions.amount,
+        type: creditTransactions.type,
+        reason: creditTransactions.reason,
+        metadata: creditTransactions.metadata,
+        createdAt: creditTransactions.createdAt,
+        updatedAt: creditTransactions.updatedAt,
+      })
+      .from(creditTransactions)
+      .where(eq(creditTransactions.id, id))
+      .limit(1);
+
+    if (!tx) return null;
+
+    return {
+      id: tx.id,
+      userId: tx.userId,
+      amount: tx.amount,
+      type: tx.type as 'earn' | 'spend',
+      reason: tx.reason,
+      metadata: (tx.metadata || {}) as TransactionMetadata,
+      createdAt: tx.createdAt,
+      updatedAt: tx.updatedAt || tx.createdAt || new Date(),
+    } as CreditTransaction;
+  } catch (error) {
+    console.error('Error in getTransactionById:', error);
+    return null;
   }
 }

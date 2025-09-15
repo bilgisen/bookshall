@@ -325,11 +325,14 @@ export async function PATCH(
   
   try {
     // First, verify the user is authenticated
-    const response = await auth.api.getSession({
+    const sessionResponse = await auth.api.getSession({
       headers: req.headers,
     });
     
-    if (!response?.user) {
+    // Type assertion for the user object
+    const user = sessionResponse?.user as { id: string; [key: string]: unknown } | undefined;
+    
+    if (!user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -358,7 +361,7 @@ export async function PATCH(
     }
     
     // Check if the user is the owner of the book
-    if (book.userId !== response.user.id) {
+    if (book.userId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -472,7 +475,9 @@ export async function PATCH(
             break;
             
           case 'parentChapterId':
-            if (fieldValue === null || typeof fieldValue === 'string') {
+            if (fieldValue === null || fieldValue === '') {
+              validUpdate.parentChapterId = null; // Convert empty string to null
+            } else if (typeof fieldValue === 'string') {
               validUpdate.parentChapterId = fieldValue;
             }
             break;
@@ -496,7 +501,7 @@ export async function PATCH(
     }
     
     // If parentChapterId is being updated, verify it's a valid chapter
-    if ('parentChapterId' in validUpdate && validUpdate.parentChapterId !== null) {
+    if ('parentChapterId' in validUpdate && validUpdate.parentChapterId !== null && validUpdate.parentChapterId !== '') {
       const [parentChapter] = await db
         .select()
         .from(chapters)

@@ -1,6 +1,20 @@
-import type { CreditTransaction } from '@/db/schema';
+// lib/services/credit/credit.types.ts
+import type { CreditTransaction as DBCreditTransaction } from '@/db/schema';
 
-export type TransactionMetadata = Record<string, unknown>;
+export type TransactionMetadata = {
+  [key: string]: unknown;
+};
+
+export interface CreditTransaction extends Omit<DBCreditTransaction, 'metadata'> {
+  id: string;
+  userId: string;
+  amount: number;
+  type: 'earn' | 'spend';
+  reason: string | null;
+  metadata: TransactionMetadata;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export type CreditOperationResult = {
   success: boolean;
@@ -32,11 +46,14 @@ export interface CreditSummary {
 }
 
 export interface UserBalance {
+  userId: string;
   balance: number;
-  updatedAt: Date | null;
+  updatedAt: Date;
 }
 
 export interface BalanceWithDetails extends UserBalance {
-  lastUpdated: string | null;
-  currency: string;
+  currency: 'credits';
+  summary: CreditSummary;
 }
+
+

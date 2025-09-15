@@ -6,14 +6,22 @@ import { CreditService } from '@/lib/services/credit';
 import { unstable_cache } from 'next/cache';
 import { headers } from 'next/headers';
 
-// Get user's balance with caching
-export const getBalance = unstable_cache(
-  async (userId: string) => {
-    return CreditService.getBalanceWithDetails(userId);
-  },
-  ['get-credits-balance'],
-  { tags: ['credits'] }
-);
+// Import the Session type from better-auth
+import type { Session } from 'better-auth';
+
+interface SessionResponse {
+  session: Session | null;
+  error?: string;
+}
+
+// Get user's balance with caching (per-user cache key)
+export async function getBalance(userId: string) {
+  return unstable_cache(
+    async () => CreditService.getBalanceWithDetails(userId),
+    ['get-credits-balance', userId],
+    { tags: ['credits'] }
+  )();
+}
 
 // Helper function to get balance for the current user
 export async function getCurrentUserBalance() {
@@ -25,7 +33,7 @@ export async function getCurrentUserBalance() {
     console.log('[getCurrentUserBalance] Calling auth.api.getSession()');
     const result = await auth.api.getSession({
       headers: requestHeaders
-    });
+    }) as SessionResponse;
     
     console.log('[getCurrentUserBalance] Session result:', {
       hasSession: !!result?.session,
@@ -59,7 +67,7 @@ export async function getCurrentUserBalance() {
 export async function earnCredits(amount: number, reason?: string, metadata?: Record<string, unknown>) {
   const result = await auth.api.getSession({
     headers: await headers()
-  });
+  }) as SessionResponse;
   
   if (!result?.session?.userId) {
     throw new Error('Unauthorized');
@@ -85,7 +93,7 @@ export async function earnCredits(amount: number, reason?: string, metadata?: Re
 export async function spendCredits(amount: number, reason?: string, metadata?: Record<string, unknown>) {
   const result = await auth.api.getSession({
     headers: await headers()
-  });
+  }) as SessionResponse;
   
   if (!result?.session?.userId) {
     throw new Error('Unauthorized');
@@ -111,24 +119,24 @@ export async function spendCredits(amount: number, reason?: string, metadata?: R
 export async function getTransactionHistory(limit = 10, offset = 0) {
   const result = await auth.api.getSession({
     headers: await headers()
-  });
+  }) as SessionResponse;
   
   if (!result?.session?.userId) {
     throw new Error('Unauthorized');
   }
   
-  return CreditService.getTransactionHistory(
-    result.session.userId,
+  return CreditService.getTransactionHistory({
+    userId: result.session.userId,
     limit,
     offset
-  );
+  });
 }
 
 // Get credit summary
 export async function getCreditSummary() {
   const result = await auth.api.getSession({
     headers: await headers()
-  });
+  }) as SessionResponse;
   
   if (!result?.session?.userId) {
     throw new Error('Unauthorized');

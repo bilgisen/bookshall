@@ -1,61 +1,96 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreditBalance, CreditTransactionResponse } from '@/types/credits';
+import { CreditService } from '@/lib/services/credit/credit.service';
+import { auth } from '@/lib/auth';
+import type { TransactionMetadata, CreditOperationResult } from '@/lib/services/credit/credit.types';
+import { toast } from 'sonner';
 
 interface EarnCreditsOptions {
   amount: number;
-  reason?: string;
-  metadata?: Record<string, unknown>;
-  onSuccess?: (data: CreditTransactionResponse) => void;
+  reason: string;
+  metadata?: TransactionMetadata;
+  onSuccess?: (data: { success: boolean; balance: number }) => void;
   onError?: (error: Error) => void;
 }
 
 export function useEarnCredits() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ amount, reason, metadata }: Omit<EarnCreditsOptions, 'onSuccess' | 'onError'>) => {
-      const response = await fetch('/api/credits/earn', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ amount, reason, metadata }),
-      });
+  return useMutation<CreditOperationResult, Error, Omit<EarnCreditsOptions, 'onSuccess' | 'onError'>>({
+    mutationFn: async ({ amount, reason, metadata = {} }) => {
+      try {
+        const { session } = await auth();
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to earn credits');
+        return CreditService.earnCredits(
+          session.user.id,
+          amount,
+          reason,
+          metadata
+        );
+      } catch (error) {
+        console.error('Error earning credits:', error);
+        throw error;
       }
-
-      return response.json();
     },
     onMutate: async (variables) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['credits', 'balance'] });
 
-// Snapshot the previous value
-      const previousBalance = queryClient.getQueryData<CreditBalance>(['credits', 'balance']);
+      // Snapshot the previous value
+      const previousBalance = queryClient.getQueryData<{ balance: number }>(['credits', 'balance']);
 
       // Optimistically update the balance
-      queryClient.setQueryData<CreditBalance>(['credits', 'balance'], (old) => ({
-        ...(old || { balance: 0, updatedAt: new Date().toISOString() }),
-        balance: (old?.balance || 0) + variables.amount,
-      }));
+      queryClient.setQueryData<{ balance: number }>(
+        ['credits', 'balance'], 
+        (old) => ({
+          ...(old || { balance: 0 }),
+          balance: (old?.balance || 0) + variables.amount,
+        })
+      );
 
       return { previousBalance };
+    },
+    onSuccess: (data, variables) => {
+      if (variables.onSuccess) {
+        variables.onSuccess({ 
+          success: data.success, 
+          balance: data.balance 
+        });
+      }
+      toast.success(`Successfully earned ${variables.amount} credits`);
     },
     onError: (error, variables, context) => {
       // Rollback on error
       if (context?.previousBalance) {
-        queryClient.setQueryData(['credits', 'balance'], context.previousBalance);
+        queryClient.setQueryData<{ balance: number }>(
+          ['credits', 'balance'], 
+          context.previousBalance
+        );
       }
+      
+      // Call the onError callback if provided
+      if (variables.onError) {
+        variables.onError(error);
+      }
+      
+      toast.error(`Failed to earn credits: ${error.message}`);
     },
     onSettled: () => {
-      // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
-      queryClient.invalidateQueries({ queryKey: ['credits', 'transactions'] });
+      // Invalidate queries to refetch fresh data
+      Promise.all([
+        queryClient.invalidateQueries({ 
+          queryKey: ['credits', 'balance'],
+          refetchType: 'active'
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['credits', 'transactions'],
+          refetchType: 'active'
+        })
+      ]);
     },
   });
 }

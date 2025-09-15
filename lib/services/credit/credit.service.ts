@@ -1,208 +1,386 @@
-import { db } from '@/lib/db';
-import {
-  getUserBalance,
-  updateUserBalance,
-  createTransaction,
+// lib/services/credit/credit.service.ts
+import { db } from '@/db/drizzle';
+import { auth } from '@/lib/auth';
+import { headers } from 'next/headers';
+import { 
+  getUserBalance, 
+  updateUserBalance, 
+  createTransaction, 
   getTransactionHistory as getTransactionHistoryRepo,
   getCreditSummary as getCreditSummaryRepo
 } from './credit.repository';
-import {
-  validateAmount,
-  ensureSufficientCredits,
-  DEFAULT_LIMIT
-} from './credit.utils';
-import type {
-  CreditOperationResult,
-  TransactionHistoryResult,
-  CreditSummary,
+import type { 
+  CreditOperationResult, 
+  TransactionHistoryResult, 
+  CreditSummary, 
   BalanceWithDetails,
   TransactionMetadata
 } from './credit.types';
-import { InsufficientCreditsError, InvalidAmountError } from './credit.errors';
+import { 
+  validateAmount, 
+  ensureSufficientCredits, 
+  handleServiceError
+} from './credit.utils';
+import { QueryClient } from '@tanstack/react-query';
+
+// Query keys for TanStack Query
+export const creditQueryKeys = {
+  all: ['credits'],
+  balance: () => [...creditQueryKeys.all, 'balance'],
+  transactions: (filters?: { limit?: number; offset?: number }) => 
+    [...creditQueryKeys.all, 'transactions', ...(filters ? [filters] : [])],
+  summary: () => [...creditQueryKeys.all, 'summary']
+};
 
 /**
  * Service for handling credit-related operations
  */
 class CreditService {
+  private static queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        retry: 2,
+        refetchOnWindowFocus: false,
+      },
+    },
+  });
+
+  /**
+   * Get the authenticated user ID
+   * @throws {Error} If user is not authenticated
+   */
+  private static async getAuthenticatedUserId(): Promise<string> {
+    // Get request headers from Next.js and ask better-auth for the session
+    const requestHeaders = await headers();
+    type SessionRes = { session?: { userId?: string } ; user?: { id?: string } };
+    const result = (await auth.api.getSession({ headers: requestHeaders })) as unknown as SessionRes;
+    const userId = result?.session?.userId ?? result?.user?.id; // support either shape
+    if (!userId) throw new Error('User not authenticated');
+    return String(userId);
+  }
+
+  /**
+   * Invalidate credit-related queries
+   */
+  static invalidateQueries() {
+    return this.queryClient.invalidateQueries({ queryKey: creditQueryKeys.all });
+  }
+
   /**
    * Get user's current balance
+   * @param userId Optional user ID (defaults to authenticated user)
    */
-  static async getBalance(userId: string) {
-    console.log(`[CreditService] Getting balance for user: ${userId}`);
+  static async getBalance(userId?: string): Promise<number> {
     try {
-      const result = await getUserBalance(db, userId);
-      console.log(`[CreditService] Retrieved balance for user ${userId}:`, result);
-      return result.balance;
+      const uid = userId || await this.getAuthenticatedUserId();
+      const balance = await getUserBalance(db, uid);
+      return balance.balance;
     } catch (error) {
-      console.error(`[CreditService] Error getting balance for user ${userId}:`, error);
-      throw error;
+      throw handleServiceError(error, 'Failed to get balance');
+    }
+  }
+
+  /**
+   * Get user's credit summary
+   * @param userId Optional user ID (defaults to authenticated user)
+   */
+  static async getCreditSummary(userId?: string): Promise<CreditSummary> {
+    try {
+      const uid = userId || await this.getAuthenticatedUserId();
+      const { earned, spent } = await getCreditSummaryRepo(db, uid);
+      const balance = await this.getBalance(uid);
+      
+      return {
+        earned,
+        spent,
+        available: balance,
+        currency: 'credits' as const
+      };
+    } catch (error) {
+      throw handleServiceError(error, 'Failed to get credit summary');
     }
   }
 
   /**
    * Get user's balance with additional details
+   * @param userId Optional user ID (defaults to authenticated user)
    */
-  static async getBalanceWithDetails(userId: string): Promise<BalanceWithDetails> {
-    console.log(`[CreditService] === Starting getBalanceWithDetails for user: ${userId} ===`);
-    
+  static async getBalanceWithDetails(userId?: string): Promise<BalanceWithDetails> {
     try {
-      console.log(`[CreditService] Calling getUserBalance for user: ${userId}`);
-      const startTime = Date.now();
+      const uid = userId || await this.getAuthenticatedUserId();
+      const [balance, summary] = await Promise.all([
+        this.getBalance(uid),
+        this.getCreditSummary(uid)
+      ]);
       
-      const result = await getUserBalance(db, userId);
-      
-      console.log(`[CreditService] getUserBalance completed in ${Date.now() - startTime}ms`);
-      console.log(`[CreditService] Raw result from getUserBalance:`, JSON.stringify(result, null, 2));
-      
-      if (!result) {
-        throw new Error('getUserBalance returned undefined or null');
-      }
-      
-      // Log the raw values before creating the balanceDetails object
-      console.log(`[CreditService] Raw balance value: ${result.balance}, Type: ${typeof result.balance}`);
-      console.log(`[CreditService] Raw updatedAt value: ${result.updatedAt}, Type: ${typeof result.updatedAt}`);
-      
-      // Explicitly type the return object to match BalanceWithDetails
-      const balanceDetails: BalanceWithDetails = {
-        userId,
-        balance: result.balance,
-        lastUpdated: result.updatedAt?.toISOString() || null,
-        currency: 'credits' as const
+      return {
+        userId: uid,
+        balance,
+        updatedAt: new Date(),
+        currency: 'credits' as const,
+        summary
       };
-      
-      console.log(`[CreditService] Constructed balance details:`, JSON.stringify(balanceDetails, null, 2));
-      console.log(`[CreditService] Balance details type: ${typeof balanceDetails.balance}`);
-      
-      return balanceDetails;
     } catch (error) {
-      console.error(`[CreditService] Error getting balance with details for user ${userId}:`, error);
-      throw error;
+      throw handleServiceError(error, 'Failed to get balance details');
     }
   }
 
   /**
-   * Add credits to a user's account
+   * Get transaction history
+   * @param options Query options
+   */
+  static async getTransactionHistory(
+    options: {
+      limit?: number;
+      offset?: number;
+      startDate?: Date;
+      endDate?: Date;
+      userId?: string;
+    } = {}
+  ): Promise<TransactionHistoryResult> {
+    try {
+      const uid = options.userId || await this.getAuthenticatedUserId();
+      const { limit = 10, offset = 0, startDate, endDate } = options;
+      
+      const { transactions, total } = await getTransactionHistoryRepo(
+        db,
+        uid,
+        limit,
+        offset,
+        startDate,
+        endDate
+      );
+      
+      return {
+        transactions,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + transactions.length < total
+        }
+      };
+    } catch (error) {
+      throw handleServiceError(error, 'Failed to get transaction history');
+    }
+  }
+
+  /**
+   * Earn credits for a user
+   * @param amount Amount of credits to earn
+   * @param reason Reason for earning credits
+   * @param metadata Additional metadata
+   * @param userId Optional user ID (defaults to authenticated user)
    */
   static async earnCredits(
-    userId: string,
-    amount: number,
-    reason = 'system-credit',
-    metadata: TransactionMetadata = {}
+    a: string | number,
+    b: number | string,
+    c: string | TransactionMetadata = '',
+    d: TransactionMetadata = {}
   ): Promise<CreditOperationResult> {
     try {
+      // Support both signatures:
+      // 1) earnCredits(userId, amount, reason, metadata)
+      // 2) earnCredits(amount, reason, metadata, userId?) [legacy]
+      let userId: string | undefined;
+      let amount: number;
+      let reason: string;
+      let metadata: TransactionMetadata;
+
+      if (typeof a === 'string' && typeof b === 'number') {
+        userId = a;
+        amount = b;
+        reason = typeof c === 'string' ? c : '';
+        metadata = (typeof c === 'object' ? c : d) || {};
+      } else {
+        // Legacy order: (amount, reason, metadata, userId?)
+        amount = Number(a);
+        reason = (typeof b === 'string' ? b : '') as string;
+        metadata = (typeof c === 'object' ? (c as TransactionMetadata) : {}) || {};
+        userId = typeof d === 'string' ? d : undefined;
+      }
+
+      const uid = userId || await this.getAuthenticatedUserId();
       validateAmount(amount);
-      
-      return await db.transaction(async (tx) => {
-        const balance = await updateUserBalance(tx, userId, amount);
-        await createTransaction(tx, {
-          userId,
+
+      const result = await db.transaction(async (tx) => {
+        // Update balance
+        const newBalance = await updateUserBalance(tx, uid, amount);
+        
+        // Create transaction record with all required fields
+        const transaction = await createTransaction(tx, {
+          userId: uid,
           amount,
           type: 'earn',
-          reason,
-          metadata: JSON.stringify(metadata)
+          reason: reason || 'Credit earned',
+          metadata: {
+            ...metadata,
+            balanceAfter: newBalance.balance
+          }
         });
-        return { success: true, balance };
-      });
-    } catch (error) {
-      console.error('Error in earnCredits:', error);
-      if (error instanceof InvalidAmountError) {
-        return { 
-          success: false, 
-          error: error.message,
-          code: 'INVALID_AMOUNT'
+
+        return {
+          transaction,
+          balance: newBalance.balance
         };
-      }
-      return { 
-        success: false, 
-        error: 'Failed to earn credits',
-        code: 'TRANSACTION_FAILED'
+      });
+
+      // Invalidate relevant queries
+      await this.invalidateQueries();
+
+      return {
+        success: true,
+        transaction: result.transaction,
+        balance: result.balance,
+        oldBalance: result.balance - amount,
+        newBalance: result.balance
       };
+    } catch (error) {
+      throw handleServiceError(error, 'Failed to earn credits');
     }
   }
 
   /**
    * Spend credits from a user's account
+   * @param amount Amount of credits to spend
+   * @param reason Reason for spending credits
+   * @param metadata Additional metadata
+   * @param userId Optional user ID (defaults to authenticated user)
    */
   static async spendCredits(
-    userId: string,
-    amount: number,
-    reason = 'system-spend',
-    metadata: TransactionMetadata = {}
+    a: string | number,
+    b: number | string,
+    c: string | TransactionMetadata = '',
+    d: TransactionMetadata = {}
   ): Promise<CreditOperationResult> {
     try {
-      validateAmount(amount);
-      
-      return await db.transaction(async (tx) => {
-        const currentBalance = (await getUserBalance(tx, userId)).balance;
-        ensureSufficientCredits(currentBalance, amount);
-        
-        const newBalance = await updateUserBalance(tx, userId, -amount);
-        await createTransaction(tx, {
-          userId,
-          amount,
-          type: 'spend',
-          reason,
-          metadata: JSON.stringify(metadata)
-        });
-        return { success: true, balance: newBalance };
-      });
-    } catch (error) {
-      if (error instanceof InsufficientCreditsError || error instanceof InvalidAmountError) {
-        return {
-          success: false,
-          error: error.message,
-          code: error instanceof InsufficientCreditsError ? 'INSUFFICIENT_CREDITS' : 'INVALID_AMOUNT'
-        };
+      // Support both signatures:
+      // 1) spendCredits(userId, amount, reason, metadata)
+      // 2) spendCredits(amount, reason, metadata, userId?) [legacy]
+      let userId: string | undefined;
+      let amount: number;
+      let reason: string;
+      let metadata: TransactionMetadata;
+
+      if (typeof a === 'string' && typeof b === 'number') {
+        userId = a;
+        amount = b;
+        reason = typeof c === 'string' ? c : '';
+        metadata = (typeof c === 'object' ? c : d) || {};
+      } else {
+        // Legacy order: (amount, reason, metadata, userId?)
+        amount = Number(a);
+        reason = (typeof b === 'string' ? b : '') as string;
+        metadata = (typeof c === 'object' ? (c as TransactionMetadata) : {}) || {};
+        userId = typeof d === 'string' ? d : undefined;
       }
-      console.error('Error in spendCredits:', error);
-      return { 
-        success: false, 
-        error: 'Failed to spend credits',
-        code: 'TRANSACTION_FAILED'
+
+      const uid = userId || await this.getAuthenticatedUserId();
+      validateAmount(amount);
+
+      // Check current balance first
+      const currentBalance = await this.getBalance(uid);
+      ensureSufficientCredits(currentBalance, amount);
+
+      const result = await db.transaction(async (tx) => {
+        // Update balance (negative amount for spending)
+        const newBalance = await updateUserBalance(tx, uid, -amount);
+        
+        // Create transaction record with all required fields
+        const transaction = await createTransaction(tx, {
+          userId: uid,
+          amount: -amount, // store negative in the transaction for consistency
+          type: 'spend',
+          reason: reason || 'Credit spent',
+          metadata: {
+            ...metadata,
+            balanceAfter: newBalance.balance
+          }
+        });
+
+        return {
+          transaction,
+          balance: newBalance.balance
+        };
+      });
+
+      // Invalidate relevant queries
+      await this.invalidateQueries();
+
+      return {
+        success: true,
+        transaction: result.transaction,
+        balance: result.balance,
+        oldBalance: result.balance + amount,
+        newBalance: result.balance
       };
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        if (error.name === 'InsufficientCreditsError') {
+          return {
+            success: false,
+            error: 'Insufficient credits',
+            code: 'INSUFFICIENT_CREDITS',
+            details: error.message
+          };
+        }
+      }
+      throw handleServiceError(error, 'Failed to spend credits');
     }
   }
 
   /**
-   * Get a user's transaction history
+   * Refund a transaction
+   * @param transactionId ID of the transaction to refund
+   * @param reason Reason for the refund
+   * @param metadata Additional metadata
    */
-  static async getTransactionHistory(
-    userId: string,
-    limit: number = DEFAULT_LIMIT,
-    offset: number = 0,
-    startDate?: Date,
-    endDate?: Date
-  ): Promise<TransactionHistoryResult> {
-    const result = await getTransactionHistoryRepo(db, userId, limit, offset, startDate, endDate);
-    
-    // Ensure we have a valid result with transactions and pagination
-    const transactions = Array.isArray(result?.transactions) ? result.transactions : [];
-    const total = typeof result?.total === 'number' ? result.total : 0;
-    
-    return {
-      transactions,
-      pagination: {
-        total,
-        limit: Math.max(0, limit),
-        offset: Math.max(0, offset),
-        hasMore: offset + limit < total
+  static async refundTransaction(
+    transactionId: string,
+    reason = 'Refund'
+  ): Promise<CreditOperationResult> {
+    try {
+      // Find original transaction
+      const { getTransactionById } = await import('./credit.repository');
+      const original = await getTransactionById(db, transactionId);
+      if (!original) {
+        return {
+          success: false,
+          error: 'Original transaction not found',
+          code: 'TRANSACTION_FAILED',
+          details: `Transaction ${transactionId} not found`,
+        };
       }
-    };
-  }
 
-  /**
-   * Get user's credit summary (total earned and spent)
-   */
-  static async getCreditSummary(userId: string): Promise<CreditSummary> {
-    const { earned, spent } = await getCreditSummaryRepo(db, userId);
-    const { balance } = await getUserBalance(db, userId);
-    
-    return {
-      earned,
-      spent,
-      available: balance,
-      currency: 'credits'
-    };
+      const uid = original.userId;
+      const amountAbs = Math.abs(original.amount);
+      const metaBase = {
+        originalTransactionId: original.id,
+        originalType: original.type,
+        originalAmount: original.amount,
+      } as TransactionMetadata;
+
+      // If original was a spend (negative amount), we need to credit back (earn)
+      if (original.amount < 0 || original.type === 'spend') {
+        return this.earnCredits(
+          uid,
+          amountAbs,
+          reason || `Refund for ${original.reason || original.id}`,
+          { ...metaBase, refund: true }
+        );
+      }
+
+      // If original was an earn (positive), we need to deduct (spend)
+      return this.spendCredits(
+        uid,
+        amountAbs,
+        reason || `Reversal for ${original.reason || original.id}`,
+        { ...metaBase, reversal: true }
+      );
+    } catch (error) {
+      throw handleServiceError(error, 'Failed to process refund');
+    }
   }
 }
 

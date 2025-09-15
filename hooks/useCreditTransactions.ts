@@ -1,63 +1,98 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTransactionHistory, earnCredits, spendCredits } from '@/lib/actions/credits';
+import { CreditService } from '@/lib/services/credit/credit.service';
+import { auth } from '@/lib/auth';
 import { toast } from 'sonner';
-
-import type { CreditTransaction, TransactionHistoryResult } from '@/lib/services/credit/credit.types';
-
-interface TransactionHistory extends Omit<TransactionHistoryResult, 'transactions'> {
-  transactions: Array<CreditTransaction & {
-    type: 'earn' | 'spend';
-    metadata?: Record<string, unknown>;
-  }>;
-}
+import type { 
+  TransactionHistoryResult,
+  TransactionMetadata,
+  CreditOperationResult,
+  BalanceWithDetails
+} from '@/lib/services/credit/credit.types';
 
 interface UseCreditTransactionsOptions {
   limit?: number;
   offset?: number;
   enabled?: boolean;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 export function useCreditTransactions({
   limit = 10,
   offset = 0,
   enabled = true,
+  startDate,
+  endDate,
 }: UseCreditTransactionsOptions = {}) {
   const queryClient = useQueryClient();
-  const queryKey = ['credits', 'transactions', { limit, offset }];
+  const queryKey = ['credits', 'transactions', { limit, offset, startDate, endDate }];
 
   // Get transaction history
   const {
-    data,
+    data = { transactions: [], pagination: { total: 0, limit, offset, hasMore: false } },
     isLoading,
     error,
     refetch,
     isRefetching,
-  } = useQuery<TransactionHistoryResult, Error, TransactionHistory>({
+  } = useQuery<TransactionHistoryResult>({
     queryKey,
-    queryFn: () => getTransactionHistory(limit, offset),
+    queryFn: async () => {
+      try {
+        const authResult = await auth();
+        const session = authResult?.session;
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        return CreditService.getTransactionHistory(
+          session.user.id,
+          limit,
+          offset
+        );
+      } catch (error) {
+        console.error('Error fetching transaction history:', error);
+        throw error;
+      }
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
     enabled,
+    retry: 2,
   });
 
   // Unified credit mutation with optimistic updates
-  const creditMutation = useMutation({
-    mutationFn: async ({
-      type,
-      amount,
-      reason,
-      metadata,
-    }: {
-      type: 'earn' | 'spend';
-      amount: number;
-      reason?: string;
-      metadata?: Record<string, unknown>;
-    }) => {
-      if (type === 'earn') {
-        return earnCredits(amount, reason, metadata);
-      } else {
-        return spendCredits(amount, reason, metadata);
+  const creditMutation = useMutation<CreditOperationResult, Error, {
+    type: 'earn' | 'spend';
+    amount: number;
+    reason: string;
+    metadata?: TransactionMetadata;
+  }>({
+    mutationFn: async ({ type, amount, reason, metadata = {} }) => {
+      try {
+        const authResult = await auth();
+        const session = authResult?.session;
+        if (!session?.user?.id) {
+          throw new Error('User not authenticated');
+        }
+        
+        if (type === 'earn') {
+          return CreditService.earnCredits(
+            session.user.id,
+            amount,
+            reason,
+            metadata
+          );
+        } else {
+          return CreditService.spendCredits(
+            session.user.id,
+            amount,
+            reason,
+            metadata
+          );
+        }
+      } catch (error) {
+        console.error(`Error in credit ${type} operation:`, error);
+        throw error;
       }
     },
     onMutate: async (variables) => {
@@ -65,46 +100,50 @@ export function useCreditTransactions({
       await queryClient.cancelQueries({ queryKey });
 
       // Snapshot the previous values
-      const previousBalance = queryClient.getQueryData<{ balance: number }>([
+      const previousBalance = queryClient.getQueryData<BalanceWithDetails>([
         'credits',
-        'balance',
+        'balance'
       ]);
-      const previousTransactions = queryClient.getQueryData<TransactionHistory>(queryKey);
+      const previousTransactions = queryClient.getQueryData<TransactionHistoryResult>(queryKey);
 
       // Optimistically update the balance
       if (previousBalance) {
-        const newBalance =
-          variables.type === 'earn'
-            ? previousBalance.balance + variables.amount
-            : previousBalance.balance - variables.amount;
+        const newBalance = variables.type === 'earn'
+          ? (previousBalance.balance || 0) + variables.amount
+          : (previousBalance.balance || 0) - variables.amount;
 
-        queryClient.setQueryData(['credits', 'balance'], {
-          ...previousBalance,
-          balance: newBalance,
-        });
+        queryClient.setQueryData<BalanceWithDetails>(
+          ['credits', 'balance'],
+          { 
+            ...previousBalance,
+            balance: newBalance 
+          }
+        );
       }
 
-      // Optimistically update the transaction list
+      // Optimistically add to transaction list
       if (previousTransactions) {
         const newTransaction = {
           id: `temp-${Date.now()}`,
-          userId: '', // Will be filled by the server
+          userId: '', // Will be filled in on success
           amount: variables.amount,
-          type: variables.type,
+          type: variables.type as 'earn' | 'spend',
           reason: variables.reason,
-          metadata: JSON.stringify(variables.metadata || {}),
+          metadata: variables.metadata || {},
           createdAt: new Date(),
           updatedAt: new Date(),
-        } as CreditTransaction;
+        };
 
-        queryClient.setQueryData<TransactionHistory>(queryKey, {
-          ...previousTransactions,
-          transactions: [newTransaction, ...previousTransactions.transactions],
-          pagination: {
-            ...previousTransactions.pagination,
-            total: previousTransactions.pagination.total + 1,
-          },
-        });
+        queryClient.setQueryData<TransactionHistoryResult>(
+          queryKey,
+          {
+            transactions: [newTransaction, ...previousTransactions.transactions],
+            pagination: {
+              ...previousTransactions.pagination,
+              total: previousTransactions.pagination.total + 1,
+            },
+          }
+        );
       }
 
       return { previousBalance, previousTransactions };
@@ -117,45 +156,41 @@ export function useCreditTransactions({
       if (context?.previousTransactions) {
         queryClient.setQueryData(queryKey, context.previousTransactions);
       }
+
       toast.error(`Failed to ${variables.type} credits: ${error.message}`);
     },
     onSettled: () => {
       // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ['credits'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['credits'],
+        refetchType: 'active'
+      });
     },
   });
 
-  // Helper functions
-  const earn = (amount: number, reason?: string, metadata?: Record<string, unknown>) =>
-    creditMutation.mutateAsync({ type: 'earn', amount, reason, metadata });
-
-  const spend = (amount: number, reason?: string, metadata?: Record<string, unknown>) =>
-    creditMutation.mutateAsync({ type: 'spend', amount, reason, metadata });
+  // Directly use creditMutation.mutateAsync for specific operations
+  // Example: creditMutation.mutateAsync({ type: 'earn', amount, reason, metadata })
 
   return {
-    // Data
-    transactions: data?.transactions ?? [],
-    pagination: data?.pagination ?? {
-      total: 0,
-      limit,
-      offset,
-      hasMore: false,
-    },
+    transactions: data.transactions,
+    pagination: data.pagination,
     isLoading,
     isRefetching,
-    error,
-    
-    // Mutations
-    earn,
-    spend,
-    isMutating: creditMutation.isPending,
-    error: creditMutation.error,
-    
-    // Refresh functions
+    error: error as Error | null,
+    isError: !!error,
     refetch,
-    invalidate: () => {
-      queryClient.invalidateQueries({ queryKey });
-      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
+    creditMutation,
+    invalidate: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ 
+          queryKey: ['credits', 'transactions'],
+          refetchType: 'active',
+        }),
+        queryClient.invalidateQueries({ 
+          queryKey: ['credits', 'balance'],
+          refetchType: 'active',
+        }),
+      ]);
     },
   };
 }

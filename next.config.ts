@@ -1,14 +1,36 @@
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
-
-  // Keep webpack config for production build
-  webpack: (config) => {
+  
+  // Disable static optimization for auth routes
+  experimental: {
+    serverComponentsExternalPackages: ['better-auth'],
+  },
+  
+  // Exclude auth routes from static optimization
+  pageExtensions: ['page.tsx', 'page.ts', 'page.jsx', 'page.js'],
+  
+  // Configure webpack to handle better-auth and path aliases
+  webpack: (config, { isServer }) => {
+    // Handle browser-specific configurations
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    
+    // Add aliases
     config.resolve.alias = {
       ...config.resolve.alias,
+      'better-auth': require.resolve('better-auth'),
       '@': __dirname,
     };
+    
     return config;
   },
 

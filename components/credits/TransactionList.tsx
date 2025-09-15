@@ -93,7 +93,7 @@ export function TransactionList({ pageSize = 10, maxItems }: TransactionListProp
             <div className={`font-medium ${
               tx.type === 'earn' ? 'text-green-600' : 'text-rose-600'
             }`}>
-              {tx.type === 'earn' ? '+' : '-'}{tx.amount}
+              {tx.type === 'earn' ? '+' : '-'}{Math.abs(tx.amount)}
             </div>
           </div>
         ))}

@@ -1,3 +1,4 @@
+// lib/services/credit/credit.errors.ts
 export class CreditSystemError extends Error {
   constructor(
     message: string, 

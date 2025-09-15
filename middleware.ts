@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
+import type { User } from '@/db/schema';
 
 // Use Node.js runtime instead of Edge Runtime
 export const runtime = 'nodejs';
@@ -32,7 +33,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3001',
   'https://bookshall.com',
   'https://www.bookshall.com'
-].map(origin => origin.trim());
+];
 
 /**
  * Middleware to handle authentication and CORS
@@ -59,29 +60,58 @@ export async function middleware(request: NextRequest) {
 
   // Skip authentication for public paths and non-API routes
   if (isPublicPath || !isApiRoute) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    
+    // Set CORS headers for all responses
+    const origin = request.headers.get('origin') || '';
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    return response;
   }
 
   try {
-    // Get session using better-auth
-    const session = await auth.api.getSession({
-      headers: Object.fromEntries(request.headers.entries())
+    // Create headers object compatible with better-auth
+    const headers = new Headers();
+    request.headers.forEach((value, key) => {
+      headers.append(key, value);
     });
+    
+    // Get session using better-auth
+    const sessionResponse = await auth.api.getSession({
+      headers: headers
+    });
+    
+    // Type the user properly using the schema type
+    const user = sessionResponse?.user as User | undefined;
 
     // If no session and it's an API route that requires auth
-    if (!session?.user?.id && !isPublicPath && isApiRoute) {
+    if (!user?.id && !isPublicPath && isApiRoute) {
+      const origin = getOrigin(request);
       return new NextResponse(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Unauthorized' }, null, 2),
+        { 
+          status: 401, 
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Credentials': 'true'
+          } 
+        }
       );
     }
 
     // Clone the request headers and add user info for API routes
     const requestHeaders = new Headers(request.headers);
-    if (session?.user) {
-      requestHeaders.set('x-user-id', session.user.id);
-      if (session.user.role) {
-        requestHeaders.set('x-user-role', session.user.role);
+    if (user?.id) {
+      requestHeaders.set('x-user-id', user.id);
+      // Access role with proper typing
+      if ('role' in user && typeof user.role === 'string') {
+        requestHeaders.set('x-user-role', user.role);
       }
     }
 
@@ -93,7 +123,7 @@ export async function middleware(request: NextRequest) {
     });
 
     // Set CORS headers for all responses
-    const origin = request.headers.get('origin') || '';
+    const origin = getOrigin(request);
     if (ALLOWED_ORIGINS.includes(origin)) {
       response.headers.set('Access-Control-Allow-Origin', origin);
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -104,9 +134,23 @@ export async function middleware(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Middleware error:', error);
+    const origin = getOrigin(request);
     return new NextResponse(
-      JSON.stringify({ error: 'Internal Server Error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Internal Server Error' }, null, 2),
+      { 
+        status: 500, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true'
+        } 
+      }
     );
   }
+}
+
+// Helper function to get origin
+function getOrigin(request: NextRequest): string {
+  const origin = request.headers.get('origin') || '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
 }

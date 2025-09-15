@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { headers as nextHeaders } from 'next/headers';
 import { CreditService } from '@/lib/services/credit';
 import { auth } from '@/lib/auth';
 import { z } from 'zod';
+import { handleServiceError } from '@/lib/services/credit/credit.utils';
 
 const spendSchema = z.object({
   amount: z.number().int().positive(),
@@ -22,55 +24,65 @@ const spendSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.handler(request);
-    if (!session.ok) {
+    const sessionRes = await auth.api.getSession({ headers: await nextHeaders() });
+    const userId = sessionRes?.session?.userId;
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+        { success: false, error: 'Unauthorized' },
+        { status: 401 as number }
       );
     }
     
-    const user = await session.json();
     const body = await request.json();
     const validation = spendSchema.safeParse(body);
     
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: validation.error.format() },
-        { status: 400 }
+        { 
+          success: false,
+          error: 'Invalid request body',
+          code: 'INVALID_REQUEST',
+          details: validation.error.format() 
+        },
+        { status: 400 as number }
       );
     }
 
     const { amount, reason, metadata } = validation.data;
-    const result = await CreditService.spendCredits(
-      user.id,
-      amount,
-      reason,
-      metadata
-    );
+    const result = await CreditService.spendCredits(String(userId), amount, reason, metadata);
 
     if (!result.success) {
       return NextResponse.json(
         { 
+          success: false,
           error: result.error || 'Failed to spend credits',
-          code: result.error === 'Insufficient balance' ? 'INSUFFICIENT_BALANCE' : 'TRANSACTION_FAILED'
+          code: result.code || 'TRANSACTION_FAILED',
+          details: result.details
         },
-        { 
-          status: result.error === 'Insufficient balance' ? 402 : 400 
-        }
+        { status: result.code === 'INSUFFICIENT_CREDITS' ? 402 : 400 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      balance: await CreditService.getBalance(userId),
-      transaction: result.transaction,
+      data: {
+        balance: result.balance,
+        transaction: result.transaction,
+        userId: String(userId),
+      }
     });
   } catch (error) {
     console.error('Error spending credits:', error);
+    const err = handleServiceError(error, 'Failed to process credit transaction') as unknown as { message: string; name: string; code?: string; details?: unknown };
+    
     return NextResponse.json(
-      { error: 'Failed to process credit transaction' },
-      { status: 500 }
+      { 
+        success: false,
+        error: err.message,
+        code: err.code || 'UNKNOWN_ERROR',
+        details: err.details
+      },
+      { status: 500 as number }
     );
   }
 }
