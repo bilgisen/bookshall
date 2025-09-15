@@ -91,9 +91,6 @@ async function processWorkflow(
         ref,
         inputs: {
           book_id: contentId,
-          user_id: (metadata.userId as string) || '',
-          session_id: (metadata.sessionId as string) || '',
-          content_id: contentId,
           include_metadata: options.includeMetadata ? 'true' : 'false',
           include_cover: options.includeCover ? 'true' : 'false',
           include_toc: options.includeTOC ? 'true' : 'false',

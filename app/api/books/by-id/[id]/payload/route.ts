@@ -2,14 +2,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { and, eq, asc } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '@/lib/db/edge-client';
-import { books, chapters } from '@/db/edge-schema';
+import { db } from '@/db/drizzle';
+import { books, chapters } from '@/db';
 import { createClient } from '@supabase/supabase-js';
 
 // Constants
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
-export const runtime = 'edge';
+// Use Node.js runtime to access Supabase via server-side PostgreSQL driver
+export const runtime = 'nodejs';
 
 // CORS headers
 const corsHeaders = {
@@ -108,6 +109,7 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
     const allChapters = await db
       .select({
         id: chapters.id,
+        uuid: chapters.uuid,
         bookId: chapters.bookId,
         title: chapters.title,
         content: chapters.content,
@@ -169,6 +171,7 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
         createdAt: chapter.createdAt ?? new Date(),
         updatedAt: chapter.updatedAt ?? new Date(),
         children: [],
+        uuid: chapter.uuid,
       };
       
       chapterMap.set(String(chapter.id), node);
