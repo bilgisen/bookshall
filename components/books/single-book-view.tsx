@@ -25,11 +25,11 @@ interface SingleBookViewProps {
 
 export function SingleBookView({ book, className = '' }: SingleBookViewProps) {
   return (
-    <Card className={`w-full max-w-sm ${className}`}>
+    <Card className={`w-full bg-card/50 max-w-sm ${className}`}>
      
       <CardContent>
         {book.coverImageUrl ? (
-          <div className="relative aspect-[9/14] w-full overflow-hidden rounded-md">
+          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md">
             <Image
               src={book.coverImageUrl}
               alt={`${book.title} cover`}

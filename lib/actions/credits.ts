@@ -6,12 +6,18 @@ import { CreditService } from '@/lib/services/credit';
 import { unstable_cache } from 'next/cache';
 import { headers } from 'next/headers';
 
-// Import the Session type from better-auth
-import type { Session } from 'better-auth';
+// The response from auth.api.getSession() includes both session and user data
+type AuthSessionResponse = Awaited<ReturnType<typeof auth.api.getSession>>;
 
-interface SessionResponse {
-  session: Session | null;
-  error?: string;
+// Type guard to check if the response has a user
+function hasUser(response: unknown): response is { user: { id: string } } {
+  return (
+    typeof response === 'object' && 
+    response !== null && 
+    'user' in response && 
+    typeof (response as { user: unknown }).user === 'object' && 
+    (response as { user: { id?: unknown } }).user?.id !== undefined
+  );
 }
 
 // Get user's balance with caching (per-user cache key)
@@ -33,20 +39,20 @@ export async function getCurrentUserBalance() {
     console.log('[getCurrentUserBalance] Calling auth.api.getSession()');
     const result = await auth.api.getSession({
       headers: requestHeaders
-    }) as SessionResponse;
-    
-    console.log('[getCurrentUserBalance] Session result:', {
-      hasSession: !!result?.session,
-      userId: result?.session?.userId,
-      sessionKeys: result?.session ? Object.keys(result.session) : []
     });
     
-    if (!result?.session?.userId) {
-      console.error('[getCurrentUserBalance] No user session found or missing userId');
+    if (!hasUser(result)) {
+      console.error('[getCurrentUserBalance] No valid user session found');
       throw new Error('Unauthorized');
     }
     
-    const userId = result.session.userId;
+    console.log('[getCurrentUserBalance] Session result:', {
+      hasSession: true,
+      userId: result.user.id,
+      sessionKeys: Object.keys(result)
+    });
+    
+    const userId = result.user.id;
     console.log(`[getCurrentUserBalance] Getting balance for user: ${userId}`);
     
     try {
@@ -67,14 +73,14 @@ export async function getCurrentUserBalance() {
 export async function earnCredits(amount: number, reason?: string, metadata?: Record<string, unknown>) {
   const result = await auth.api.getSession({
     headers: await headers()
-  }) as SessionResponse;
+  });
   
-  if (!result?.session?.userId) {
-    throw new Error('Unauthorized');
+  if (!hasUser(result)) {
+    throw new Error('Unauthorized - No valid user session');
   }
   
   const creditResult = await CreditService.earnCredits(
-    result.session.userId,
+    result.user.id,
     amount,
     reason,
     metadata
@@ -93,14 +99,14 @@ export async function earnCredits(amount: number, reason?: string, metadata?: Re
 export async function spendCredits(amount: number, reason?: string, metadata?: Record<string, unknown>) {
   const result = await auth.api.getSession({
     headers: await headers()
-  }) as SessionResponse;
+  });
   
-  if (!result?.session?.userId) {
-    throw new Error('Unauthorized');
+  if (!hasUser(result)) {
+    throw new Error('Unauthorized - No valid user session');
   }
   
   const creditResult = await CreditService.spendCredits(
-    result.session.userId,
+    result.user.id,
     amount,
     reason,
     metadata
@@ -119,14 +125,14 @@ export async function spendCredits(amount: number, reason?: string, metadata?: R
 export async function getTransactionHistory(limit = 10, offset = 0) {
   const result = await auth.api.getSession({
     headers: await headers()
-  }) as SessionResponse;
+  }) as AuthSessionResponse;
   
-  if (!result?.session?.userId) {
+  if (!result?.user?.id) {
     throw new Error('Unauthorized');
   }
   
   return CreditService.getTransactionHistory({
-    userId: result.session.userId,
+    userId: result.user.id,
     limit,
     offset
   });
@@ -136,11 +142,11 @@ export async function getTransactionHistory(limit = 10, offset = 0) {
 export async function getCreditSummary() {
   const result = await auth.api.getSession({
     headers: await headers()
-  }) as SessionResponse;
+  }) as AuthSessionResponse;
   
-  if (!result?.session?.userId) {
+  if (!result?.user?.id) {
     throw new Error('Unauthorized');
   }
   
-  return CreditService.getCreditSummary(result.session.userId);
+  return CreditService.getCreditSummary(result.user.id);
 }

@@ -15,12 +15,19 @@ interface PaginatedTransactions {
 const DEFAULT_PAGE_SIZE = 20;
 
 export function useTransactions(pageSize = DEFAULT_PAGE_SIZE) {
+  const effectiveSize = typeof pageSize === 'number' && pageSize > 0 ? pageSize : 0;
   return useInfiniteQuery<PaginatedTransactions, Error>({
     queryKey: ['credits', 'transactions'],
     queryFn: async ({ pageParam = 0 }) => {
-      const offset = Number(pageParam) * pageSize;
+      if (effectiveSize === 0) {
+        return {
+          transactions: [],
+          pagination: { total: 0, limit: 0, offset: 0 },
+        };
+      }
+      const offset = Number(pageParam) * effectiveSize;
       const response = await fetch(
-        `/api/credits/transactions?limit=${pageSize}&offset=${offset}`, {
+        `/api/credits/transactions?limit=${effectiveSize}&offset=${offset}`, {
           credentials: 'include' // This ensures cookies are sent with the request
         }
       );
@@ -33,10 +40,10 @@ export function useTransactions(pageSize = DEFAULT_PAGE_SIZE) {
       const data = await response.json();
       return {
         transactions: data.transactions || [],
-        pagination: data.pagination || { 
-          total: 0, 
-          limit: pageSize, 
-          offset: offset 
+        pagination: data.pagination || {
+          total: 0,
+          limit: effectiveSize,
+          offset: offset
         }
       };
     },
@@ -48,5 +55,6 @@ export function useTransactions(pageSize = DEFAULT_PAGE_SIZE) {
     },
     initialPageParam: 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: effectiveSize > 0,
   });
 }

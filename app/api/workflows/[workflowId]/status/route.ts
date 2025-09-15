@@ -59,10 +59,21 @@ export async function GET(
       downloadUrl = result.downloadUrl;
     }
 
+    // Map DB status to frontend expected values
+    const statusMap: Record<string, 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled'> = {
+      pending: 'queued',
+      'in-progress': 'in_progress',
+      completed: 'completed',
+      failed: 'failed',
+    } as const;
+
+    const mappedStatus = statusMap[workflow.status as keyof typeof statusMap] || 'queued';
+
+    const resultTyped: WorkflowResult | null = (workflow.result as WorkflowResult | null) ?? null;
     return NextResponse.json({
-      status: workflow.status,
+      status: mappedStatus,
       progress: workflow.progress,
-      downloadUrl,
+      epubUrl: downloadUrl || resultTyped?.downloadUrl || undefined,
       error: workflow.error,
       updatedAt: workflow.updatedAt.toISOString(),
     });

@@ -14,18 +14,18 @@ export default function Chatbot() {
         <Bot className="w-4 h-4 transition-transform hover:scale-125 hover:rotate-12 duration-300 ease-in-out" />
       </div>
       {open && (
-        <div className="absolute bottom-12 right-4 w-80 z-[99] dark:bg-black bg-white">
+        <div className="absolute bottom-12 right-4 w-80 z-[99] dark:bg-card bg-card">
           <div className="flex flex-col items-start justify-between gap-3 rounded-lg border h-96 shadow-lg p-4">
             <div className="w-full">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Nextjs Starter Kit</h3>
+                <h3 className="text-lg font-semibold">BooksHall AI Assistant</h3>
                 <X
                   className="w-4 h-4 hover:cursor-pointer"
                   onClick={() => setOpen(false)}
                 />
               </div>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Ask me anything about Nextjs Starter Kit
+                Ask me anything about BooksHall - soon 
               </p>
             </div>
             <div className="flex  items-end justify-center gap-2 w-full">

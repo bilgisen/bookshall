@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { account, session, user, verification } from "@/db/schema";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 
 export const auth = betterAuth({
   trustedOrigins: [process.env.NEXT_PUBLIC_APP_URL!],
@@ -14,6 +15,7 @@ export const auth = betterAuth({
   },
   database: drizzleAdapter(db, {
     provider: "pg",
+    // Our schema uses singular table names
     schema: {
       user,
       session,
@@ -27,5 +29,8 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
   },
-  plugins: [], // ← NO PLUGINS HERE!
+  plugins: [
+    // Add nextCookies last to ensure proper cookie handling in server actions
+    nextCookies()
+  ],
 });

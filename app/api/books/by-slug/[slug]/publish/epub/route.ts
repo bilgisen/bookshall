@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { triggerEpubWorkflow, PublishOptions } from '@/lib/workflows/trigger-epub';
-import { books, chapters } from '@/db/schema';
-import { and, eq, asc } from 'drizzle-orm';
+import { books } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 interface PublishRequest {
   options?: Partial<PublishOptions>;
@@ -61,24 +61,6 @@ export async function POST(
     }
 
     const book = bookResult[0];
-
-    // Fetch non-draft chapters for the book
-    const bookChapters = await db.select({
-      id: chapters.id,
-      title: chapters.title,
-      content: chapters.content,
-      order: chapters.order,
-      level: chapters.level,
-      parentChapterId: chapters.parentChapterId,
-    }).from(chapters)
-      .where(and(eq(chapters.bookId, book.id), eq(chapters.isDraft, false)))
-      .orderBy(asc(chapters.order));
-
-    // Attach chapters to book object to match expected structure
-    const bookWithChapters = {
-      ...book,
-      chapters: bookChapters,
-    };
 
     // Parse request body
     const { options = {}, metadata = {} } = (await request.json()) as PublishRequest;

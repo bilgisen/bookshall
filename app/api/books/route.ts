@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { books } from '@/db/schema';
+import { CreditService } from '@/lib/services/credit';
 import slugify from 'slugify';
 import { eq } from 'drizzle-orm';
-import type { User } from "better-auth";
+import type { User } from "better-auth/client";
 
 // GET /api/books - Get all books for the authenticated user
 export async function GET(request: Request) {
@@ -75,16 +76,42 @@ export async function POST(request: Request) {
       uniqueSlug = `${slug}-${++counter}`;
     }
 
-    const inserted = await db
-      .insert(books)
-      .values({
-        ...body,
-        slug: uniqueSlug,
-        userId: userId,
-      })
-      .returning();
+    // Spend credits for creating a book (300 credits)
+    const spend = await CreditService.spendCredits(String(userId), 300, 'Create book', {
+      title,
+      slug: uniqueSlug,
+    });
 
-    return NextResponse.json(inserted[0], { status: 201 });
+    if (!spend.success) {
+      const code = spend.code === 'INSUFFICIENT_CREDITS' ? 402 : 400;
+      return NextResponse.json(
+        { error: spend.error || 'Failed to spend credits', code: spend.code || 'TRANSACTION_FAILED' },
+        { status: code }
+      );
+    }
+
+    try {
+      const inserted = await db
+        .insert(books)
+        .values({
+          ...body,
+          slug: uniqueSlug,
+          userId: userId,
+        })
+        .returning();
+
+      return NextResponse.json(inserted[0], { status: 201 });
+    } catch (insertErr) {
+      // Refund the credits if book creation fails for any reason
+      if (spend.transaction?.id) {
+        try {
+          await CreditService.refundTransaction(spend.transaction.id, 'Book creation failed');
+        } catch (refundErr) {
+          console.error('Failed to refund after book insert error:', refundErr);
+        }
+      }
+      throw insertErr;
+    }
   } catch (error) {
     console.error("Error creating book:", error);
     return NextResponse.json(

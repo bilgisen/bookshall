@@ -44,24 +44,40 @@ export function useBalance(options?: UseBalanceOptions) {
         console.log('Balance API response text:', responseText);
         
         try {
-          const data = responseText ? JSON.parse(responseText) : {};
-          console.log('Parsed balance data:', data);
-          
-          // Extract the balance from the response
-          if (data && typeof data.balance === 'object' && data.balance !== null) {
-            // If balance is an object, extract the numeric value
-            return {
-              balance: Number(data.balance.balance) || 0,
-              updatedAt: data.balance.updatedAt || new Date().toISOString()
-            };
-          } else if (typeof data.balance === 'number') {
-            // If balance is already a number, return as is
-            return {
-              balance: data.balance,
-              updatedAt: data.updatedAt || new Date().toISOString()
-            };
+          const raw = responseText ? (JSON.parse(responseText) as unknown) : {};
+          console.log('Parsed balance data:', raw);
+
+          // Type guards
+          const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+          const hasNumber = (v: unknown, key: string): v is Record<string, unknown> => isRecord(v) && typeof v[key] === 'number';
+          const pickUpdatedAt = (v: unknown): string => {
+            if (isRecord(v) && typeof v.updatedAt === 'string') return v.updatedAt;
+            return new Date().toISOString();
+          };
+
+          // Preferred shape: { success: true, data: { balance: number | { balance:number }, updatedAt? } }
+          if (isRecord(raw) && 'data' in raw && isRecord((raw as Record<string, unknown>).data)) {
+            const inner = (raw as Record<string, unknown>).data as Record<string, unknown>;
+            if (typeof inner.balance === 'number') {
+              return { balance: inner.balance as number, updatedAt: pickUpdatedAt(inner) };
+            }
+            if (isRecord(inner.balance) && typeof (inner.balance as Record<string, unknown>).balance === 'number') {
+              const b = (inner.balance as Record<string, unknown>).balance as number;
+              const ts = isRecord(inner.balance) ? (inner.balance as Record<string, unknown>).updatedAt : undefined;
+              return { balance: b, updatedAt: typeof ts === 'string' ? ts : new Date().toISOString() };
+            }
           }
-          
+
+          // Backward-compat: { balance: { balance:number } } or { balance:number }
+          if (isRecord(raw) && isRecord(raw.balance) && typeof raw.balance.balance === 'number') {
+            const b = raw.balance.balance as number;
+            const ts = (raw.balance as Record<string, unknown>).updatedAt;
+            return { balance: b, updatedAt: typeof ts === 'string' ? ts : new Date().toISOString() };
+          }
+          if (isRecord(raw) && typeof raw.balance === 'number') {
+            return { balance: raw.balance as number, updatedAt: pickUpdatedAt(raw) };
+          }
+
           // Default fallback
           return { balance: 0, updatedAt: new Date().toISOString() };
         } catch (e) {
@@ -73,8 +89,9 @@ export function useBalance(options?: UseBalanceOptions) {
         throw error;
       }
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 0, // always stale to reflect latest balance after actions
     refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
     ...options
   });
 }

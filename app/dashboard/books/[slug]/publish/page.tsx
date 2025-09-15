@@ -29,31 +29,31 @@ export default function PublishPage() {
     {
       title: 'ePub',
       description: 'Create dynamic, reflowable digital books perfect for every e-reader.',
-      icon: <Book className="h-12 w-12" />,
+      icon: <Book className="h-12 w-12" strokeWidth="1px" />,
       href: `/dashboard/books/${slug}/publish/epub`,
     },
     {
       title: 'Audiobook',
       description: 'Transform your text into an engaging listen-anywhere audio experience.',
-      icon: <FileAudio className="h-12 w-12" />,
+      icon: <FileAudio className="h-12 w-12" strokeWidth="1px" />,
       href: '#', // Will be implemented later
     },
     {
       title: 'PDF',
       description: 'Generate pixel-perfect, printable PDF documents.',
-      icon: <FileText className="h-12 w-12" />,
+      icon: <FileText className="h-12 w-12" strokeWidth="1px" />,
       href: '#', // Will be implemented later
     },
     {
       title: 'DOC',
       description: 'Export easily editable documents, perfect for collaboration and review.',
-      icon: <FileType className="h-12 w-12" />,
+      icon: <FileType className="h-12 w-12" strokeWidth="1px" />,
       href: '#', // Will be implemented later
     },
     {
       title: 'HTML',
       description: 'Publish searchable, web-ready content for any website or browser.',
-      icon: <FileCode className="h-12 w-12" />,
+      icon: <FileCode className="h-12 w-12" strokeWidth="1px" />,
       href: '#', // Will be implemented later
     },
   ];
@@ -96,15 +96,12 @@ export default function PublishPage() {
         {/* Main Content */}
         <div className="flex-1">
           <div className="space-y-4">
-            <h2 className="text-2xl font-semibold">Available Formats</h2>
-            <p className="text-muted-foreground">
-              Select a format to publish your book in. Each format is optimized for different reading experiences.
-            </p>
+
             
             <div className="grid gap-6 md:grid-cols-2">
               {formats.map((format) => (
                 <Link href={format.href} key={format.title}>
-                  <Card className="h-full p-6 hover:bg-accent/50 transition-colors border">
+                  <Card className="h-full bg-card/20 p-6 hover:bg-primary/20 transition-colors border">
                     <div className="flex flex-col space-y-4">
                       <div className="flex items-center space-x-4">
                         <div className="p-3 rounded-lg bg-primary/10 text-primary flex-shrink-0">

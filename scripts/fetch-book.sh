@@ -35,7 +35,14 @@ mkdir -p "$CHAPTER_DIR"
 PAYLOAD_FILE="$WORKDIR/payload.json"
 
 # --- Fetch payload ---
-PAYLOAD_URL="$NEXT_PUBLIC_APP_URL/api/books/by-id/$BOOK_ID/payload"
+# Build query params from env (fall back to defaults if empty)
+Q_INCLUDE_TOC=${INCLUDE_TOC:-true}
+Q_TOC_LEVEL=${TOC_LEVEL:-3}
+Q_INCLUDE_IMPRINT=${INCLUDE_IMPRINT:-true}
+Q_INCLUDE_METADATA=${INCLUDE_METADATA:-true}
+Q_INCLUDE_COVER=${INCLUDE_COVER:-true}
+
+PAYLOAD_URL="$NEXT_PUBLIC_APP_URL/api/books/by-id/$BOOK_ID/payload?generate_toc=$Q_INCLUDE_TOC&toc_depth=$Q_TOC_LEVEL&include_imprint=$Q_INCLUDE_IMPRINT&includeMetadata=$Q_INCLUDE_METADATA&includeCover=$Q_INCLUDE_COVER"
 echo "📥 Fetching payload: $PAYLOAD_URL"
 curl -fsSL "${AUTH_HEADER[@]}" "$PAYLOAD_URL" -o "$PAYLOAD_FILE"
 

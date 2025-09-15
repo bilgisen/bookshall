@@ -63,9 +63,9 @@ async function processWorkflow(
       .set({ status: 'in-progress', progress: 10, updatedAt: now })
       .where(eq(workflowStatus.id, workflowId));
 
-    const githubToken = process.env.GH_PAT?.trim();
+    const githubToken = (process.env.GH_PAT || process.env.GITHUB_TOKEN || '').trim();
     if (!githubToken) {
-      throw new Error('GitHub PAT (GH_PAT) not configured');
+      throw new Error('GitHub token not configured (set GH_PAT or GITHUB_TOKEN)');
     }
 
     const repo = process.env.GITHUB_REPOSITORY?.trim() || 'bilgisen/bookshall';
@@ -99,7 +99,7 @@ async function processWorkflow(
           include_toc: options.includeTOC ? 'true' : 'false',
           toc_level: options.tocLevel?.toString() || '3',
           include_imprint: options.includeImprint ? 'true' : 'false',
-          metadata: JSON.stringify(metadata),
+          metadata: JSON.stringify({ ...(metadata || {}), workflowId }),
         },
       }),
     });

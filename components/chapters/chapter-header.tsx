@@ -1,9 +1,7 @@
 "use client";
 
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Separator } from "@/components/ui/separator";
-import { BooksMenu } from "@/components/books/books-menu";
 import { Button } from "@/components/ui/button";
 import { Plus, ListOrdered, BookOpen } from "lucide-react";
 
@@ -19,9 +17,8 @@ export function ChapterHeader({
   title,
   bookName,
   bookSlug,
-  chapterId,
   action,
-}: ChapterHeaderProps) {
+}: Omit<ChapterHeaderProps, 'chapterId'>) {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
@@ -51,13 +48,8 @@ export function ChapterHeader({
             </Link>
           </Button>
           
-          {/* Kebab Menu */}
-          <BooksMenu 
-            slug={bookSlug} 
-            bookId={chapterId}
-            chapterId={chapterId}
-            hideEdit={false}
-          />
+          {/* Action Button (Edit Chapter) */}
+          {action}
         </div>
       </div>
       <Separator />

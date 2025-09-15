@@ -2,7 +2,6 @@
 
 import { Pencil, ListOrdered, Plus, Printer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { BooksMenu } from "@/components/books/books-menu";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -83,13 +82,7 @@ export function BookHeader({
               </Button>
             )}
             
-            {/* Kebab Menu */}
-            <BooksMenu 
-              slug={slug} 
-              hideEdit={!slug} 
-              onEdit={slug ? undefined : () => {}}
-              onDelete={slug ? undefined : () => Promise.resolve({ success: true })}
-            />
+            {/* Kebab Menu Removed */}
           </div>
         </div>
       </div>

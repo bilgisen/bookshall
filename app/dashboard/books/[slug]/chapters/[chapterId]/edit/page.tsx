@@ -17,10 +17,9 @@ import  { Link as TiptapLink }  from '@tiptap/extension-link';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
-import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { ChapterHeader } from '@/components/chapters/chapter-header';
+import { AlertCircle, ArrowLeft, Loader2, RefreshCw, Eye, Trash2 } from 'lucide-react';
 import type { ChapterOption } from '@/components/chapters/ParentChapterSelect';
-import { BooksMenu } from '@/components/books/books-menu';
 import debounce from 'lodash/debounce';
 
 // Dynamically import ChapterForm with SSR disabled to prevent hydration issues
@@ -544,36 +543,39 @@ function ClientSideChapterEditor() {
   }
 
   return (
-    <div className="container w-full p-4 md:p-8 max-w-6xl mx-auto">
+    <div className="container w-full pt-8 p-4 md:p-8 max-w-6xl mx-auto">
       {/* Header with chapter info and actions */}
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold"><span className="text-muted-foreground">Edit:</span> {chapter?.title || 'Chapter'}</h1>
-            <p className="text-muted-foreground">{chapter?.book?.title || 'description'}</p>
-          </div>
+      <ChapterHeader
+        title={chapter?.title || 'Edit Chapter'}
+        bookName={chapter?.book?.title || ''}
+        bookSlug={slug}
+        chapterId={chapterId}
+        action={
           <div className="flex items-center gap-2">
+            
             <Button 
               variant="outline" 
-              size="sm" 
+              size="icon" 
               asChild
-              className="gap-2"
+              title="View Chapter"
             >
               <Link href={`/dashboard/books/${slug}/chapters/${chapterId}/view`}>
-                <ArrowLeft className="h-4 w-4" />
-                Back to chapter
+                <Eye className="h-4 w-4" />
+                <span className="sr-only">View Chapter</span>
               </Link>
             </Button>
-            <BooksMenu 
-              slug={slug} 
-              bookId={chapter?.bookId ? String(chapter.bookId) : undefined} 
-              chapterId={chapterId}
-              hideEdit 
-            />
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Delete Chapter"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Delete Chapter</span>
+            </Button>
           </div>
-        </div>
-        <Separator />
-      </div>
+        }
+      />
 
       {error && (
         <Alert variant="destructive" className="mb-6">

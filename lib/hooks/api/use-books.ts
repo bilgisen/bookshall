@@ -100,6 +100,9 @@ export function useCreateBook() {
     onSuccess: () => {
       // Invalidate and refetch the books query to update the list
       queryClient.invalidateQueries({ queryKey: ['books'] });
+      // Also invalidate credits so balance and transactions refresh
+      queryClient.invalidateQueries({ queryKey: ['credits', 'balance'] });
+      queryClient.invalidateQueries({ queryKey: ['credits', 'transactions'] });
     },
   });
 }

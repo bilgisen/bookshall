@@ -138,7 +138,7 @@ export function CreditBalance({ showHistory = true }: CreditBalanceProps) {
                       ) : (
                         <>
                           <ArrowDownCircle className="mr-1 h-4 w-4 text-red-500" />
-                          <span className="font-mono text-red-600">-{tx.amount}</span>
+                          <span className="font-mono text-red-600">-{Math.abs(tx.amount)}</span>
                         </>
                       )}
                     </div>

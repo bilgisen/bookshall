@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookHeader } from '@/components/books/book-header';
@@ -39,7 +39,6 @@ const POLLING_INTERVAL = 5000; // 5 seconds
 const MAX_POLLING_ATTEMPTS = 60; // 5 minutes max
 
 export default function GenerateEbookPage() {
-  const router = useRouter();
   const { slug } = useParams<{ slug: string }>();
   const { data: session } = authClient.useSession();
   
@@ -137,12 +136,15 @@ export default function GenerateEbookPage() {
     setStatus('publishing');
     
     try {
-      const response = await fetch(`/api/books/${book.id}/generate-epub`, {
+      const response = await fetch(`/api/trigger-workflow`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(options),
+        body: JSON.stringify({
+          bookId: book.id,
+          options,
+        }),
       });
 
       if (!response.ok) {
@@ -207,7 +209,7 @@ export default function GenerateEbookPage() {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content */}
         <div className="flex-1">
-          <Card>
+          <Card className="bg-card/30">
             <CardHeader>
               <CardTitle>EPUB Generation Settings</CardTitle>
               <CardDescription>

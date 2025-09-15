@@ -23,9 +23,19 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    // If limit is 0 or missing, return empty result gracefully
+    const rawLimit = Number(searchParams.get('limit') ?? '0');
+    const rawOffset = Number(searchParams.get('offset') ?? '0');
+    if (!Number.isFinite(rawLimit) || rawLimit <= 0) {
+      return NextResponse.json({
+        success: true,
+        transactions: [],
+        pagination: { total: 0, limit: 0, offset: 0 },
+      });
+    }
     const params = transactionSchema.parse({
-      limit: searchParams.get('limit'),
-      offset: searchParams.get('offset'),
+      limit: rawLimit,
+      offset: rawOffset,
     });
 
     const result = await CreditService.getTransactionHistory({

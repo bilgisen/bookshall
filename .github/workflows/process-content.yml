@@ -7,17 +7,9 @@ on:
         description: 'ID of the book to publish'
         required: true
         type: string
-      user_id:
-        description: 'ID of the user triggering the publish'
-        required: true
-        type: string
-      session_id:
-        description: 'Session ID for tracking the publish process'
-        required: true
-        type: string
-      content_id:
-        description: 'Content ID for this publish'
-        required: true
+      workflow_id:
+        description: 'Internal workflow ID for callbacks'
+        required: false
         type: string
       include_metadata:
         description: 'Include metadata in EPUB'
@@ -62,9 +54,9 @@ jobs:
 
       # Inputs
       BOOK_ID: ${{ github.event.inputs.book_id }}
-      USER_ID: ${{ github.event.inputs.user_id }}
-      SESSION_ID: ${{ github.event.inputs.session_id }}
-      CONTENT_ID: ${{ github.event.inputs.content_id }}
+      # Derive CONTENT_ID from BOOK_ID to reduce number of inputs
+      CONTENT_ID: ${{ github.event.inputs.book_id }}
+      WORKFLOW_ID: ${{ github.event.inputs.workflow_id }}
       INCLUDE_METADATA: ${{ github.event.inputs.include_metadata || 'true' }}
       INCLUDE_COVER: ${{ github.event.inputs.include_cover || 'true' }}
       INCLUDE_TOC: ${{ github.event.inputs.include_toc || 'true' }}
@@ -130,6 +122,31 @@ jobs:
           EPUB_FILE=$(ls *.epub | head -n1)
           aws s3 cp "$EPUB_FILE" s3://$R2_BUCKET/$CONTENT_ID.epub \
             --endpoint-url="$R2_ENDPOINT"
+          echo "✅ Uploaded to R2"
+          if [ -n "$R2_PUBLIC_URL" ]; then
+            EXPORT_URL="$R2_PUBLIC_URL/$CONTENT_ID.epub"
+          else
+            # Fallback to endpoint URL if public URL not configured
+            EXPORT_URL="$R2_ENDPOINT/$R2_BUCKET/$CONTENT_ID.epub"
+          fi
+          echo "📡 Calling back application with EPUB URL: $EXPORT_URL"
+          # Resolve workflow ID (prefer input, fallback to metadata.workflowId)
+          WF_ID="$WORKFLOW_ID"
+          if [ -z "$WF_ID" ] && [ -n "$METADATA" ]; then
+            WF_ID=$(echo "$METADATA" | jq -r '.workflowId // empty')
+          fi
+          CALLBACK_URL="$NEXT_PUBLIC_APP_URL/api/workflows/complete"
+          AUTH_HEADER=""
+          if [ -n "$BOOKSHALL_API_KEY" ]; then
+            AUTH_HEADER="-H 'Authorization: Bearer $BOOKSHALL_API_KEY'"
+          elif [ -n "$GITHUB_TOKEN" ]; then
+            AUTH_HEADER="-H 'Authorization: Bearer $GITHUB_TOKEN'"
+          fi
+          curl -fsSL -X POST \
+            -H 'Content-Type: application/json' \
+            $AUTH_HEADER \
+            -d "{\"workflowId\": \"$WF_ID\", \"bookId\": \"$BOOK_ID\", \"epubUrl\": \"$EXPORT_URL\" }" \
+            "$CALLBACK_URL" || echo "⚠️ Callback failed"
       
       - name: Upload artifacts on failure
         if: failure()

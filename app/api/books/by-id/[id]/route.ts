@@ -254,10 +254,10 @@ export async function DELETE(
       // Then delete the book
       await tx.delete(books).where(whereClause(id, userId));
       
-      // Refund the book creation cost (250 credits)
+      // Refund the book creation cost (300 credits)
       await CreditService.earnCredits(
         userId,
-        250, // Hardcoded book creation cost
+        300, // Book creation cost
         'REFUND_BOOK_DELETION',
         { bookId: id }
       );

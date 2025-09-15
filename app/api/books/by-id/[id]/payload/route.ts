@@ -1,6 +1,6 @@
 // app/api/books/by-id/[id]/payload/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, asc } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/lib/db/edge-client';
 import { books, chapters } from '@/db/edge-schema';
@@ -40,14 +40,16 @@ const PublishOptionsSchema = z.object({
   language: data.language,
 }));
 
-// Data Types
-import type { Chapter } from '@/db/edge-schema';
 
-interface ChapterNode extends Omit<Chapter, 'parentChapterId' | 'bookId'> {
+interface ChapterNode {
+  id: string;
   bookId: string;
+  title: string;
+  order: number;
+  level: number;
   parentChapterId: string | null;
   children: ChapterNode[];
-  // Remove slug and publishedAt as they're not part of the Chapter type
+  [key: string]: unknown; // For additional properties like uuid
 }
 
 interface PayloadChapter {
@@ -126,7 +128,7 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
           eq(chapters.isDraft, false)
         )
       )
-      .orderBy(chapters.order);
+      .orderBy(asc(chapters.order));
     
     console.log(`Found ${allChapters.length} non-draft chapters for book ${bookId}`);
 
@@ -168,8 +170,7 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
         createdAt: chapter.createdAt ?? new Date(),
         updatedAt: chapter.updatedAt ?? new Date(),
         children: [],
-        slug: `chapter-${chapter.id}`,
-        uuid: chapter.uuid || undefined
+        uuid: chapter.uuid, // uuid is optional
       };
       
       chapterMap.set(String(chapter.id), node);
@@ -242,7 +243,9 @@ function flattenChapterTree(
 // Determine the appropriate heading level based on the chapter's level
 const titleTag = `h${Math.min(6, Math.max(1, chapter.level))}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   
-const url = `${baseUrl}/api/books/${bookId}/chapters/${chapter.id}`;
+// Use the public chapter HTML route with UUID
+const chapterUuid = chapter.uuid || chapter.id;
+const url = `${baseUrl}/api/chapters/${chapterUuid}/html`;
   
 const payloadChapter: PayloadChapter = {
 id: chapter.id,
@@ -323,8 +326,11 @@ console.log('Request URL:', request.url);
           );
         }
         
-        // User is authenticated, you can use user.id for authorization if needed
-        console.log('Authenticated user:', user.id);
+        // User is authenticated, safely access user.id
+        if (user) {
+          console.log('Authenticated user:', user.id);
+          // You can use user.id for authorization here if needed
+        }
       } catch (error) {
         console.error('Error verifying token:', error);
         // Continue with unauthenticated access

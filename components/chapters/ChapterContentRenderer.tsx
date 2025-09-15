@@ -1,3 +1,4 @@
+// components/chapters/ChapterContentRenderer.tsx
 import { JSONContent } from '@tiptap/react';
 import { Document } from '@tiptap/extension-document';
 import { Text } from '@tiptap/extension-text';

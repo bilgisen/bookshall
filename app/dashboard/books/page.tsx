@@ -75,7 +75,6 @@ export default function BooksPage() {
       <BookHeader 
         title="My Books" 
         description="Manage your book collection"
-        slug="" // Empty string to show the menu but disable book-specific actions
       >
         <Button asChild>
           <Link href="/dashboard/books/new">
@@ -116,7 +115,7 @@ export default function BooksPage() {
             >
               <Card className="h-full overflow-hidden transition-all bg-card/20 duration-200 hover:shadow-lg hover:border-primary/20 p-2">
                 <CardContent className="p-0 [&>div]:!m-0">
-                  <div className="relative aspect-[9/14] w-full">
+                  <div className="relative aspect-[3/5] w-full">
                     {book.coverImageUrl ? (
                       <Image
                         src={book.coverImageUrl}
