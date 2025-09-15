@@ -1,8 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Required inputs
+# Required inputs with fallbacks
+# Always require BOOK_ID
 : "${BOOK_ID:?book_id is required}"
+
+# Ensure METADATA is JSON (may contain userId, sessionId)
+METADATA="${METADATA:-{}}"
+if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
+  echo "::warning::Invalid JSON in metadata, using empty object"
+  METADATA="{}"
+fi
+
+# Derive USER_ID and SESSION_ID from METADATA if not provided
+USER_ID="${USER_ID:-}"
+if [ -z "$USER_ID" ]; then
+  USER_ID=$(echo "$METADATA" | jq -r '.userId // empty')
+fi
+
+SESSION_ID="${SESSION_ID:-}"
+if [ -z "$SESSION_ID" ]; then
+  SESSION_ID=$(echo "$METADATA" | jq -r '.sessionId // empty')
+fi
+
+# Derive CONTENT_ID from BOOK_ID if not provided
+CONTENT_ID="${CONTENT_ID:-$BOOK_ID}"
+
+# Validate requireds after derivation
 : "${USER_ID:?user_id is required}"
 : "${SESSION_ID:?session_id is required}"
 : "${CONTENT_ID:?content_id is required}"
@@ -20,12 +44,7 @@ INCLUDE_COVER="${INCLUDE_COVER:-true}"
 INCLUDE_TOC="${INCLUDE_TOC:-true}"
 INCLUDE_IMPRINT="${INCLUDE_IMPRINT:-true}"
 
-# Metadata validation
-METADATA="${METADATA:-{}}"
-if ! echo "$METADATA" | jq -e . >/dev/null 2>&1; then
-  echo "::warning::Invalid JSON in metadata, using empty object"
-  METADATA="{}"
-fi
+# METADATA is already validated above
 
 # Export vars for later steps
 echo "TOC_LEVEL=$TOC_LEVEL" >> $GITHUB_ENV
