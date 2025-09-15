@@ -172,6 +172,7 @@ export default function ChapterForm({
     parentChapterId: initialData?.parentChapterId ? String(initialData.parentChapterId) : null,
     order: initialData?.order ?? 0,
     level: initialData?.level ?? 1,
+    isDraft: initialData?.isDraft ?? false,
     bookId: String(bookId),
     wordCount: initialData?.wordCount ?? 0,
     readingTime: initialData?.readingTime ?? null,

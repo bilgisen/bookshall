@@ -117,7 +117,6 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
         isDraft: chapters.isDraft,
         wordCount: chapters.wordCount,
         readingTime: chapters.readingTime,
-        uuid: chapters.uuid,
         createdAt: chapters.createdAt,
         updatedAt: chapters.updatedAt,
       })
@@ -170,7 +169,6 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
         createdAt: chapter.createdAt ?? new Date(),
         updatedAt: chapter.updatedAt ?? new Date(),
         children: [],
-        uuid: chapter.uuid, // uuid is optional
       };
       
       chapterMap.set(String(chapter.id), node);

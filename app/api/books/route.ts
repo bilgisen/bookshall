@@ -5,13 +5,12 @@ import { books } from '@/db/schema';
 import { CreditService } from '@/lib/services/credit';
 import slugify from 'slugify';
 import { eq } from 'drizzle-orm';
-import type { User } from "better-auth/client";
 
 // GET /api/books - Get all books for the authenticated user
 export async function GET(request: Request) {
   try {
     const sessionResponse = await auth.api.getSession({ headers: request.headers });
-    const user = sessionResponse?.user as User | undefined;
+    const user = sessionResponse?.user;
 
     if (!user?.id) {
       return NextResponse.json(
@@ -39,7 +38,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const sessionResponse = await auth.api.getSession({ headers: request.headers });
-    const user = sessionResponse?.user as User | undefined;
+    const user = sessionResponse?.user;
 
     if (!user?.id) {
       return NextResponse.json(

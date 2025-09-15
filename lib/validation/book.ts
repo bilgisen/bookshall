@@ -105,6 +105,9 @@ export const bookFormSchema = bookSchema;
 
 // Export the inferred type
 export type BookFormValues = {
+  // UI state
+  activeTab?: 'main' | 'additional';
+  
   // Required fields
   title: string;
   author: string;

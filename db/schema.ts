@@ -276,7 +276,7 @@ export const chapters = pgTable("chapters", {
   content: text("content").notNull(), 
   order: integer("order").default(0).notNull(),
   level: integer("level").default(1).notNull(),
-  isDraft: boolean("isDraft").default(true),
+  isDraft: boolean("isDraft").default(false),
   wordCount: integer("wordCount").default(0).notNull(),
   readingTime: integer("readingTime"),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),

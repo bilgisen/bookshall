@@ -2,9 +2,27 @@ import { useFormContext } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookFormValues } from "@/lib/validation/book";
+import type { Book } from "@/types";
+
+type BookGenre = Book['genre'];
 
 export function AdditionalSection() {
-  const { register } = useFormContext<BookFormValues>();
+  const { setValue, watch } = useFormContext<BookFormValues>();
+  
+  // Watch the tags array and convert it to a string for the input
+  const tagsArray = watch("tags") || [];
+  const tagsString = tagsArray.join(", ");
+  
+  // Handle changes to the tags input
+  const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Split by comma and clean up the tags
+    const tags = value
+      .split(",")
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+    setValue("tags", tags, { shouldValidate: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -16,7 +34,9 @@ export function AdditionalSection() {
             <Input
               id="subtitle"
               placeholder="Book&apos;s subtitle"
-              {...register("subtitle")}
+              {...{ "data-testid": "subtitle" }}
+              onChange={(e) => setValue("subtitle", e.target.value)}
+              value={watch("subtitle") || ""}
             />
           </div>
 
@@ -27,7 +47,9 @@ export function AdditionalSection() {
               <Input
                 id="contributor"
                 placeholder="Contributor name"
-                {...register("contributor")}
+                {...{ "data-testid": "contributor" }}
+                onChange={(e) => setValue("contributor", e.target.value)}
+                value={watch("contributor") || ""}
               />
             </div>
             <div>
@@ -35,7 +57,9 @@ export function AdditionalSection() {
               <Input
                 id="translator"
                 placeholder="Translator name"
-                {...register("translator")}
+                {...{ "data-testid": "translator" }}
+                onChange={(e) => setValue("translator", e.target.value)}
+                value={watch("translator") || ""}
               />
             </div>
           </div>
@@ -46,8 +70,12 @@ export function AdditionalSection() {
               <Label htmlFor="genre">Genre</Label>
               <select
                 id="genre"
-                {...register("genre")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={watch("genre") || ""}
+                onChange={(e) => {
+                  const value = e.target.value as BookGenre;
+                  setValue("genre", value || null);
+                }}
               >
                 <option value="FICTION">Fiction</option>
                 <option value="NON_FICTION">Non-Fiction</option>
@@ -79,7 +107,8 @@ export function AdditionalSection() {
               <Input
                 id="tags"
                 placeholder="novel, classic, literature"
-                {...register("tags")}
+                value={tagsString}
+                onChange={handleTagsChange}
               />
             </div>
           </div>
@@ -91,7 +120,9 @@ export function AdditionalSection() {
               <Input
                 id="series"
                 placeholder="Series name"
-                {...register("series")}
+                {...{ "data-testid": "series" }}
+                onChange={(e) => setValue("series", e.target.value)}
+                value={watch("series") || ""}
               />
             </div>
             <div>
@@ -101,9 +132,9 @@ export function AdditionalSection() {
                 type="number"
                 min="1"
                 placeholder="1"
-                {...register("seriesIndex", {
-                  valueAsNumber: true,
-                })}
+                {...{ "data-testid": "seriesIndex" }}
+                onChange={(e) => setValue("seriesIndex", e.target.value ? Number(e.target.value) : null)}
+                value={watch("seriesIndex") || ""}
               />
             </div>
           </div>

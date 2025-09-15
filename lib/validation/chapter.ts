@@ -26,6 +26,7 @@ export const chapterFormSchema = z.object({
   ]).transform(val => typeof val === 'string' ? val : JSON.stringify(val)),
   order: z.number().int().min(0).default(0),
   level: z.number().int().min(1).default(1),
+  isDraft: z.boolean().default(false),
   wordCount: z.number().int().min(0).default(0),
   readingTime: z.number().int().min(0).nullable().optional(),
   createdAt: z.date().or(z.string()).optional(),

@@ -31,14 +31,14 @@ export default function Integrations() {
             <div className="grid gap-4 sm:grid-cols-2">
               <IntegrationCardHorizontal
                 title="ePub"
-                description="Create dynamic, reflowable digital books perfect for every e-reader."
+                description="Create dynamic, reflowable digital books perfect for every e-reader. Compatible with global platforms: Amazon, Apple Books, Google Books, Kobo, Barnes & Noble Nook and more"
               >
                 <Nextjs />
               </IntegrationCardHorizontal>
 
               <IntegrationCardHorizontal
                 title="Audiobook"
-                description="Transform your text into an engaging listen-anywhere audio experience"
+                description="Transform your text into an engaging listen-anywhere audio experience. Compatible with global platforms: Audible, Storytel, Apple Books, Google Play, Kobo, and more"
               >
                 <BetterAuth />
               </IntegrationCardHorizontal>

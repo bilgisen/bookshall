@@ -41,6 +41,9 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
     // @ts-expect-error - The type mismatch is due to optional fields in the schema
     resolver: zodResolver(bookFormSchema),
     defaultValues: {
+      // UI state
+      activeTab: 'main',
+      
       // Required fields with non-null defaults
       title: defaultValues?.title ?? '',
       author: defaultValues?.author ?? '',
@@ -261,19 +264,29 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
       >
         <div className="flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-2/3">
-            <Tabs defaultValue="main" className="w-full">
+            <Tabs 
+              value={methods.watch('activeTab') || 'main'}
+              onValueChange={(value) => methods.setValue('activeTab', value as 'main' | 'additional')}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="main">Main Information</TabsTrigger>
                 <TabsTrigger value="additional">Additional Information</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="main" className="space-y-6">
-                <MainSection />
-              </TabsContent>
-              
-              <TabsContent value="additional" className="space-y-6">
-                <AdditionalSection />
-              </TabsContent>
+              <div className="relative">
+                <div className={methods.watch('activeTab') === 'main' ? 'block' : 'hidden'}>
+                  <TabsContent value="main" forceMount className="space-y-6 m-0">
+                    <MainSection />
+                  </TabsContent>
+                </div>
+                
+                <div className={methods.watch('activeTab') === 'additional' ? 'block' : 'hidden'}>
+                  <TabsContent value="additional" forceMount className="space-y-6 m-0">
+                    <AdditionalSection />
+                  </TabsContent>
+                </div>
+              </div>
             </Tabs>
           </div>
           
