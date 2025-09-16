@@ -26,10 +26,13 @@ fi
 # Derive CONTENT_ID from BOOK_ID if not provided
 CONTENT_ID="${CONTENT_ID:-$BOOK_ID}"
 
-# Validate requireds after derivation
-: "${USER_ID:?user_id is required}"
-: "${SESSION_ID:?session_id is required}"
-: "${CONTENT_ID:?content_id is required}"
+# USER_ID and SESSION_ID are optional; warn if missing but do not fail
+if [ -z "$USER_ID" ]; then
+  echo "::warning::USER_ID is not provided; continuing without it"
+fi
+if [ -z "$SESSION_ID" ]; then
+  echo "::warning::SESSION_ID is not provided; continuing without it"
+fi
 
 # TOC Level
 TOC_LEVEL="${TOC_LEVEL:-3}"
@@ -52,6 +55,9 @@ echo "INCLUDE_METADATA=$INCLUDE_METADATA" >> $GITHUB_ENV
 echo "INCLUDE_COVER=$INCLUDE_COVER" >> $GITHUB_ENV
 echo "INCLUDE_TOC=$INCLUDE_TOC" >> $GITHUB_ENV
 echo "INCLUDE_IMPRINT=$INCLUDE_IMPRINT" >> $GITHUB_ENV
+echo "CONTENT_ID=$CONTENT_ID" >> $GITHUB_ENV
+echo "USER_ID=$USER_ID" >> $GITHUB_ENV
+echo "SESSION_ID=$SESSION_ID" >> $GITHUB_ENV
 
 # Create pandoc metadata.yaml
 echo "$METADATA" | jq -r '
