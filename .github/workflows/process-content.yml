@@ -26,11 +26,6 @@ on:
         required: false
         type: boolean
         default: true
-      include_imprint:
-        description: 'Include imprint in EPUB'
-        required: false
-        type: boolean
-        default: true
       toc_level:
         description: 'Table of contents depth level'
         required: false
@@ -60,7 +55,6 @@ jobs:
       INCLUDE_METADATA: ${{ github.event.inputs.include_metadata || 'true' }}
       INCLUDE_COVER: ${{ github.event.inputs.include_cover || 'true' }}
       INCLUDE_TOC: ${{ github.event.inputs.include_toc || 'true' }}
-      INCLUDE_IMPRINT: ${{ github.event.inputs.include_imprint || 'true' }}
       TOC_LEVEL: ${{ github.event.inputs.toc_level || '3' }}
       METADATA: ${{ github.event.inputs.metadata }}
       

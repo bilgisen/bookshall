@@ -9,7 +9,6 @@ type PublishOptions = {
   includeCover: boolean;
   includeTOC: boolean;
   tocLevel: number;
-  includeImprint: boolean;
 };
 
 type TriggerWorkflowRequest = {

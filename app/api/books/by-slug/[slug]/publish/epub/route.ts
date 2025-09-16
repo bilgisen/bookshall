@@ -73,7 +73,6 @@ export async function POST(
         includeCover: true,
         includeTOC: true,
         tocLevel: 3,
-        includeImprint: true,
         ...options,
       },
       metadata: {

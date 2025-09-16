@@ -1,0 +1,1 @@
+ALTER TABLE "chapters" ALTER COLUMN "isDraft" SET DEFAULT false;

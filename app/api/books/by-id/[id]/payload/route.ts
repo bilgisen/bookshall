@@ -26,10 +26,8 @@ const PublishOptionsSchema = z.object({
   includeCover: z.boolean().default(true),
   includeTOC: z.boolean().default(true),
   tocLevel: z.number().int().min(1).max(5).default(3),
-  includeImprint: z.boolean().default(true),
   language: z.string().default('en'),
   generate_toc: z.boolean().optional(),
-  include_imprint: z.boolean().optional(),
   toc_depth: z.number().int().min(1).max(5).optional(),
 }).transform(data => ({
   format: data.format,
@@ -37,7 +35,6 @@ const PublishOptionsSchema = z.object({
   includeCover: data.includeCover,
   includeTOC: data.generate_toc ?? data.includeTOC,
   tocLevel: data.toc_depth ?? data.tocLevel,
-  includeImprint: data.include_imprint ?? data.includeImprint,
   language: data.language,
 }));
 
@@ -296,45 +293,23 @@ console.log('Request URL:', request.url);
   try {
     const { id: bookId } = await params;
 
-    // Get the authorization token
+    // Get the authorization token (if any). This is a public route, so we never fail on bad tokens.
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.split(' ')[1];
-
-    // If token is provided, verify it
     if (token) {
       try {
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
-        
         const { data: { user }, error } = await supabase.auth.getUser(token);
-        
         if (error) {
-          console.error('Authentication error:', error);
-          return new NextResponse(
-            JSON.stringify({ 
-              success: false, 
-              error: 'Invalid or expired token' 
-            }),
-            { 
-              status: 401,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            }
-          );
-        }
-        
-        // User is authenticated, safely access user.id
-        if (user) {
+          console.warn('Authentication token invalid; proceeding as unauthenticated');
+        } else if (user) {
           console.log('Authenticated user:', user.id);
-          // You can use user.id for authorization here if needed
         }
-      } catch (error) {
-        console.error('Error verifying token:', error);
-        // Continue with unauthenticated access
+      } catch {
+        console.warn('Token verification error; proceeding as unauthenticated');
       }
     }
 
@@ -352,7 +327,6 @@ console.log('Request URL:', request.url);
     const options = PublishOptionsSchema.parse({
       ...queryParams,
       toc_depth: queryParams.toc_depth || queryParams.tocLevel,
-      include_imprint: queryParams.include_imprint || queryParams.includeImprint,
       generate_toc: queryParams.generate_toc || queryParams.includeTOC,
     });
 
@@ -440,7 +414,6 @@ console.log('Request URL:', request.url);
           generate_toc: options.includeTOC,
           toc_depth: options.tocLevel,
           embed_metadata: options.includeMetadata,
-          include_imprint: options.includeImprint,
           cover: true,
         },
         metadata: {

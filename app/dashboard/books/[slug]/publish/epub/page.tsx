@@ -23,7 +23,6 @@ interface PublishOptions {
   includeCover: boolean;
   includeTOC: boolean;
   tocLevel: number;
-  includeImprint: boolean;
 }
 
 interface WorkflowStatus {
@@ -67,7 +66,6 @@ export default function GenerateEbookPage() {
     includeCover: true,
     includeTOC: true,
     tocLevel: 3,
-    includeImprint: true
   });
 
   // Poll workflow status
@@ -267,15 +265,7 @@ export default function GenerateEbookPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="includeImprint" 
-                      checked={options.includeImprint}
-                      onCheckedChange={(checked) => handleOptionChange('includeImprint', checked === true)}
-                      disabled={isLoading}
-                    />
-                    <Label htmlFor="includeImprint">Include Imprint Page</Label>
-                  </div>
+                  {/* Include Imprint option removed */}
                 </div>
 
                 {/* Status and Actions */}

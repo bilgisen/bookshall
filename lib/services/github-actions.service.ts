@@ -10,7 +10,6 @@ export interface PublishOptions {
   includeCover: boolean;
   includeTOC: boolean;
   tocLevel: number;
-  includeImprint: boolean;
 }
 
 export interface TriggerWorkflowParams {
@@ -45,7 +44,6 @@ export class GitHubActionsService {
         include_cover: options.includeCover.toString(),
         include_toc: options.includeTOC.toString(),
         toc_level: options.tocLevel.toString(),
-        include_imprint: options.includeImprint.toString(),
         metadata: JSON.stringify({
           ...metadata,
           timestamp: new Date().toISOString(),

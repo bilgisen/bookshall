@@ -5,7 +5,6 @@ export interface WorkflowOptions {
   includeCover?: boolean;
   includeTOC?: boolean;
   tocLevel?: number;
-  includeImprint?: boolean;
   [key: string]: unknown;
 }
 

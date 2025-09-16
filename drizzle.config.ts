@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import { defineConfig } from "drizzle-kit";
 
 // Load environment variables
-config({ path: '.env' });
+config({ path: '.env.local' });
 
 // Validate required environment variables
 if (!process.env.POSTGRES_URL_NON_POOLING) {

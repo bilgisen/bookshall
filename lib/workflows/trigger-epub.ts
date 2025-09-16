@@ -8,7 +8,6 @@ export interface PublishOptions {
   includeCover: boolean;
   includeTOC: boolean;
   tocLevel: number;
-  includeImprint: boolean;
 }
 
 interface TriggerEpubWorkflowParams {
@@ -95,7 +94,6 @@ async function processWorkflow(
           include_cover: options.includeCover ? 'true' : 'false',
           include_toc: options.includeTOC ? 'true' : 'false',
           toc_level: options.tocLevel?.toString() || '3',
-          include_imprint: options.includeImprint ? 'true' : 'false',
           metadata: JSON.stringify({ ...(metadata || {}), workflowId }),
         },
       }),
