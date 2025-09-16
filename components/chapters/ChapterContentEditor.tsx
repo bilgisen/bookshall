@@ -87,7 +87,8 @@ export default function ChapterContentEditor({
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('/api/upload', {
+      // Use the dedicated R2 upload route
+      const response = await fetch('/api/upload-image', {
         method: 'POST',
         body: formData,
         credentials: 'include', // Important for auth cookies
@@ -99,6 +100,11 @@ export default function ChapterContentEditor({
       }
       
       const data = await response.json();
+      // Our API returns { url }
+      if (typeof data?.url === 'string' && data.url.length > 0) {
+        return data.url;
+      }
+      // Backward compatibility fallbacks
       return data.file?.url || data.file?.src;
     } catch (error) {
       console.error('Error uploading image:', error);

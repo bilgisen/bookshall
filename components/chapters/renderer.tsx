@@ -18,9 +18,27 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
 
   let html = '';
   try {
-    // Eğer content string ise, direkt HTML kabul et
+    // Eğer content string ise, önce TipTap JSON olma ihtimalini kontrol et
     if (typeof content === 'string') {
-      html = content;
+      const trimmed = content.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed) as JSONContent;
+          if (parsed && typeof parsed === 'object') {
+            // TipTap JSON → HTML dönüşümü
+            html = generateHTML(parsed, [StarterKit]);
+          } else {
+            // JSON değilse veya beklenmedik yapıdaysa, olduğu gibi bırak
+            html = content;
+          }
+        } catch {
+          // Geçerli JSON değilse, olduğu gibi HTML kabul et
+          html = content;
+        }
+      } else {
+        // JSON değilse HTML olarak kabul et
+        html = content;
+      }
     } else {
       // TipTap JSON → HTML dönüşümü
       html = generateHTML(content, [StarterKit]);
@@ -39,3 +57,4 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
     />
   );
 }
+

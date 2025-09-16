@@ -13,12 +13,8 @@ interface ChapterHeaderProps {
   action?: React.ReactNode;
 }
 
-export function ChapterHeader({
-  title,
-  bookName,
-  bookSlug,
-  action,
-}: Omit<ChapterHeaderProps, 'chapterId'>) {
+export function ChapterHeader(props: ChapterHeaderProps) {
+  const { title, bookName, bookSlug, action } = props;
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">

@@ -1,6 +1,9 @@
 import { uploadImageAssets } from "@/lib/upload-image";
 import { NextRequest, NextResponse } from "next/server";
 
+// Ensure this route runs on the Node.js runtime (required for AWS SDK v3)
+export const runtime = 'nodejs';
+
 export const config = {
   api: { bodyParser: false }, // Disable default body parsing
 };
@@ -41,17 +44,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert file to buffer
+    // Convert file to Uint8Array (Node Buffer may not be available in all runtimes)
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const bytes = new Uint8Array(arrayBuffer);
 
     // Generate a unique filename with original extension
     const fileExt = file.name.split(".").pop() || "";
     const timestamp = Date.now();
     const filename = `upload-${timestamp}.${fileExt || "png"}`;
 
-    // Upload the file
-    const url = await uploadImageAssets(buffer, filename);
+    // Upload the file to Cloudflare R2
+    const url = await uploadImageAssets(bytes, filename, file.type || 'image/*');
 
     return NextResponse.json({ url });
   } catch (error) {
