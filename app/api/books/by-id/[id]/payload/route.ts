@@ -79,7 +79,6 @@ interface EbookPayload {
     generate_toc: boolean;
     toc_depth: number;
     embed_metadata: boolean;
-    include_imprint: boolean;
     cover: boolean;
   };
   metadata: {
