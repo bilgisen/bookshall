@@ -13,7 +13,7 @@ export function MainSection() {
         <div className="space-y-4">
           {/* Book Title */}
           <div>
-            <Label htmlFor="title">Book Title*</Label>
+            <Label htmlFor="title" className="text-accent-foreground/30 py-2">Book Title*</Label>
             <Input
               id="title"
               placeholder="Enter book title"
@@ -27,7 +27,7 @@ export function MainSection() {
 
           {/* Author */}
           <div>
-            <Label htmlFor="author">Author*</Label>
+            <Label htmlFor="author" className="text-accent-foreground/30 py-2">Author*</Label>
             <Input
               id="author"
               placeholder="Enter author name"
@@ -42,7 +42,7 @@ export function MainSection() {
           {/* Publisher & Website */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="publisher">Publisher*</Label>
+              <Label htmlFor="publisher" className="text-accent-foreground/30 py-2">Publisher*</Label>
               <Input
                 id="publisher"
                 placeholder="Publisher name"
@@ -50,7 +50,7 @@ export function MainSection() {
               />
             </div>
             <div>
-              <Label htmlFor="publisherWebsite">Publisher Website</Label>
+              <Label htmlFor="publisherWebsite" className="text-accent-foreground/30 py-2">Publisher Website</Label>
               <Input
                 id="publisherWebsite"
                 type="url"
@@ -63,7 +63,7 @@ export function MainSection() {
           {/* ISBN, Language, Year */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="isbn">ISBN</Label>
+              <Label htmlFor="isbn" className="text-accent-foreground/30 py-2">ISBN</Label>
               <Input
                 id="isbn"
                 placeholder="ISBN number"
@@ -71,7 +71,7 @@ export function MainSection() {
               />
             </div>
             <div>
-              <Label htmlFor="language">Language*</Label>
+              <Label htmlFor="language" className="text-accent-foreground/30 py-2">Language*</Label>
               <select
                 id="language"
                 {...register("language")}
@@ -86,7 +86,7 @@ export function MainSection() {
               </select>
             </div>
             <div>
-              <Label htmlFor="publishYear">Publication Year</Label>
+              <Label htmlFor="publishYear" className="text-accent-foreground/30 py-2">Publication Year</Label>
               <Input
                 id="publishYear"
                 type="number"
@@ -114,7 +114,7 @@ export function MainSection() {
 
           {/* Description */}
           <div>
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description" className="text-accent-foreground/30 py-2">Description</Label>
             <Textarea
               id="description"
               placeholder="Book description"

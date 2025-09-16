@@ -30,7 +30,7 @@ export function AdditionalSection() {
         <div className="space-y-4">
           {/* Subtitle */}
           <div>
-            <Label htmlFor="subtitle">Subtitle</Label>
+            <Label htmlFor="subtitle" className="text-accent-foreground/30 py-2">Subtitle</Label>
             <Input
               id="subtitle"
               placeholder="Book&apos;s subtitle"
@@ -43,7 +43,7 @@ export function AdditionalSection() {
           {/* Contributor & Translator */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="contributor">Contributor</Label>
+              <Label htmlFor="contributor" className="text-accent-foreground/30 py-2">Contributor</Label>
               <Input
                 id="contributor"
                 placeholder="Contributor name"
@@ -53,7 +53,7 @@ export function AdditionalSection() {
               />
             </div>
             <div>
-              <Label htmlFor="translator">Translator</Label>
+              <Label htmlFor="translator" className="text-accent-foreground/30 py-2">Translator</Label>
               <Input
                 id="translator"
                 placeholder="Translator name"
@@ -67,7 +67,7 @@ export function AdditionalSection() {
           {/* Genre & Tags */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="genre">Genre</Label>
+              <Label htmlFor="genre" className="text-accent-foreground/30 py-2">Genre</Label>
               <select
                 id="genre"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -103,7 +103,7 @@ export function AdditionalSection() {
               </select>
             </div>
             <div>
-              <Label htmlFor="tags">Tags (comma separated)</Label>
+              <Label htmlFor="tags" className="text-accent-foreground/30 py-2">Tags (comma separated)</Label>
               <Input
                 id="tags"
                 placeholder="novel, classic, literature"
@@ -116,7 +116,7 @@ export function AdditionalSection() {
           {/* Series & Series Index */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="series">Series Name</Label>
+              <Label htmlFor="series" className="text-accent-foreground/30 py-2">Series Name</Label>
               <Input
                 id="series"
                 placeholder="Series name"
@@ -126,7 +126,7 @@ export function AdditionalSection() {
               />
             </div>
             <div>
-              <Label htmlFor="seriesIndex">Series Number</Label>
+              <Label htmlFor="seriesIndex" className="text-accent-foreground/30 py-2">Series Number</Label>
               <Input
                 id="seriesIndex"
                 type="number"

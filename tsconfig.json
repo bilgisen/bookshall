@@ -29,7 +29,8 @@
       "@/types/*": ["./types/*"],
       "ioredis": ["@types/ioredis"],
       "tailwindcss": ["./node_modules/tailwindcss/types/config"]
-    }
+    },
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "**/*.ts",

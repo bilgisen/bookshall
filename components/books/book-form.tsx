@@ -25,7 +25,6 @@ import type { Book } from "@/types/book";
 import { BookCoverSection } from "./sections/book-cover-section";
 import { MainSection } from "./sections/main-section";
 import { AdditionalSection } from "./sections/additional-section";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BookFormProps {
   defaultValues?: Partial<Book>;
@@ -64,13 +63,17 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
       genre: defaultValues?.genre ?? null,
       series: defaultValues?.series ?? null,
       seriesIndex: defaultValues?.seriesIndex ?? null,
-      tags: defaultValues?.tags ?? [],
+      tags: Array.isArray(defaultValues?.tags)
+        ? defaultValues.tags
+        : typeof defaultValues?.tags === 'string'
+          ? (defaultValues.tags as string).split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)
+          : [],
       coverImageUrl: defaultValues?.coverImageUrl ?? null,
       epubUrl: defaultValues?.epubUrl ?? null
     } as BookFormValues,
     mode: "onTouched",
     criteriaMode: "firstError",
-    shouldUnregister: true,
+    shouldUnregister: false, // Değerler tab değiştirince kaybolmasın
     reValidateMode: "onChange"
   });
   
@@ -186,18 +189,10 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
   const handleFormSubmit: SubmitHandler<BookFormValues> = async (formData) => {
     console.log('Form submission started with data:', formData);
     try {
-      // Process tags - convert string to array and trim each tag
-      let tagsArray: string[] = [];
-      const tagsValue = formData.tags as unknown; // Type assertion to handle unknown type
-      
-      if (typeof tagsValue === 'string') {
-        tagsArray = tagsValue
-          .split(',')
-          .map((tag: string) => tag.trim())
-          .filter((tag: string) => tag.length > 0);
-      } else if (Array.isArray(tagsValue)) {
-        tagsArray = tagsValue.filter((tag): tag is string => typeof tag === 'string');
-      }
+      // Process tags - artık split/map gereksiz, tags zaten dizi
+      const tagsArray: string[] = Array.isArray(formData.tags)
+        ? formData.tags.filter((tag): tag is string => typeof tag === 'string')
+        : [];
 
       // Create a properly typed submission data object
       const submissionData: BookFormValues = {
@@ -264,32 +259,12 @@ export function BookForm({ defaultValues, onSubmit, isSubmitting = false, redire
       >
         <div className="flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-2/3">
-            <Tabs 
-              value={methods.watch('activeTab') || 'main'}
-              onValueChange={(value) => methods.setValue('activeTab', value as 'main' | 'additional')}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="main">Main Information</TabsTrigger>
-                <TabsTrigger value="additional">Additional Information</TabsTrigger>
-              </TabsList>
-              
-              <div className="relative">
-                <div className={methods.watch('activeTab') === 'main' ? 'block' : 'hidden'}>
-                  <TabsContent value="main" forceMount className="space-y-6 m-0">
-                    <MainSection />
-                  </TabsContent>
-                </div>
-                
-                <div className={methods.watch('activeTab') === 'additional' ? 'block' : 'hidden'}>
-                  <TabsContent value="additional" forceMount className="space-y-6 m-0">
-                    <AdditionalSection />
-                  </TabsContent>
-                </div>
-              </div>
-            </Tabs>
+            {/* Tab yapısı kaldırıldı, MainSection ve AdditionalSection alt alta */}
+            <div className="space-y-6">
+              <MainSection />
+              <AdditionalSection />
+            </div>
           </div>
-          
           <div className="w-full md:w-1/3">
             <div className="space-y-6">
               <BookCoverSection />
