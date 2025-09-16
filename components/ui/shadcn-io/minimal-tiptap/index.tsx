@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Toggle } from '@/components/ui/toggle';
@@ -22,6 +23,7 @@ import {
   Minus,
   Undo,
   Redo,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +33,7 @@ interface MinimalTiptapProps {
   placeholder?: string;
   editable?: boolean;
   className?: string;
+  onImageUpload?: (file: File) => Promise<string>;
 }
 
 function MinimalTiptap({
@@ -39,16 +42,131 @@ function MinimalTiptap({
   placeholder = 'Start typing...',
   editable = true,
   className,
+  onImageUpload,
 }: MinimalTiptapProps) {
   const [isMounted, setIsMounted] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   React.useEffect(() => {
     setIsMounted(true);
     return () => setIsMounted(false);
   }, []);
+
+  const addImage = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editor) return;
+
+    try {
+      // Create a temporary URL for the image preview
+      const tempImageUrl = URL.createObjectURL(file);
+      
+      // Create a unique ID for this upload to track it
+      const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Insert a temporary image with loading state
+      const imageNode = {
+        type: 'image',
+        attrs: {
+          src: tempImageUrl,
+          alt: 'Uploading...',
+          title: 'Uploading...',
+          'data-upload-id': uploadId,
+          class: 'opacity-50 transition-opacity duration-300'
+        }
+      };
+      
+      // Insert the temporary image
+      editor.chain().focus().insertContent(imageNode).run();
+      
+      // If onImageUpload is provided, use it to upload the image
+      if (onImageUpload) {
+        try {
+          const imageUrl = await onImageUpload(file);
+          
+          // Find and update the image node with the final URL
+          editor.commands.command(({ tr }) => {
+            tr.doc.descendants((node, pos) => {
+              if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+                tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  src: imageUrl,
+                  alt: file.name,
+                  title: file.name,
+                  'data-upload-id': undefined,
+                  class: 'opacity-100'
+                });
+                return false; // Stop traversal
+              }
+              return true;
+            });
+            return true;
+          });
+          
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          
+          // Update the image to show error state
+          editor.commands.command(({ tr }) => {
+            tr.doc.descendants((node, pos) => {
+              if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+                tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  src: '',
+                  alt: 'Upload failed',
+                  title: 'Upload failed',
+                  'data-upload-id': undefined,
+                  class: 'border-2 border-red-500'
+                });
+                return false;
+              }
+              return true;
+            });
+            return true;
+          });
+          
+          throw error;
+        }
+      } else {
+        // If no onImageUpload is provided, just use the object URL
+        editor.commands.command(({ tr }) => {
+          tr.doc.descendants((node, pos) => {
+            if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+              tr.setNodeMarkup(pos, undefined, {
+                ...node.attrs,
+                alt: file.name,
+                title: file.name,
+                'data-upload-id': undefined,
+                class: 'opacity-100'
+              });
+              return false;
+            }
+            return true;
+          });
+          return true;
+        });
+      }
+    } finally {
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
   const editor = useEditor({
     content: isMounted ? content : '',
     extensions: [
+      Image.configure({
+        HTMLAttributes: {
+          class: 'rounded-lg max-w-full h-auto my-4',
+        },
+        allowBase64: true,
+      }),
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3],
@@ -195,6 +313,23 @@ function MinimalTiptap({
         >
           <Code className="h-4 w-4" />
         </Toggle>
+
+        <Separator orientation="vertical" className="h-6" />
+
+        <Toggle
+          size="sm"
+          onPressedChange={addImage}
+        >
+          <ImageIcon className="h-4 w-4" />
+        </Toggle>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImageUpload}
+          accept="image/*"
+          className="hidden"
+          multiple={false}
+        />
 
         <Separator orientation="vertical" className="h-6" />
 

@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { chapters, books } from '@/db';
 import { generateJSON } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
@@ -555,6 +555,89 @@ export async function PATCH(
     }
     
     console.log('Update values with dates:', JSON.stringify(validUpdate, null, 2));
+
+    // If reordering is requested (order provided), compute gap-based new order using siblings
+    if (updateData.order !== undefined || updateData.parentChapterId !== undefined) {
+      // Determine target parent (new or existing)
+      const targetParentId = (
+        updateData.parentChapterId !== undefined
+          ? (updateData.parentChapterId === '' ? null : updateData.parentChapterId)
+          : chapterToUpdate.parentChapterId
+      );
+
+      // Determine desiredIndex from incoming order (treated as index from Arborist), clamp to [0, siblings.length]
+      const desiredIndex = Math.max(0, Math.min(
+        typeof updateData.order === 'number' ? updateData.order : Number.MAX_SAFE_INTEGER,
+        Number.MAX_SAFE_INTEGER
+      ));
+
+      // Fetch siblings (excluding current)
+      const siblings = await db
+        .select({ id: chapters.id, order: chapters.order })
+        .from(chapters)
+        .where(and(
+          eq(chapters.bookId, book.id),
+          targetParentId ? eq(chapters.parentChapterId, String(targetParentId)) : sql`(${chapters.parentChapterId} IS NULL)`
+        ));
+
+      const filtered = siblings.filter(s => s.id !== chapterId);
+      const byOrder = filtered.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      // Compute prev/next orders around desired index
+      const clampedIndex = Math.max(0, Math.min(desiredIndex, byOrder.length));
+      const prevOrder = clampedIndex > 0 ? (byOrder[clampedIndex - 1]?.order ?? 0) : 0;
+      const nextOrder = clampedIndex < byOrder.length ? (byOrder[clampedIndex]?.order ?? 0) : 0;
+
+      const BASE_GAP = 10;
+      let newOrder: number;
+
+      if (clampedIndex === 0 && byOrder.length === 0) {
+        newOrder = BASE_GAP;
+      } else if (clampedIndex === 0) {
+        // Insert at start
+        newOrder = Math.max(1, nextOrder - BASE_GAP);
+        if (newOrder <= 0) newOrder = Math.floor(nextOrder / 2) || 1;
+      } else if (clampedIndex === byOrder.length) {
+        // Insert at end
+        newOrder = (prevOrder || 0) + BASE_GAP;
+      } else {
+        // Insert between prev and next
+        const gap = nextOrder - prevOrder;
+        if (gap > 1) {
+          newOrder = Math.floor(prevOrder + gap / 2);
+        } else {
+          // Renormalize all siblings to multiples of BASE_GAP
+          for (let i = 0; i < byOrder.length; i++) {
+            const target = (i + 1) * BASE_GAP;
+            if (byOrder[i].order !== target) {
+              await db.update(chapters)
+                .set({ order: target })
+                .where(and(eq(chapters.id, byOrder[i].id), eq(chapters.bookId, book.id)));
+              byOrder[i].order = target;
+            }
+          }
+          const newPrev = clampedIndex > 0 ? byOrder[clampedIndex - 1].order : 0;
+          const newNext = clampedIndex < byOrder.length ? byOrder[clampedIndex].order : (byOrder[byOrder.length - 1].order + BASE_GAP);
+          newOrder = newPrev + Math.max(1, Math.floor((newNext - newPrev) / 2));
+        }
+      }
+
+      validUpdate.order = newOrder;
+
+      // Adjust level if parent changed and level not explicitly provided
+      if (updateData.parentChapterId !== undefined && updateData.level === undefined) {
+        if (targetParentId) {
+          const [parent] = await db
+            .select({ level: chapters.level })
+            .from(chapters)
+            .where(and(eq(chapters.id, String(targetParentId)), eq(chapters.bookId, book.id)))
+            .limit(1);
+          validUpdate.level = parent ? (Number(parent.level) || 1) + 1 : 1;
+        } else {
+          validUpdate.level = 1;
+        }
+      }
+    }
 
     // Update the chapter
     const [updatedChapter] = await db

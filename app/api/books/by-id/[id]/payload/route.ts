@@ -22,13 +22,13 @@ const corsHeaders = {
 // Types and Schemas
 const PublishOptionsSchema = z.object({
   format: z.enum(['epub']).default('epub'),
-  includeMetadata: z.boolean().default(true),
-  includeCover: z.boolean().default(true),
-  includeTOC: z.boolean().default(true),
-  tocLevel: z.number().int().min(1).max(5).default(3),
+  includeMetadata: z.coerce.boolean().default(true),
+  includeCover: z.coerce.boolean().default(true),
+  includeTOC: z.coerce.boolean().default(true),
+  tocLevel: z.coerce.number().int().min(1).max(5).default(3),
   language: z.string().default('en'),
-  generate_toc: z.boolean().optional(),
-  toc_depth: z.number().int().min(1).max(5).optional(),
+  generate_toc: z.coerce.boolean().optional(),
+  toc_depth: z.coerce.number().int().min(1).max(5).optional(),
 }).transform(data => ({
   format: data.format,
   includeMetadata: data.includeMetadata,
@@ -55,6 +55,7 @@ interface PayloadChapter {
   title: string;
   url: string;
   order: number;
+  level: number;
   parent: string | null;
   title_tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
@@ -204,14 +205,20 @@ async function buildChapterTree(bookId: string): Promise<ChapterNode[]> {
       console.log(`Added chapter ${chapterId} to root chapters`);
     }
 
-    // Sort chapters by order
+    // Sort chapters by order and assign stable sequential order when missing (0 or negative)
     const sortChapters = (nodes: ChapterNode[]): ChapterNode[] => {
-      return nodes
-        .sort((a, b) => a.order - b.order)
-        .map(node => ({
+      // First, sort by existing order ascending
+      const sorted = [...nodes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      // Then, assign a stable order index to nodes lacking a positive order
+      const stabilized = sorted.map((node, idx) => {
+        const effectiveOrder = typeof node.order === 'number' && node.order > 0 ? node.order : idx + 1;
+        return {
           ...node,
+          order: effectiveOrder,
           children: sortChapters(node.children),
-        }));
+        } as ChapterNode;
+      });
+      return stabilized;
     };
 
     const sortedRootChapters = sortChapters(rootChapters);
@@ -245,12 +252,13 @@ const chapterUuid = chapter.uuid || chapter.id;
 const url = `${baseUrl}/api/chapters/${chapterUuid}/html`;
   
 const payloadChapter: PayloadChapter = {
-id: chapter.id,
-title: chapter.title,
-url,
-order: chapter.order,
-parent: parentId,
-title_tag: titleTag,
+  id: chapter.id,
+  title: chapter.title,
+  url,
+  order: Number(chapter.order ?? 0),
+  level: Number(chapter.level ?? level),
+  parent: parentId,
+  title_tag: titleTag,
 };
   
 console.log(`Flattened chapter: ${chapter.title} (ID: ${chapter.id}, Level: ${chapter.level}, Order: ${chapter.order})`);
@@ -389,7 +397,12 @@ console.log('Request URL:', request.url);
       const baseUrl = getBaseUrl(request);
 
       // Flatten the chapter tree for the payload
-      const flattenedChapters = flattenChapterTree(chapterTree, bookId, baseUrl);
+      const flattenedChaptersRaw = flattenChapterTree(chapterTree, bookId, baseUrl);
+      // Assign strict sequential order for pandoc stability
+      const flattenedChapters = flattenedChaptersRaw.map((ch, idx) => ({
+        ...ch,
+        order: idx + 1,
+      }));
       console.log('Flattened chapters count:', flattenedChapters.length);
 
       // Build the final payload

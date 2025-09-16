@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { chapters, books } from '@/db';
 
@@ -214,6 +214,34 @@ export async function POST(
       };
     }
 
+    // Derive level from parent when not provided
+    let derivedLevel = Number(level) || 0;
+    if (!derivedLevel) {
+      if (parentChapterId) {
+        const [parent] = await db
+          .select({ level: chapters.level })
+          .from(chapters)
+          .where(and(eq(chapters.id, String(parentChapterId)), eq(chapters.bookId, book.id)))
+          .limit(1);
+        derivedLevel = parent ? (Number(parent.level) || 1) + 1 : 1;
+      } else {
+        derivedLevel = 1;
+      }
+    }
+
+    // Derive order as next after current max among siblings when not provided
+    let derivedOrder = typeof order === 'number' ? order : 0;
+    if (!(derivedOrder > 0)) {
+      const [{ maxOrder }] = await db
+        .select({ maxOrder: sql<number>`COALESCE(MAX(${chapters.order}), 0)` })
+        .from(chapters)
+        .where(and(
+          eq(chapters.bookId, book.id),
+          parentChapterId ? eq(chapters.parentChapterId, String(parentChapterId)) : sql`(${chapters.parentChapterId} IS NULL)`
+        ));
+      derivedOrder = (Number(maxOrder) || 0) + 10;
+    }
+
     // Create the chapter
     const [chapter] = await db
       .insert(chapters)
@@ -222,8 +250,8 @@ export async function POST(
         content: JSON.stringify(parsedContent),
         bookId: book.id,
         parentChapterId: parentChapterId || null,
-        order: order || 0,
-        level: level || 1,
+        order: derivedOrder,
+        level: derivedLevel,
         wordCount: typeof content === 'string' ? content.split(/\s+/).length : 0,
         readingTime: typeof content === 'string' ? Math.ceil(content.split(/\s+/).length / 200) : 1,
       })
