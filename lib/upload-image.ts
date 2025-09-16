@@ -7,6 +7,11 @@ const getEnvVar = (key: string): string => {
   return value;
 };
 
+const getOptionalEnvVar = (key: string): string | undefined => {
+  const value = process.env[key];
+  return value && value.trim().length > 0 ? value : undefined;
+};
+
 const client = new S3Client({
   region: "auto",
   endpoint: `https://${getEnvVar("CLOUDFLARE_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
@@ -26,7 +31,14 @@ export async function uploadImageAssets(
   const awsBody = body;
 
   const bucketName = getEnvVar("R2_UPLOAD_IMAGE_BUCKET_NAME");
-  const r2PublicDomain = `https://pub-3cfc29e59e5243f4917194e2466f5fa0.r2.dev`;
+  // Prefer custom domain if provided, else NEXT_PUBLIC_IMAGE_BASE_URL, else fallback to default r2.dev public bucket
+  const customDomain =
+    getOptionalEnvVar("R2_PUBLIC_BUCKET_DOMAIN") ||
+    getOptionalEnvVar("NEXT_PUBLIC_IMAGE_BASE_URL") ||
+    getOptionalEnvVar("NEXT_PUBLIC_MEDIA_BASE_URL");
+  const r2PublicDomain = customDomain
+    ? (customDomain.startsWith("http") ? customDomain.replace(/\/$/, "") : `https://${customDomain.replace(/\/$/, "")}`)
+    : `https://pub-3cfc29e59e5243f4917194e2466f5fa0.r2.dev`;
 
   try {
     const command = new PutObjectCommand({

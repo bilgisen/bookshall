@@ -353,6 +353,40 @@ function ClientSideChapterEditor() {
           }
           
           try {
+            // Preprocess content: upload any blob: images to R2 and replace src before saving (affects auto-save and manual save)
+            if (typeof formData.content === 'string') {
+              const html = formData.content.trim();
+              if (html.startsWith('<') && (html.includes('src="blob:') || html.includes("src='blob:"))) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const images = Array.from(doc.querySelectorAll('img[src^="blob:"]')) as HTMLImageElement[];
+                for (const img of images) {
+                  const blobUrl = img.getAttribute('src');
+                  if (!blobUrl) continue;
+                  try {
+                    const res = await fetch(blobUrl);
+                    const blob = await res.blob();
+                    const filename = `editor-upload-${Date.now()}-${Math.random().toString(36).slice(2)}.${(blob.type.split('/')[1] || 'png')}`;
+                    const fd = new FormData();
+                    fd.append('file', blob, filename);
+                    const uploadRes = await fetch('/api/upload-image', { method: 'POST', body: fd, credentials: 'include' });
+                    if (uploadRes.ok) {
+                      const { url } = await uploadRes.json();
+                      if (typeof url === 'string' && url.length > 0) {
+                        img.setAttribute('src', url);
+                        img.setAttribute('alt', img.getAttribute('alt') || filename);
+                        img.setAttribute('title', img.getAttribute('title') || filename);
+                      }
+                    } else {
+                      console.error('Failed to upload blob image during auto-save');
+                    }
+                  } catch (e) {
+                    console.error('Error uploading blob image during auto-save:', e);
+                  }
+                }
+                formData.content = doc.body.innerHTML;
+              }
+            }
             // Prepare update data with type safety
             const updateData: Record<string, unknown> = {};
             

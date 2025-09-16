@@ -261,10 +261,46 @@ export default function ChapterForm({
         parentChapterId: data.parentChapterId ? Number(data.parentChapterId) : null,
       };
       
-      // Ensure content is properly formatted
+      // Ensure content is properly formatted and upload any blob: images at save time
       if (formData.content) {
+        // If content is an HTML string, scan for blob: images and upload them
         if (typeof formData.content === 'string' && formData.content.trim().startsWith('<')) {
-          // If it's HTML, leave it as is
+          const html = formData.content;
+          // Only do work if blob: URLs are present
+          if (html.includes('src="blob:') || html.includes("src='blob:")) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const images = Array.from(doc.querySelectorAll('img[src^="blob:"]')) as HTMLImageElement[];
+            for (const img of images) {
+              const blobUrl = img.getAttribute('src');
+              if (!blobUrl) continue;
+              try {
+                const res = await fetch(blobUrl);
+                const blob = await res.blob();
+                const filename = `editor-upload-${Date.now()}-${Math.random().toString(36).slice(2)}.${(blob.type.split('/')[1] || 'png')}`;
+                const fd = new FormData();
+                // Append the blob directly; Next API reads as File on the server
+                fd.append('file', blob, filename);
+                const uploadRes = await fetch('/api/upload-image', { method: 'POST', body: fd, credentials: 'include' });
+                if (uploadRes.ok) {
+                  const { url } = await uploadRes.json();
+                  if (typeof url === 'string' && url.length > 0) {
+                    img.setAttribute('src', url);
+                    img.setAttribute('alt', img.getAttribute('alt') || filename);
+                    img.setAttribute('title', img.getAttribute('title') || filename);
+                  }
+                } else {
+                  // If upload fails, leave the blob URL; server-side renderer won't display it but avoid blocking save
+                  console.error('Failed to upload blob image during save');
+                }
+              } catch (e) {
+                console.error('Error uploading blob image during save:', e);
+              }
+            }
+            // Serialize the updated HTML back
+            formData.content = doc.body.innerHTML;
+          }
+          // else leave HTML as is
         } else if (typeof formData.content === 'object') {
           // If it's an object, stringify it
           formData.content = JSON.stringify(formData.content);

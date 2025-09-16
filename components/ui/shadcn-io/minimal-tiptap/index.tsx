@@ -66,17 +66,13 @@ function MinimalTiptap({
       // Create a temporary URL for the image preview
       const tempImageUrl = URL.createObjectURL(file);
       
-      // Create a unique ID for this upload to track it
-      const uploadId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Insert a temporary image with loading state
+      // Insert a temporary image with loading state (use blob URL as a key)
       const imageNode = {
         type: 'image',
         attrs: {
           src: tempImageUrl,
           alt: 'Uploading...',
           title: 'Uploading...',
-          'data-upload-id': uploadId,
           class: 'opacity-50 transition-opacity duration-300'
         }
       };
@@ -89,16 +85,15 @@ function MinimalTiptap({
         try {
           const imageUrl = await onImageUpload(file);
           
-          // Find and update the image node with the final URL
+          // Find and update the image node with the final URL by matching the temporary src
           editor.commands.command(({ tr }) => {
             tr.doc.descendants((node, pos) => {
-              if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+              if (node.type.name === 'image' && node.attrs.src === tempImageUrl) {
                 tr.setNodeMarkup(pos, undefined, {
                   ...node.attrs,
                   src: imageUrl,
                   alt: file.name,
                   title: file.name,
-                  'data-upload-id': undefined,
                   class: 'opacity-100'
                 });
                 return false; // Stop traversal
@@ -114,13 +109,12 @@ function MinimalTiptap({
           // Update the image to show error state
           editor.commands.command(({ tr }) => {
             tr.doc.descendants((node, pos) => {
-              if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+              if (node.type.name === 'image' && node.attrs.src === tempImageUrl) {
                 tr.setNodeMarkup(pos, undefined, {
                   ...node.attrs,
                   src: '',
                   alt: 'Upload failed',
                   title: 'Upload failed',
-                  'data-upload-id': undefined,
                   class: 'border-2 border-red-500'
                 });
                 return false;
@@ -136,12 +130,11 @@ function MinimalTiptap({
         // If no onImageUpload is provided, just use the object URL
         editor.commands.command(({ tr }) => {
           tr.doc.descendants((node, pos) => {
-            if (node.type.name === 'image' && node.attrs['data-upload-id'] === uploadId) {
+            if (node.type.name === 'image' && node.attrs.src === tempImageUrl) {
               tr.setNodeMarkup(pos, undefined, {
                 ...node.attrs,
                 alt: file.name,
                 title: file.name,
-                'data-upload-id': undefined,
                 class: 'opacity-100'
               });
               return false;
