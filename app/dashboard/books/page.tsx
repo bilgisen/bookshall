@@ -7,10 +7,11 @@ import { Book } from '@/types/book';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookHeader } from '@/components/books/book-header';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 async function fetchBooks(): Promise<Book[]> {
   try {
@@ -113,20 +114,61 @@ export default function BooksPage() {
               href={`/dashboard/books/${book.slug}/view`}
               className="group"
             >
-              <Card className="h-full overflow-hidden transition-all bg-card/20 duration-200 hover:shadow-lg hover:border-primary/20 p-2">
+              <Card className="h-full overflow-hidden transition-all bg-card/20 duration-200 hover:shadow-lg hover:border-primary/20 p-2 group/card">
                 <CardContent className="p-0 [&>div]:!m-0">
                   <div className="relative aspect-[3/5] w-full">
                     {book.coverImageUrl ? (
-                      <Image
-                        src={book.coverImageUrl}
-                        alt={`${book.title} cover`}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33.33vw, 25vw"
-                      />
+                      <>
+                        <Image
+                          src={book.coverImageUrl}
+                          alt={`${book.title} cover`}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover/card:scale-105"
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33.33vw, 25vw"
+                        />
+                        {book.epubUrl && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200">
+                            <Button 
+                              size="sm"
+                              className={cn(
+                                "bg-primary hover:bg-primary/90 text-white",
+                                "opacity-0 group-hover/card:opacity-100 transition-opacity duration-200"
+                              )}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (book.epubUrl) {
+                                  window.open(book.epubUrl, '_blank');
+                                }
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </Button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="h-full w-full bg-muted flex items-center justify-center">
-                        <span className="text-muted-foreground text-sm">No cover</span>
+                        {book.epubUrl ? (
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="bg-background/80 backdrop-blur-sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (book.epubUrl) {
+                                window.open(book.epubUrl, '_blank');
+                              }
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download EPUB
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No cover</span>
+                        )}
                       </div>
                     )}
                   </div>

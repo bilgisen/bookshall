@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 interface Book {
   id: string;
@@ -20,6 +20,7 @@ interface Book {
   isbn?: string;
   language?: string;
   coverImageUrl?: string;
+  epubUrl?: string;
   subtitle?: string;
   series?: string;
   seriesIndex?: number | null;
@@ -258,9 +259,26 @@ export default function ViewBookPage() {
             </div>
           )}
           
-          <div className="text-sm text-muted-foreground">
-            <p>Created: {new Date(book.createdAt).toLocaleDateString()}</p>
-            <p>Last updated: {new Date(book.updatedAt).toLocaleDateString()}</p>
+          <div className="space-y-4">
+            {book.epubUrl ? (
+              <Button 
+                onClick={() => window.open(book.epubUrl, '_blank')}
+                className="w-full bg-primary hover:bg-primary/90"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Your EPUB
+              </Button>
+            ) : (
+              <div className="text-center p-4 border rounded-md bg-muted/50">
+                <p className="text-sm text-muted-foreground">
+                  EPUB not generated yet. Go to Publish tab to generate.
+                </p>
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Created: {new Date(book.createdAt).toLocaleDateString()}</p>
+              <p>Last updated: {new Date(book.updatedAt).toLocaleDateString()}</p>
+            </div>
           </div>
         </aside>
       </div>
