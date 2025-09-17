@@ -43,7 +43,7 @@ interface ChapterWithBook {
 }
 
 async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWithBook> {
-  const res = await fetch(`/api/books/by-slug/${slug}/chapters/${chapterId}/view`, {
+  const res = await fetch(`/api/books/by-slug/${slug}/chapters/${chapterId}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',

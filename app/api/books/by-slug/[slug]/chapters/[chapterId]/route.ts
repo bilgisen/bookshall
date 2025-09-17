@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { and, eq, sql } from 'drizzle-orm';
 import { chapters, books } from '@/db';
-import { generateJSON } from '@tiptap/html';
+import { generateJSON, generateHTML } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
 
 type UpdateData = {
@@ -532,26 +532,35 @@ export async function PATCH(
     // Add updatedAt timestamp
     validUpdate.updatedAt = new Date();
   
-    // Ensure content is properly serialized
+    // Normalize and persist content as HTML
     if ('content' in validUpdate && validUpdate.content !== undefined) {
-      if (validUpdate.content === null) {
-        validUpdate.content = '';
-      } else if (typeof validUpdate.content === 'object') {
-        // If it's an object, stringify it
-        validUpdate.content = JSON.stringify(validUpdate.content);
-      } else if (typeof validUpdate.content === 'string') {
-        // If it's a string, check if it's already JSON
+      const incoming = validUpdate.content as unknown;
+      let htmlOut = '';
+      if (incoming === null) {
+        htmlOut = '';
+      } else if (typeof incoming === 'string') {
+        const trimmed = incoming.trim();
+        // JSON string → TipTap JSON → HTML
         try {
-          const parsed = JSON.parse(validUpdate.content);
-          // If it parses to an object, it was JSON, so keep it as is
-          if (typeof parsed === 'object' && parsed !== null) {
-            validUpdate.content = JSON.stringify(parsed);
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            const parsed = JSON.parse(trimmed);
+            htmlOut = generateHTML(parsed, [StarterKit]);
+          } else {
+            // Assume it's already HTML or plain text
+            htmlOut = trimmed.startsWith('<') ? trimmed : `<p>${trimmed}</p>`;
           }
         } catch {
-          // If it's not valid JSON, keep it as is (plain text)
-          console.debug('Content is not valid JSON, treating as plain text');
+          htmlOut = trimmed.startsWith('<') ? trimmed : `<p>${trimmed}</p>`;
+        }
+      } else if (typeof incoming === 'object') {
+        // TipTap JSON → HTML
+        try {
+          htmlOut = generateHTML(incoming as Record<string, unknown>, [StarterKit]);
+        } catch {
+          htmlOut = '';
         }
       }
+      validUpdate.content = htmlOut;
     }
     
     console.log('Update values with dates:', JSON.stringify(validUpdate, null, 2));

@@ -5,6 +5,8 @@ import { getSubscriptionDetails } from "@/lib/subscription";
 import StepsSection from "@/components/homepage/steps";
 import AnimatedBeamDemo from "@/components/ab-block";
 import FAQ from "@/components/homepage/faq";
+import MyCarousel from "@/components/mycarouesel";
+import CTA from "@/components/homepage/cta";
 
 export default async function Home() {
   await getSubscriptionDetails(); // Subscription details are not currently used
@@ -15,6 +17,8 @@ export default async function Home() {
       <AnimatedBeamDemo />
       <Integrations />
       <StepsSection />
+      <MyCarousel />
+      <CTA />
       <FAQ />
       <FooterSection />
       

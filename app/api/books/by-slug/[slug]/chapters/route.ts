@@ -4,6 +4,8 @@ import { db } from '@/db/drizzle';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { chapters, books } from '@/db';
+import { generateHTML } from '@tiptap/html';
+import StarterKit from '@tiptap/starter-kit';
 
 // -----------------
 // GET /api/books/by-slug/[slug]/chapters
@@ -247,7 +249,14 @@ export async function POST(
       .insert(chapters)
       .values({
         title,
-        content: JSON.stringify(parsedContent),
+        // Always store content as HTML string
+        content: (() => {
+          try {
+            return generateHTML(parsedContent, [StarterKit]);
+          } catch {
+            return typeof content === 'string' ? content : '';
+          }
+        })(),
         bookId: book.id,
         parentChapterId: parentChapterId || null,
         order: derivedOrder,

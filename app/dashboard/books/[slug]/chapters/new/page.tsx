@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { BooksMenu } from "@/components/books/books-menu";
 
 export default function NewChapterPage() {
   const router = useRouter();
@@ -181,7 +180,6 @@ export default function NewChapterPage() {
             </svg>
             Chapters
           </Button>
-          <BooksMenu slug={slug} bookId={String(book.id)} hideEdit />
         </div>
       </div>
       <Separator />

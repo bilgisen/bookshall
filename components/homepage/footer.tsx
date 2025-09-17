@@ -1,40 +1,100 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import {
+  Linkedin,
+  Twitter,
+} from "lucide-react";
 import Link from "next/link";
+import { Logo } from '@/components/navbar-04/logo';
 
-const links = [
+const footerLinks = [
   {
-    title: "X",
-    href: "https://www.x.com/rasmickyy",
+    title: "Overview",
+    href: "#",
   },
   {
-    title: "YouTube",
-    href: "https://www.youtube.com/@rasmic",
+    title: "Features",
+    href: "#",
+  },
+  {
+    title: "Pricing",
+    href: "#",
+  },
+  {
+    title: "Careers",
+    href: "#",
+  },
+  {
+    title: "Help",
+    href: "#",
+  },
+  {
+    title: "Privacy",
+    href: "#",
   },
 ];
 
-export default function FooterSection() {
+const FooterSection = () => {
   return (
-    <footer className="bg-background py-12">
-      <div className="mx-auto max-w-5xl px-6">
-        <div className="flex flex-wrap justify-between gap-12">
-          <div className="order-last flex items-center gap-3 md:order-first">
-            <span className="text-muted-foreground block text-center text-sm">
-              © {new Date().getFullYear()} Exodus Labs, All rights reserved
-            </span>
-          </div>
+    <div className="flex flex-col">
+      <div className="grow bg-muted" />
+      <footer className="border-t">
+        <div className="max-w-(--breakpoint-xl) mx-auto">
+          <div className="py-12 flex flex-col sm:flex-row items-start justify-between gap-x-8 gap-y-10 px-6 xl:px-0">
+            <div>
+              {/* Logo */}
+             <Logo/>
 
-          <div className="order-first flex flex-wrap gap-x-6 gap-y-4 md:order-last">
-            {links.map((link, index) => (
-              <Link
-                key={index}
-                href={link.href}
-                className="text-muted-foreground hover:text-primary block duration-150"
-              >
-                <span>{link.title}</span>
+              <ul className="mt-6 flex items-center gap-4 flex-wrap">
+                {footerLinks.map(({ title, href }) => (
+                  <li key={title}>
+                    <Link
+                      href={href}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      {title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Subscribe Newsletter */}
+            <div className="max-w-xs w-full">
+              <h6 className="font-medium">Stay up to date</h6>
+              <form className="mt-6 flex items-center gap-2">
+                <Input type="email" placeholder="Enter your email" />
+                <Button>Subscribe</Button>
+              </form>
+            </div>
+          </div>
+          <Separator />
+          <div className="py-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-x-2 gap-y-5 px-6 xl:px-0">
+            {/* Copyright */}
+            <span className="text-muted-foreground">
+              &copy; {new Date().getFullYear()}{" "}
+              <Link href="/" target="_blank">
+                BooksHall
               </Link>
-            ))}
+              . All rights reserved.
+            </span>
+
+            <div className="flex items-center gap-5 text-muted-foreground">
+              <Link href="#" target="_blank">
+                <Twitter className="h-5 w-5" />
+              </Link>
+           
+              
+              <Link href="#" target="_blank">
+                <Linkedin className="h-5 w-5" />
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
-    </footer>
+      </footer>
+    </div>
   );
-}
+};
+
+export default FooterSection;

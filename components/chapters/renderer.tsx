@@ -2,9 +2,11 @@
 'use client';
 
 import DOMPurify from 'dompurify';
-import { JSONContent } from '@tiptap/core'; // <-- buradan alıyoruz
+import { JSONContent } from '@tiptap/core';
 import { generateHTML } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
 
 interface ChapterContentRendererProps {
   content: string | JSONContent | null;
@@ -26,7 +28,7 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
           const parsed = JSON.parse(trimmed) as JSONContent;
           if (parsed && typeof parsed === 'object') {
             // TipTap JSON → HTML dönüşümü
-            html = generateHTML(parsed, [StarterKit]);
+            html = generateHTML(parsed, [StarterKit, Link, Image]);
           } else {
             // JSON değilse veya beklenmedik yapıdaysa, olduğu gibi bırak
             html = content;
@@ -41,7 +43,7 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
       }
     } else {
       // TipTap JSON → HTML dönüşümü
-      html = generateHTML(content, [StarterKit]);
+      html = generateHTML(content, [StarterKit, Link, Image]);
     }
   } catch (err) {
     console.error('Failed to render chapter content:', err);
