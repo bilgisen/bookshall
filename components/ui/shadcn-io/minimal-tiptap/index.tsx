@@ -151,8 +151,25 @@ function MinimalTiptap({
       }
     }
   };
+  // Normalize content prop into what TipTap expects
+  const normalizeForEditor = React.useCallback((c: string | object | null) => {
+    if (!c) return '';
+    if (typeof c === 'object') return c;
+    const trimmed = c.trim();
+    // JSON string → object
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        // fallthrough to HTML/text handling
+      }
+    }
+    // HTML string or plain text; TipTap can take HTML string
+    return trimmed;
+  }, []);
+
   const editor = useEditor({
-    content: isMounted ? content : '',
+    content: isMounted ? normalizeForEditor(content) : '',
     extensions: [
       Image.configure({
         HTMLAttributes: {
@@ -241,14 +258,27 @@ function MinimalTiptap({
         return;
       }
       
-      // Handle HTML content
-      if (typeof content === 'string' && (content.startsWith('<') || content.includes('<'))) {
-        editor.commands.setContent(content);
-      } else if (typeof content === 'string') {
-        // Handle plain text
-        editor.commands.setContent(`<p>${content}</p>`);
+      // Handle JSON string
+      if (typeof content === 'string') {
+        const trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            editor.commands.setContent(parsed);
+            return;
+          } catch {
+            // fallthrough to HTML/text
+          }
+        }
+        // Handle HTML string
+        if (trimmed.startsWith('<') || trimmed.includes('<')) {
+          editor.commands.setContent(trimmed);
+        } else {
+          // Plain text
+          editor.commands.setContent(`<p>${trimmed}</p>`);
+        }
       } else if (content) {
-        // Handle JSON content
+        // JSON object
         editor.commands.setContent(content);
       }
     } catch (error) {
@@ -272,8 +302,15 @@ function MinimalTiptap({
   }
 
   return (
-    <div className={cn('border rounded-lg overflow-hidden', className)}>
-      <div className="border-b p-2 flex flex-wrap items-center gap-1">
+    <div className={cn('border rounded-lg', className)}>
+      <div
+        className={cn(
+          // sticky toolbar
+          'sticky top-16 z-30 border-b p-2 flex flex-wrap items-center gap-1',
+          // visual
+          'bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/60'
+        )}
+      >
         <Toggle
           size="sm"
           pressed={editor.isActive('bold')}

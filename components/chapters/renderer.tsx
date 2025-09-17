@@ -50,7 +50,11 @@ export function ChapterContentRenderer({ content, className = '' }: ChapterConte
     return <p className="text-destructive">Failed to render content</p>;
   }
 
-  const clean = DOMPurify.sanitize(html);
+  const clean = DOMPurify.sanitize(html, {
+    // Extend default allowlist without referencing DOMPurify.defaults
+    ADD_TAGS: ['img'],
+    ADD_ATTR: ['src', 'alt', 'title', 'class', 'width', 'height', 'loading', 'decoding'],
+  });
 
   return (
     <div

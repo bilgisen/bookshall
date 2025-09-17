@@ -1,8 +1,7 @@
 'use client';
 
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { authClient } from '@/lib/auth-client';
 import { ChapterHeader } from '@/components/chapters/chapter-header';
 import { ChapterContentRenderer } from '@/components/chapters/renderer';
 import { Button } from '@/components/ui/button';
@@ -58,7 +57,6 @@ async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWit
 }
 
 export default function ChapterViewPage() {
-  const router = useRouter();
   const params = useParams();
   const slug = params?.slug as string;
   const chapterId = params?.chapterId as string;
@@ -67,13 +65,6 @@ export default function ChapterViewPage() {
     queryKey: ['chapter', slug, chapterId],
     queryFn: async () => {
       if (!slug || !chapterId) throw new Error('Missing book slug or chapter ID');
-
-      const { data: session } = await authClient.getSession();
-      if (!session?.user) {
-        router.push('/sign-in');
-        throw new Error('Not authenticated');
-      }
-
       return fetchChapter(slug, chapterId);
     },
     enabled: !!slug && !!chapterId,
@@ -122,12 +113,12 @@ export default function ChapterViewPage() {
     <div className="container w-full p-8">
       <ChapterHeader 
         title={chapter.title} 
-        bookName={chapter.book.title} 
-        bookSlug={chapter.book.slug} 
+        bookName={chapter.book?.title || ''} 
+        bookSlug={chapter.book?.slug || ''} 
         chapterId={chapter.id}
         action={
           <Button asChild>
-            <Link href={`/dashboard/books/${chapter.book.slug}/chapters/${chapter.id}/edit`}>
+            <Link href={`/dashboard/books/${chapter.book?.slug || slug}/chapters/${chapter.id}/edit`}>
               Edit Chapter
             </Link>
           </Button>

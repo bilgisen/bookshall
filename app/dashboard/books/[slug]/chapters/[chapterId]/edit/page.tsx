@@ -1,19 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { generateJSON } from '@tiptap/html';
-import { Document } from '@tiptap/extension-document';
-import { Text } from '@tiptap/extension-text';
-import { Paragraph } from '@tiptap/extension-paragraph';
-import { Heading } from '@tiptap/extension-heading';
-import { Bold } from '@tiptap/extension-bold';
-import { Italic } from '@tiptap/extension-italic';
-import { ListItem } from '@tiptap/extension-list-item';
-import { BulletList } from '@tiptap/extension-bullet-list';
-import { OrderedList } from '@tiptap/extension-ordered-list';
-import  { Link as TiptapLink }  from '@tiptap/extension-link';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -21,6 +10,7 @@ import { ChapterHeader } from '@/components/chapters/chapter-header';
 import { AlertCircle, ArrowLeft, Loader2, RefreshCw, Eye, Trash2 } from 'lucide-react';
 import type { ChapterOption } from '@/components/chapters/ParentChapterSelect';
 import debounce from 'lodash/debounce';
+import { format } from 'date-fns';
 
 // Dynamically import ChapterForm with SSR disabled to prevent hydration issues
 const ChapterForm = dynamic(
@@ -208,7 +198,6 @@ async function fetchParentChapters(bookSlug: string, currentChapterId?: number):
 // Client-side only component to avoid hydration issues
 function ClientSideChapterEditor() {
   console.log('ClientSideChapterEditor: Component mounting');
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { slug, chapterId } = useParams<{ slug: string; chapterId: string }>();
   
@@ -216,6 +205,7 @@ function ClientSideChapterEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   
   // Refs
   const saveRef = useRef<SaveFunction | null>(null);
@@ -324,6 +314,7 @@ function ClientSideChapterEditor() {
       const updatedChapter = responseData as ChapterWithBook;
       setHasUnsavedChanges(false);
       queryClient.setQueryData(['chapter', slug, chapterId], updatedChapter);
+      setLastSavedAt(new Date());
       
       if (!isAutoSave) {
         // Removed unused toast import
@@ -353,6 +344,7 @@ function ClientSideChapterEditor() {
           }
           
           try {
+            setIsSaving(true);
             // Preprocess content: upload any blob: images to R2 and replace src before saving (affects auto-save and manual save)
             if (typeof formData.content === 'string') {
               const html = formData.content.trim();
@@ -431,6 +423,7 @@ function ClientSideChapterEditor() {
             // Only update state if save was successful
             if (saveResult) {
               setHasUnsavedChanges(false);
+              setLastSavedAt(new Date());
               return true;
             }
             
@@ -440,9 +433,7 @@ function ClientSideChapterEditor() {
             setError(error instanceof Error ? error.message : 'Failed to save chapter');
             return false;
           } finally {
-            if (!isAutoSave) {
-              setIsSaving(false);
-            }
+            setIsSaving(false);
           }
         },
         AUTO_SAVE_DELAY,
@@ -611,6 +602,17 @@ function ClientSideChapterEditor() {
         }
       />
 
+      {/* Save Status */}
+      <div className="mt-2 mb-4 text-xs text-muted-foreground">
+        {isSaving && <span>Saving…</span>}
+        {!isSaving && lastSavedAt && (
+          <span>All changes saved at {format(lastSavedAt, 'HH:mm')}</span>
+        )}
+        {!isSaving && !lastSavedAt && hasUnsavedChanges && (
+          <span>Unsaved changes</span>
+        )}
+      </div>
+
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -629,95 +631,7 @@ function ClientSideChapterEditor() {
               initialData={{
                 id: String(chapter.id),
                 title: chapter.title,
-                content: (() => {
-                  try {
-                    // If content is already an object and has the expected structure, return it as is
-                    if (chapter.content && 
-                        typeof chapter.content === 'object' && 
-                        !Array.isArray(chapter.content) && 
-                        'type' in chapter.content && 
-                        'content' in chapter.content) {
-                      return chapter.content;
-                    }
-                    
-                    // If content is a string, try to parse it
-                    if (typeof chapter.content === 'string') {
-                      const trimmedContent = chapter.content.trim();
-                      
-                      // If it's empty, return empty doc
-                      if (!trimmedContent) {
-                        return { type: 'doc', content: [] };
-                      }
-                      
-                      // Try to parse as JSON
-                      try {
-                        const parsed = JSON.parse(trimmedContent);
-                        // If parsing succeeds and has the right structure, return it
-                        if (parsed && typeof parsed === 'object' && 'type' in parsed) {
-                          return parsed;
-                        }
-                      } catch {
-                        // If parsing as JSON fails, it might be HTML or plain text
-                        console.log('Content is not valid JSON, treating as plain text');
-                      }
-                      
-                      // If we get here, it's either HTML or plain text
-                      // For HTML content, convert it to Tiptap JSON format
-                      if (trimmedContent.startsWith('<') || trimmedContent.includes('</')) {
-                        try {
-                          // Use Tiptap's HTML to JSON converter with the same extensions as the editor
-                          return generateJSON(trimmedContent, [
-                            Document,
-                            Text,
-                            Paragraph,
-                            Heading,
-                            Bold,
-                            Italic,
-                            ListItem,
-                            BulletList,
-                            OrderedList,
-                            TiptapLink,
-                          ]);
-                        } catch (error) {
-                          console.error('Error converting HTML to Tiptap JSON:', error);
-                          // Fallback to plain text if conversion fails
-                          return {
-                            type: 'doc',
-                            content: [{
-                              type: 'paragraph',
-                              content: [{
-                                type: 'text',
-                                text: trimmedContent.replace(/<[^>]*>/g, ' ')
-                              }]
-                            }]
-                          };
-                        }
-                      }
-                      
-                      // For plain text, create a simple document
-                      return {
-                        type: 'doc',
-                        content: [
-                          {
-                            type: 'paragraph',
-                            content: [
-                              {
-                                type: 'text',
-                                text: trimmedContent
-                              }
-                            ]
-                          }
-                        ]
-                      };
-                    }
-                    
-                    // Default fallback
-                    return { type: 'doc', content: [] };
-                  } catch (error) {
-                    console.error('Error parsing chapter content:', error);
-                    return { type: 'doc', content: [] };
-                  }
-                })(),
+                content: typeof chapter.content === 'string' ? chapter.content : '',
                 parentChapterId: chapter.parentChapterId ? String(chapter.parentChapterId) : null,
                 order: chapter.order,
                 bookId: String(chapter.bookId),
@@ -729,9 +643,6 @@ function ClientSideChapterEditor() {
                 updatedAt: chapter.updatedAt ? new Date(chapter.updatedAt) : undefined,
               }}
               onChange={handleFormChange}
-              onSuccess={(chapterId) => {
-                router.push(`/dashboard/books/${slug}/chapters/${chapterId}/view`);
-              }}
               isSubmitting={isSaving}
             />
         )}

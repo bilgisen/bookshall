@@ -20,17 +20,6 @@ import type { ChapterOption } from './ParentChapterSelect';
 import ParentChapterSelect from './ParentChapterSelect';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { generateJSON } from '@tiptap/html';
-import { Document } from '@tiptap/extension-document';
-import { Text } from '@tiptap/extension-text';
-import { Paragraph } from '@tiptap/extension-paragraph';
-import { Heading } from '@tiptap/extension-heading';
-import { Bold } from '@tiptap/extension-bold';
-import { Italic } from '@tiptap/extension-italic';
-import { ListItem } from '@tiptap/extension-list-item';
-import { BulletList } from '@tiptap/extension-bullet-list';
-import { OrderedList } from '@tiptap/extension-ordered-list';
-import { Link as TiptapLink } from '@tiptap/extension-link';
 import { Loader2 } from 'lucide-react';
 import { chapterFormSchema, type ChapterFormValues } from '@/lib/validation/chapter';
 import { authClient } from '@/lib/auth-client';
@@ -100,34 +89,8 @@ export default function ChapterForm({
       const isHtml = /<[a-z][\s\S]*>/i.test(trimmedContent);
       
       if (isHtml) {
-        try {
-          // For HTML content, convert to Tiptap JSON format
-          return generateJSON(trimmedContent, [
-            Document,
-            Text,
-            Paragraph,
-            Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }),
-            Bold,
-            Italic,
-            ListItem,
-            BulletList,
-            OrderedList,
-            TiptapLink.configure({ openOnClick: false }),
-          ]);
-        } catch (error) {
-          console.error('Error converting HTML to Tiptap JSON:', error);
-          // Fallback to plain text
-          return {
-            type: 'doc',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: trimmedContent.replace(/<[^>]*>/g, ' ')
-              }]
-            }]
-          };
-        }
+        // Preserve HTML as-is to avoid losing elements like <img>
+        return trimmedContent;
       }
       
       // Try to parse as JSON
