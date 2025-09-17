@@ -454,8 +454,22 @@ export async function PATCH(
             if (fieldValue === null) {
               validUpdate.content = ''; // Handle null content as empty string
             } else if (typeof fieldValue === 'string') {
-              validUpdate.content = fieldValue;
+              // Check if the content is HTML
+              if (fieldValue.trim().startsWith('<')) {
+                // Preserve HTML content as is
+                validUpdate.content = fieldValue;
+              } else {
+                // For non-HTML strings, try to parse as JSON or use as is
+                try {
+                  const parsed = JSON.parse(fieldValue);
+                  validUpdate.content = JSON.stringify(parsed);
+                } catch {
+                  // If it's not valid JSON, use as plain text
+                  validUpdate.content = fieldValue;
+                }
+              }
             } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+              // If it's an object, stringify it
               validUpdate.content = JSON.stringify(fieldValue);
             }
             break;

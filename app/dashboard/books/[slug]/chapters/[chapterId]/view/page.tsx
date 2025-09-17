@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ChapterHeader } from '@/components/chapters/chapter-header';
-import { ChapterContentRenderer } from '@/components/chapters/renderer';
+import { ChapterContentRenderer } from '@/components/chapters/new_renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';

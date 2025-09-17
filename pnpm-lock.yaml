@@ -212,6 +212,9 @@ dependencies:
   '@tiptap/starter-kit':
     specifier: ^3.4.1
     version: 3.4.3
+  '@tiptap/static-renderer':
+    specifier: ^3.4.3
+    version: 3.4.3(@tiptap/core@3.4.3)(@tiptap/pm@3.4.3)(react-dom@19.1.1)(react@19.1.1)
   '@types/uuid':
     specifier: ^10.0.0
     version: 10.0.0
@@ -5386,6 +5389,20 @@ packages:
       '@tiptap/extension-underline': 3.4.3(@tiptap/core@3.4.3)
       '@tiptap/extensions': 3.4.3(@tiptap/core@3.4.3)(@tiptap/pm@3.4.3)
       '@tiptap/pm': 3.4.3
+    dev: false
+
+  /@tiptap/static-renderer@3.4.3(@tiptap/core@3.4.3)(@tiptap/pm@3.4.3)(react-dom@19.1.1)(react@19.1.1):
+    resolution: {integrity: sha512-eRrqO/2/zgbgiOYEqB8xDVIxPQJy1Rqnn+aYQLKpFMJsteetOqy6r1Ppp/EPVZYwNrBtFNcxjEKQ0w0/CrfhXQ==}
+    peerDependencies:
+      '@tiptap/core': ^3.4.3
+      '@tiptap/pm': ^3.4.3
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
+    dependencies:
+      '@tiptap/core': 3.4.3(@tiptap/pm@3.4.3)
+      '@tiptap/pm': 3.4.3
+      react: 19.1.1
+      react-dom: 19.1.1(react@19.1.1)
     dev: false
 
   /@ts-morph/common@0.27.0:

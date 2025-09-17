@@ -160,8 +160,20 @@ export default function ChapterForm({
       ...(defaultValues.slug !== undefined && { slug: defaultValues.slug }),
       content: (() => {
         if (!defaultValues.content) return '';
-        if (typeof defaultValues.content === 'string') return defaultValues.content;
-        return JSON.stringify(defaultValues.content);
+        
+        // If it's already HTML content, return as is
+        if (typeof defaultValues.content === 'string' && 
+            defaultValues.content.trim().startsWith('<')) {
+          return defaultValues.content;
+        }
+        
+        // If it's an object, stringify it
+        if (typeof defaultValues.content === 'object' && defaultValues.content !== null) {
+          return JSON.stringify(defaultValues.content);
+        }
+        
+        // For any other case, convert to string
+        return String(defaultValues.content);
       })(),
       parentChapterId: defaultValues.parentChapterId ? String(defaultValues.parentChapterId) : null,
       order: Number(defaultValues.order) || 0,
@@ -208,8 +220,37 @@ export default function ChapterForm({
   }, [parentChapters]);
   
   // Wrap the async submit handler to match the expected type
-  const handleFormSubmit = (data: FormValues) => {
-    onSubmit(data).catch(console.error);
+  const handleFormSubmit = async (data: FormValues) => {
+    try {
+      // Process content before submission
+      const processedData = { ...data };
+      
+      // Ensure content is properly formatted
+      if (processedData.content) {
+        // If it's already HTML, leave it as is
+        if (typeof processedData.content === 'string' && 
+            processedData.content.trim().startsWith('<')) {
+          // No transformation needed for HTML content
+        } 
+        // If it's a JSON string, parse it to ensure it's valid
+        else if (typeof processedData.content === 'string') {
+          try {
+            const parsed = JSON.parse(processedData.content);
+            if (parsed && typeof parsed === 'object') {
+              processedData.content = JSON.stringify(parsed);
+            }
+          } catch (error) {
+            // If it's not valid JSON, leave as is (treat as plain text)
+            console.log('Content is not JSON, treating as plain text', error);
+          }
+        }
+      }
+      
+      await onSubmit(processedData);
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast.error('Failed to save chapter. Please try again.');
+    }
   };
 
   // Handle form submission with proper typing
@@ -217,9 +258,26 @@ export default function ChapterForm({
     try {
       setIsLoading(true);
       
+      // Process content before submission
+      let processedContent = data.content;
+      
+      // If content is a string that's not HTML, try to parse it as JSON
+      if (typeof processedContent === 'string' && !processedContent.trim().startsWith('<')) {
+        try {
+          const parsed = JSON.parse(processedContent);
+          if (parsed && typeof parsed === 'object') {
+            processedContent = JSON.stringify(parsed);
+          }
+        } catch (error) {
+          // If it's not valid JSON, leave as is (treat as plain text)
+          console.log('Content is not JSON, treating as plain text', error);
+        }
+      }
+      
       // Prepare the form data
       const formData = {
         ...data,
+        content: processedContent,
         bookId: Number(bookId),
         parentChapterId: data.parentChapterId ? Number(data.parentChapterId) : null,
       };

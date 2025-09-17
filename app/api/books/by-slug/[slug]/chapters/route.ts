@@ -185,25 +185,31 @@ export async function POST(
     // Parse content based on its type
     let parsedContent;
     if (typeof content === 'string') {
-      try {
-        // Try to parse as JSON first
-        parsedContent = JSON.parse(content);
-      } catch {
-        // If it's not valid JSON, treat it as HTML content
-        parsedContent = {
-          type: 'doc',
-          content: [
-            {
-              type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: content
-                }
-              ]
-            }
-          ]
-        };
+      // Check if the content is HTML
+      if (content.trim().startsWith('<')) {
+        // Preserve HTML content as is
+        parsedContent = content;
+      } else {
+        try {
+          // Try to parse as JSON
+          parsedContent = JSON.parse(content);
+        } catch {
+          // If it's not valid JSON, treat it as plain text
+          parsedContent = {
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'text',
+                    text: content
+                  }
+                ]
+              }
+            ]
+          };
+        }
       }
     } else if (content && typeof content === 'object') {
       // If it's already an object, use it as is
