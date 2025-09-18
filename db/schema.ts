@@ -133,21 +133,6 @@ export const subscription = pgTable("subscription", {
      çift yönlü FK circular TS hatası oluşturuyordu)
    ============================ */
 
-/** subscription_plans (optional B table) */
-export const subscriptionPlans = pgTable("subscription_plans", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  monthlyBookQuota: integer("monthlyBookQuota").notNull(),
-  priceMonthly: integer("priceMonthly").notNull(),
-  priceYearly: integer("priceYearly"),
-  // features kept simple as jsonb/ text array was optional - use jsonb if you want structure
-  features: jsonb("features").default({}),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-});
-
 /** user_profiles - extends Better-Auth user (1:1-ish) */
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
@@ -323,13 +308,6 @@ export const subscriptionRelations = relations(subscription, ({ one }) => ({
   }),
 }));
 
-export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
-  // optional connections; subscription table from A wasn't referencing subscriptionPlans directly
-  // so we do not define a forced relation here.
-  // If you want planId on subscription, we can add and wire it (but A would change).
-  subscriptions: many(subscription),
-}));
-
 export const userProfilesRelations = relations(userProfiles, ({ one, many }) => ({
   user: one(user, {
     fields: [userProfiles.userId],
@@ -400,9 +378,6 @@ export type NewVerification = typeof verification.$inferInsert;
 
 export type Subscription = typeof subscription.$inferSelect;
 export type NewSubscription = typeof subscription.$inferInsert;
-
-export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
-export type NewSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
 
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;

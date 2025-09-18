@@ -253,3 +253,5 @@ function getCreditAmountForPlan(planId: string): number {
   
   return planCreditMap[planId] || 0;
 }
+
+// Bu dosya artık kullanılmıyor. Tüm webhook işlemleri /api/auth/polar/webhooks üzerinden yönetilmektedir.

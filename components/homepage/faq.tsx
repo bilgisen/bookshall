@@ -104,7 +104,7 @@ const FAQ = () => {
         </motion.h2>
 
         {/* FAQ Sections */}
-        <div className="space-y-12 max-w-3xl mx-auto">
+        <div className="space-y-2 max-w-3xl mx-auto">
           {faqs.map((section, idx) => (
             <motion.div
               key={section.section}

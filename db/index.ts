@@ -11,7 +11,6 @@ export {
   account,
   verification,
   subscription,
-  subscriptionPlans,
   userProfiles,
   userPreferences,
   media,
@@ -25,7 +24,6 @@ export {
   type Account,
   type Verification,
   type Subscription,
-  type SubscriptionPlan,
   type UserProfile,
   type UserPreference,
   type Media

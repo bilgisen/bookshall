@@ -126,6 +126,23 @@ function SettingsContent() {
     fetchData();
   }, [organizations]);
 
+  // Onboarding: Kullanıcıya free subscription ve welcome credit ekle (ilk girişte)
+  useEffect(() => {
+    const onboardUser = async () => {
+      try {
+        const res = await fetch("/api/user/onboard", { method: "POST" });
+        const data = await res.json();
+        if (data.onboarded) {
+          toast.success("Welcome bonus and free plan activated!");
+        }
+      } catch (error) {
+        // Sadece logla, kullanıcıya hata gösterme
+        console.error("Onboarding error:", error);
+      }
+    };
+    onboardUser();
+  }, []);
+
   const handleTabChange = (value: string) => {
     setCurrentTab(value);
     const url = new URL(window.location.href);

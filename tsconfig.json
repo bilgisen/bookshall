@@ -33,11 +33,10 @@
     "ignoreDeprecations": "6.0"
   },
   "include": [
+    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "next-env.d.ts",
-    "next.config.js",
-    ".next/types/**/*.ts"
+    "types/**/*.d.ts"
   ],
   "exclude": ["node_modules"]
 }
