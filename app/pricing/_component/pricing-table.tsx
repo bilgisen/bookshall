@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// ---- Types ----
 type SubscriptionDetails = {
   id: string;
   productId: string;
@@ -40,9 +41,59 @@ interface PricingTableProps {
   subscriptionDetails: SubscriptionDetailsResult;
 }
 
-export default function PricingTable({
-  subscriptionDetails,
-}: PricingTableProps) {
+// ---- Plan Config ----
+const plans = [
+  {
+    name: "Starter",
+    price: 6.9,
+    credits: 1000,
+    envTier: process.env.NEXT_PUBLIC_STARTER_TIER,
+    envSlug: process.env.NEXT_PUBLIC_STARTER_SLUG,
+    description: "You can publish up to 4 books per month with 1000 credits. Your credits roll over.",
+    features: [
+      "Epub Publishing",
+      "PDF Publishing",
+      "Audiobook Publishing",
+      "HTML Publishing",
+      "DOC Publishing",
+      "AI Chat",
+    ],
+  },
+  {
+    name: "Publisher",
+    price: 14.9,
+    credits: 2500,
+    envTier: process.env.NEXT_PUBLIC_PUBLISHER_TIER,
+    envSlug: process.env.NEXT_PUBLIC_PUBLISHER_SLUG,
+    description: "Publish more books with 2500 monthly credits.",
+    features: [
+      "Epub Publishing",
+      "PDF Publishing",
+      "Audiobook Publishing",
+      "HTML Publishing",
+      "DOC Publishing",
+      "AI Chat",
+    ],
+  },
+  {
+    name: "Pro Publisher",
+    price: 29.9,
+    credits: 6000,
+    envTier: process.env.NEXT_PUBLIC_PRO_TIER,
+    envSlug: process.env.NEXT_PUBLIC_PRO_SLUG,
+    description: "Professional plan with 6000 credits per month.",
+    features: [
+      "Epub Publishing",
+      "PDF Publishing",
+      "Audiobook Publishing",
+      "HTML Publishing",
+      "DOC Publishing",
+      "AI Chat",
+    ],
+  },
+];
+
+export default function PricingTable({ subscriptionDetails }: PricingTableProps) {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
@@ -58,20 +109,21 @@ export default function PricingTable({
     checkAuth();
   }, []);
 
-  const handleCheckout = async (productId: string, slug: string) => {
+  const handleCheckout = async (productId?: string, slug?: string) => {
+    if (!productId || !slug) {
+      toast.error("Missing checkout configuration");
+      return;
+    }
+
     if (isAuthenticated === false) {
       router.push("/sign-in");
       return;
     }
 
     try {
-      await authClient.checkout({
-        products: [productId],
-        slug: slug,
-      });
+      await authClient.checkout({ products: [productId], slug });
     } catch (error) {
       console.error("Checkout failed:", error);
-      // TODO: Add user-facing error notification
       toast.error("Oops, something went wrong");
     }
   };
@@ -85,14 +137,7 @@ export default function PricingTable({
     }
   };
 
-  const STARTER_TIER = process.env.NEXT_PUBLIC_STARTER_TIER;
-  const STARTER_SLUG = process.env.NEXT_PUBLIC_STARTER_SLUG;
-
-  if (!STARTER_TIER || !STARTER_SLUG) {
-    throw new Error("Missing required environment variables for Starter tier");
-  }
-
-  const isCurrentPlan = (tierProductId: string) => {
+  const isCurrentPlan = (tierProductId?: string) => {
     return (
       subscriptionDetails.hasSubscription &&
       subscriptionDetails.subscription?.productId === tierProductId &&
@@ -111,93 +156,78 @@ export default function PricingTable({
   return (
     <section className="flex flex-col items-center justify-center px-4 mb-24 w-full">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-medium tracking-tight mb-4">
-          Starter
-        </h1>
+        <h1 className="text-4xl font-medium tracking-tight mb-4">Pricing</h1>
         <p className="text-xl text-muted-foreground">
-          Test out this starter kit using this fake subscription.
+          Choose the plan that fits your publishing needs.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl w-full">
-        {/* Starter Tier */}
-        <Card className="relative h-fit">
-          {isCurrentPlan(STARTER_TIER) && (
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <Badge
-                variant="secondary"
-                className="bg-green-100 text-green-800"
-              >
-                Current Plan
-              </Badge>
-            </div>
-          )}
-          <CardHeader>
-            <CardTitle className="text-2xl">Starter</CardTitle>
-            <CardDescription>Perfect for getting started</CardDescription>
-            <div className="mt-4">
-              <span className="text-4xl font-bold">$1,000</span>
-              <span className="text-muted-foreground">/month</span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span>5 Projects</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span>10GB Storage</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span>1 Team Member</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span>Email Support</span>
-            </div>
-          </CardContent>
-          <CardFooter>
-            {isCurrentPlan(STARTER_TIER) ? (
-              <div className="w-full space-y-2">
+      <div className="grid md:grid-cols-3 gap-8 max-w-6xl w-full">
+        {plans.map((plan) => (
+          <Card key={plan.name} className="relative h-fit">
+            {isCurrentPlan(plan.envTier) && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <Badge
+                  variant="secondary"
+                  className="bg-green-100 text-green-800"
+                >
+                  Current Plan
+                </Badge>
+              </div>
+            )}
+            <CardHeader>
+              <CardTitle className="text-2xl">{plan.name}</CardTitle>
+              <CardDescription>{plan.description}</CardDescription>
+              <div className="mt-4">
+                <span className="text-4xl font-bold">${plan.price}</span>
+                <span className="text-muted-foreground">/month</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {plan.credits} credits included
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {plan.features.map((feature) => (
+                <div key={feature} className="flex items-center gap-3">
+                  <Check className="h-5 w-5 text-green-500" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter>
+              {isCurrentPlan(plan.envTier) ? (
+                <div className="w-full space-y-2">
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={handleManageSubscription}
+                  >
+                    Manage Subscription
+                  </Button>
+                  {subscriptionDetails.subscription && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      {subscriptionDetails.subscription.cancelAtPeriodEnd
+                        ? `Expires ${formatDate(subscriptionDetails.subscription.currentPeriodEnd)}`
+                        : `Renews ${formatDate(subscriptionDetails.subscription.currentPeriodEnd)}`}
+                    </p>
+                  )}
+                </div>
+              ) : (
                 <Button
                   className="w-full"
-                  variant="outline"
-                  onClick={handleManageSubscription}
+                  onClick={() => handleCheckout(plan.envTier, plan.envSlug)}
                 >
-                  Manage Subscription
+                  {isAuthenticated === false
+                    ? "Sign In to Subscribe"
+                    : `Subscribe to ${plan.name}`}
                 </Button>
-                {subscriptionDetails.subscription && (
-                  <p className="text-sm text-muted-foreground text-center">
-                    {subscriptionDetails.subscription.cancelAtPeriodEnd
-                      ? `Expires ${formatDate(subscriptionDetails.subscription.currentPeriodEnd)}`
-                      : `Renews ${formatDate(subscriptionDetails.subscription.currentPeriodEnd)}`}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={() => handleCheckout(STARTER_TIER, STARTER_SLUG)}
-              >
-                {isAuthenticated === false
-                  ? "Sign In to Get Started"
-                  : "Get Started"}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+              )}
+            </CardFooter>
+          </Card>
+        ))}
       </div>
 
-      <div className="mt-12 text-center">
-        <p className="text-muted-foreground">
-          Need a custom plan?{" "}
-          <span className="text-primary cursor-pointer hover:underline">
-            Contact us
-          </span>
-        </p>
-      </div>
+    
     </section>
   );
 }

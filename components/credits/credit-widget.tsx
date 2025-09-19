@@ -21,9 +21,9 @@ export function CreditWidget() {
   };
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border bg-card/20 p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Credits</h3>
+        <h3 className="text-sm font-medium">Your Credits</h3>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button 
@@ -95,9 +95,6 @@ export function CreditWidget() {
       <div className="mt-6 flex justify-between">
         <Button variant="outline" size="sm" asChild>
           <a href="/dashboard/credits">View All</a>
-        </Button>
-        <Button size="sm" asChild>
-          <a href="/pricing">Buy Credits</a>
         </Button>
       </div>
     </div>
