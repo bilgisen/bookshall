@@ -30,42 +30,20 @@ if [ "$MAX_LEVEL" -lt 1 ]; then
   MAX_LEVEL=1
 fi
 
-# --- Build hierarchical tree (recursive) ---
-jq -c '.book.chapters[]' "$PAYLOAD_FILE" | \
-  jq -s 'def tree(parent):
-           map(select(.parent == parent)
-               | . + { children: tree(.id) });
-         tree(null)' \
-  > "$OUTPUT_FILE.json"
+# --- Prepare output file ---
+> "$OUTPUT_FILE" # Create or clear the output file
 
 generate_list() {
-  local parent="$1"
-  local indent="$2"
-  jq -c --arg parent "$parent" '.[] | select(.parent == $parent)' "$OUTPUT_FILE.json" | \
-  while read -r node; do
-    local title=$(echo "$node" | jq -r '.title')
-    local id=$(echo "$node" | jq -r '.id')
-    local level=$(echo "$node" | jq -r '.level')
-    local children=$(echo "$node" | jq -c '.children')
-
-    # Dosya adı chapter index'e göre üretildiği için, index'i payload'dan al
-    local order=$(echo "$node" | jq -r '.order')
+  local indent="$1"
+  # Process chapters directly from the payload file
+  jq -c '.book.chapters[]' "$PAYLOAD_FILE" | while read -r chapter; do
+    local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"')
+    local level=$(echo "$chapter" | jq -r '.level // 1')
+    local order=$(echo "$chapter" | jq -r '.order // 0')
     local filename=$(printf "chapter-%03d.xhtml" "$order")
 
-    printf "%s<li><a href=\"%s\">%s</a>" "$indent" "$filename" "$title" >> "$OUTPUT_FILE"
-
-    if [ "$children" != "[]" ] && [ "$level" -lt "$MAX_LEVEL" ]; then
-      printf "\n%s  <ol>\n" "$indent" >> "$OUTPUT_FILE"
-      echo "$children" | jq -c '.[]' | while read -r child; do
-        child_title=$(echo "$child" | jq -r '.title')
-        child_order=$(echo "$child" | jq -r '.order')
-        child_filename=$(printf "chapter-%03d.xhtml" "$child_order")
-        printf "%s    <li><a href=\"%s\">%s</a></li>\n" "$indent" "$child_filename" "$child_title" >> "$OUTPUT_FILE"
-      done
-      printf "%s  </ol>\n%s</li>\n" "$indent" "$indent" >> "$OUTPUT_FILE"
-    else
-      echo "</li>" >> "$OUTPUT_FILE"
-    fi
+    # Add chapter to TOC with proper indentation
+    printf "%s<li><a href=\"%s\">%s</a></li>\n" "$indent" "$filename" "$title" >> "$OUTPUT_FILE"
   done
 }
 
@@ -76,19 +54,16 @@ generate_list() {
   echo '<html xmlns="http://www.w3.org/1999/xhtml">'
   echo '<head><meta charset="utf-8"/></head>'
   echo '<body>'
-  echo "  <h2 style=\"text-align:center;\">$TOC_TITLE</h2>"
-  echo '  <nav id="toc" epub:type="toc">'
+  echo "  <h1>$TOC_TITLE</h1>"
+  echo '  <nav epub:type="toc">'
   echo '    <ol>'
-} > "$OUTPUT_FILE"
-
-generate_list null "      "
-
-{
+  # Call generate_list with indentation
+  generate_list "      "
   echo '    </ol>'
   echo '  </nav>'
   echo '</body>'
   echo '</html>'
-} >> "$OUTPUT_FILE"
+} > "$OUTPUT_FILE"
 
 rm -f "$OUTPUT_FILE.json"
 
