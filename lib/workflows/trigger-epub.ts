@@ -93,7 +93,6 @@ async function processWorkflow(
           include_metadata: options.includeMetadata ? 'true' : 'false',
           include_cover: options.includeCover ? 'true' : 'false',
           include_toc: options.includeTOC ? 'true' : 'false',
-          toc_level: options.tocLevel?.toString() || '3',
           metadata: JSON.stringify({ ...(metadata || {}), workflowId }),
         },
       }),
