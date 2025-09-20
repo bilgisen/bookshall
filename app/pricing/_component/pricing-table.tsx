@@ -10,14 +10,14 @@ import { Check } from "lucide-react";
 // ---- Types ----
 type SubscriptionDetails = {
   id: string;
-  productId: string;
-  status: string;
-  amount: number;
-  currency: string;
-  recurringInterval: string;
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
+  productId: string | null;
+  status: string | null;
+  amount: number | null;
+  currency: string | null;
+  recurringInterval: string | null;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean | null;
   canceledAt: Date | null;
   organizationId: string | null;
 };
@@ -126,13 +126,11 @@ export default function PricingTable({ subscriptionDetails = { hasSubscription: 
     );
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
+  // Yardımcı fonksiyon: null gelirse '-' döndür
+  function formatDate(date: Date | null): string {
+    if (!date) return "-";
+    return new Date(date).toLocaleDateString();
+  }
 
   return (
     <section className="flex flex-col items-center justify-center px-4 mb-24 w-full">

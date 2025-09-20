@@ -103,28 +103,28 @@ export const verification = pgTable("verification", {
 /** subscription (Polar webhook data) - kept exactly like Tablo A */
 export const subscription = pgTable("subscription", {
   id: text("id").primaryKey(),
-  createdAt: timestamp("createdAt").notNull(),
+  createdAt: timestamp("createdAt"), // notNull kaldırıldı
   modifiedAt: timestamp("modifiedAt"),
-  amount: integer("amount").notNull(),
-  currency: text("currency").notNull(),
-  recurringInterval: text("recurringInterval").notNull(),
-  status: text("status").notNull(),
-  currentPeriodStart: timestamp("currentPeriodStart").notNull(),
-  currentPeriodEnd: timestamp("currentPeriodEnd").notNull(),
-  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").notNull().default(false),
+  amount: integer("amount"), // notNull kaldırıldı
+  currency: text("currency"), // notNull kaldırıldı
+  recurringInterval: text("recurringInterval"), // notNull kaldırıldı
+  status: text("status"), // notNull kaldırıldı
+  currentPeriodStart: timestamp("currentPeriodStart"), // notNull kaldırıldı
+  currentPeriodEnd: timestamp("currentPeriodEnd"), // notNull kaldırıldı
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false), // notNull kaldırıldı
   canceledAt: timestamp("canceledAt"),
-  startedAt: timestamp("startedAt").notNull(),
+  startedAt: timestamp("startedAt"), // notNull kaldırıldı
   endsAt: timestamp("endsAt"),
   endedAt: timestamp("endedAt"),
-  customerId: text("customerId").notNull(),
-  productId: text("productId").notNull(),
+  customerId: text("customerId"), // notNull kaldırıldı
+  productId: text("productId"), // notNull kaldırıldı
   discountId: text("discountId"),
-  checkoutId: text("checkoutId").notNull(),
+  checkoutId: text("checkoutId"), // notNull kaldırıldı
   customerCancellationReason: text("customerCancellationReason"),
   customerCancellationComment: text("customerCancellationComment"),
   metadata: text("metadata"), // Stored as JSON string in original A
   customFieldData: text("customFieldData"), // Stored as JSON string in original A
-  userId: text("userId").references(() => user.id),
+  userId: text("userId").references(() => user.id), // opsiyonel bırakıldı
 });
 
 /* ============================

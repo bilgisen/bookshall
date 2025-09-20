@@ -13,7 +13,6 @@ import { Loader2, CheckCircle2, AlertCircle, Download, RefreshCw } from 'lucide-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 
 // Types
 type PublishStatus = 'idle' | 'publishing' | 'generating' | 'completed' | 'failed';

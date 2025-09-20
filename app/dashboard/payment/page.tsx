@@ -1,3 +1,4 @@
+import { headers } from "next/headers"; // ✅ Import headers
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -6,12 +7,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { auth } from "@/lib/auth";
 import { getSubscriptionDetails } from "@/lib/subscription";
 import Link from "next/link";
 import ManageSubscription from "./_components/manage-subscription";
 
 export default async function PaymentPage() {
-  const subscriptionDetails = await getSubscriptionDetails();
+  // ✅ Await headers() — it returns a Promise!
+  const requestHeaders = await headers();
+
+  // ✅ Pass the actual Headers instance — DO NOT convert to plain object
+  const session = await auth.api.getSession({
+    headers: requestHeaders, // 👈 This is already a Headers-compatible object
+  });
+
+  const userId = session?.session?.userId;
+
+  // Eğer userId yoksa veya boş string ise, hasSubscription: false döndür
+  const subscriptionDetails = userId && userId.trim() !== ''
+    ? await getSubscriptionDetails(userId)
+    : { hasSubscription: false };
 
   return (
     <div>
@@ -84,8 +99,12 @@ export default async function PaymentPage() {
                       Amount
                     </p>
                     <p className="text-md">
-                      {subscriptionDetails.subscription.amount / 100}{" "}
-                      {subscriptionDetails.subscription.currency.toUpperCase()}
+                      {typeof subscriptionDetails.subscription.amount === "number"
+                        ? subscriptionDetails.subscription.amount / 100
+                        : "-"}
+                      {subscriptionDetails.subscription.currency
+                        ? ` ${subscriptionDetails.subscription.currency.toUpperCase()}`
+                        : ""}
                     </p>
                   </div>
                   <div>
@@ -101,13 +120,15 @@ export default async function PaymentPage() {
                       Current Period End
                     </p>
                     <p className="text-md">
-                      {new Date(
-                        subscriptionDetails.subscription.currentPeriodEnd,
-                      ).toLocaleDateString()}
+                      {subscriptionDetails.subscription.currentPeriodEnd
+                        ? new Date(
+                            subscriptionDetails.subscription.currentPeriodEnd
+                          ).toLocaleDateString()
+                        : "-"}
                     </p>
                   </div>
                 </div>
-                {subscriptionDetails.subscription.cancelAtPeriodEnd && (
+                {subscriptionDetails.subscription.cancelAtPeriodEnd === true && (
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800">
                       Your subscription will cancel at the end of the current
