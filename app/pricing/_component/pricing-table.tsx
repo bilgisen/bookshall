@@ -1,19 +1,11 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
-import { Check } from "lucide-react";
-import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Check } from "lucide-react";
 
 // ---- Types ----
 type SubscriptionDetails = {
@@ -38,7 +30,7 @@ type SubscriptionDetailsResult = {
 };
 
 interface PricingTableProps {
-  subscriptionDetails: SubscriptionDetailsResult;
+  subscriptionDetails?: SubscriptionDetailsResult;
 }
 
 // ---- Plan Config ----
@@ -93,21 +85,10 @@ const plans = [
   },
 ];
 
-export default function PricingTable({ subscriptionDetails }: PricingTableProps) {
+export default function PricingTable({ subscriptionDetails = { hasSubscription: false } }: PricingTableProps) {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const session = await authClient.getSession();
-        setIsAuthenticated(!!session.data?.user);
-      } catch {
-        setIsAuthenticated(false);
-      }
-    };
-    checkAuth();
-  }, []);
+  const { data: session } = authClient.useSession();
+  const isAuthenticated = !!session?.user?.id;
 
   const handleCheckout = async (productId?: string, slug?: string) => {
     if (!productId || !slug) {
@@ -204,6 +185,16 @@ export default function PricingTable({ subscriptionDetails }: PricingTableProps)
                   >
                     Manage Subscription
                   </Button>
+                  {subscriptionDetails?.hasSubscription && (
+                    <Badge className="mb-2" variant="outline">
+                      Current Plan
+                    </Badge>
+                  )}
+                  {!isAuthenticated && (
+                    <Badge className="mb-2" variant="secondary">
+                      Sign in to subscribe
+                    </Badge>
+                  )}
                   {subscriptionDetails.subscription && (
                     <p className="text-sm text-muted-foreground text-center">
                       {subscriptionDetails.subscription.cancelAtPeriodEnd

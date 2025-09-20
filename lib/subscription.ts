@@ -1,42 +1,8 @@
-// Using relative imports to avoid module resolution issues
-import { auth as authModule } from "./auth";
-import { db } from "./db/drizzle";
-import { subscription } from "./db";
-
-// Type declaration for the auth module
-declare module "./auth" {
-  export const authModule: {
-    api: {
-      getSession: (options: { headers: () => Promise<Headers> }) => Promise<{
-        user?: {
-          id: string;
-          email?: string;
-          name?: string;
-        } | null;
-      }>;
-    };
-  };
-}
+import { auth } from "@/lib/auth";
+import { db } from "@/db/drizzle";
+import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
-
-// Type for the raw subscription data from the database
-type RawSubscription = {
-  id: string;
-  userId: string | null;
-  productId: string;
-  status: string;
-  amount: number;
-  currency: string;
-  recurringInterval: string;
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
-  canceledAt: Date | null;
-  createdAt: Date;
-  modifiedAt: Date | null; // This is the actual field name in the database
-  organizationId?: string | null;
-};
 
 export type SubscriptionDetails = {
   id: string;
@@ -59,39 +25,35 @@ export type SubscriptionDetailsResult = {
   errorType?: "CANCELED" | "EXPIRED" | "GENERAL";
 };
 
-export async function getSubscriptionDetails(): Promise<SubscriptionDetailsResult> {
+export async function getSubscriptionDetails(userId: string): Promise<SubscriptionDetailsResult> {
   try {
-    const session = await authModule.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
+    if (!userId) {
       return { hasSubscription: false };
     }
 
+    // Get all user subscriptions
     const userSubscriptions = await db
       .select()
       .from(subscription)
-      .where(eq(subscription.userId, session.user.id));
+      .where(eq(subscription.userId, userId));
 
     if (!userSubscriptions.length) {
       return { hasSubscription: false };
     }
 
     // Get the most recent active subscription
-    const activeSubscription = (userSubscriptions as unknown as RawSubscription[])
+    const activeSubscription = userSubscriptions
       .filter((sub) => sub.status === "active")
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+      .sort((a, b) => new Date(b.currentPeriodEnd).getTime() - new Date(a.currentPeriodEnd).getTime())[0];
 
     if (!activeSubscription) {
       // Check for canceled or expired subscriptions
-const latestSubscription = (userSubscriptions as unknown as RawSubscription[])
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+      const latestSubscription = userSubscriptions
+        .sort((a, b) => new Date(b.currentPeriodEnd).getTime() - new Date(a.currentPeriodEnd).getTime())[0];
 
       if (latestSubscription) {
         const now = new Date();
-        const currentPeriodEnd = new Date(latestSubscription.currentPeriodEnd);
-        const isExpired = currentPeriodEnd < now;
+        const isExpired = latestSubscription.currentPeriodEnd && new Date(latestSubscription.currentPeriodEnd) < now;
         const isCanceled = latestSubscription.status === "canceled";
 
         return {
@@ -103,10 +65,10 @@ const latestSubscription = (userSubscriptions as unknown as RawSubscription[])
             amount: latestSubscription.amount,
             currency: latestSubscription.currency,
             recurringInterval: latestSubscription.recurringInterval,
-            currentPeriodStart: new Date(latestSubscription.currentPeriodStart),
-            currentPeriodEnd: new Date(latestSubscription.currentPeriodEnd),
+            currentPeriodStart: latestSubscription.currentPeriodStart,
+            currentPeriodEnd: latestSubscription.currentPeriodEnd,
             cancelAtPeriodEnd: latestSubscription.cancelAtPeriodEnd,
-            canceledAt: latestSubscription.canceledAt ? new Date(latestSubscription.canceledAt) : null,
+            canceledAt: latestSubscription.canceledAt,
             organizationId: null,
           },
           error: isCanceled ? "Subscription has been canceled" : isExpired ? "Subscription has expired" : "Subscription is not active",
@@ -126,11 +88,11 @@ const latestSubscription = (userSubscriptions as unknown as RawSubscription[])
         amount: activeSubscription.amount,
         currency: activeSubscription.currency,
         recurringInterval: activeSubscription.recurringInterval,
-        currentPeriodStart: new Date(activeSubscription.currentPeriodStart),
-        currentPeriodEnd: new Date(activeSubscription.currentPeriodEnd),
+        currentPeriodStart: activeSubscription.currentPeriodStart,
+        currentPeriodEnd: activeSubscription.currentPeriodEnd,
         cancelAtPeriodEnd: activeSubscription.cancelAtPeriodEnd,
-        canceledAt: activeSubscription.canceledAt ? new Date(activeSubscription.canceledAt) : null,
-        organizationId: activeSubscription.organizationId || null,
+        canceledAt: activeSubscription.canceledAt,
+        organizationId: null,
       },
     };
   } catch (error) {
@@ -144,40 +106,35 @@ const latestSubscription = (userSubscriptions as unknown as RawSubscription[])
 }
 
 // Simple helper to check if user has an active subscription
-export async function isUserSubscribed(): Promise<boolean> {
-  const result = await getSubscriptionDetails();
-  return result.hasSubscription && result.subscription?.status === "active";
+export async function isUserSubscribed(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const details = await getSubscriptionDetails(userId);
+  return details.hasSubscription && details.subscription?.status === 'active';
 }
 
-// Helper to check if user has access to a specific product/tier
-export async function hasAccessToProduct(productId: string): Promise<boolean> {
-  const result = await getSubscriptionDetails();
+export async function hasAccessToProduct(userId: string, productId: string): Promise<boolean> {
+  if (!userId) return false;
+  const details = await getSubscriptionDetails(userId);
   return (
-    result.hasSubscription &&
-    result.subscription?.status === "active" &&
-    result.subscription?.productId === productId
+    details.hasSubscription && 
+    details.subscription?.status === 'active' &&
+    details.subscription.productId === productId
   );
 }
 
-// Helper to get user's current subscription status
-export async function getUserSubscriptionStatus(): Promise<"active" | "canceled" | "expired" | "none"> {
-  const result = await getSubscriptionDetails();
+export async function getUserSubscriptionStatus(userId: string): Promise<"active" | "canceled" | "expired" | "none"> {
+  if (!userId) return 'none';
   
-  if (!result.hasSubscription) {
-    return "none";
+  const details = await getSubscriptionDetails(userId);
+  
+  if (!details.hasSubscription || !details.subscription) return 'none';
+  
+  if (details.subscription.status === 'canceled') return 'canceled';
+  
+  if (details.subscription.currentPeriodEnd && 
+      new Date(details.subscription.currentPeriodEnd) < new Date()) {
+    return 'expired';
   }
   
-  if (result.subscription?.status === "active") {
-    return "active";
-  }
-  
-  if (result.errorType === "CANCELED") {
-    return "canceled";
-  }
-  
-  if (result.errorType === "EXPIRED") {
-    return "expired";
-  }
-  
-  return "none";
+  return details.subscription.status === 'active' ? 'active' : 'none';
 }

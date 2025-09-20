@@ -3,11 +3,7 @@ set -euo pipefail
 shopt -s nullglob
 
 # ------------------------------------------------------------------
-# fetch-book.sh (final version)
-# - Fetches payload.json via BOOK_ID
-# - Downloads chapters, cover, stylesheet
-# - Creates metadata.yaml (aligned with payload.json)
-# - Runs pandoc to generate EPUB
+# fetch-book.sh (with colophon + toc integration)
 # ------------------------------------------------------------------
 
 # === Required ENV ===
@@ -35,7 +31,6 @@ mkdir -p "$CHAPTER_DIR"
 PAYLOAD_FILE="$WORKDIR/payload.json"
 
 # --- Fetch payload ---
-# Build query params from env (fall back to defaults if empty)
 Q_INCLUDE_TOC=${INCLUDE_TOC:-true}
 Q_TOC_LEVEL=${TOC_LEVEL:-3}
 Q_INCLUDE_METADATA=${INCLUDE_METADATA:-true}
@@ -72,7 +67,6 @@ META_USER_EMAIL=$(jq -r '.metadata.user_email // empty' "$PAYLOAD_FILE")
 
 # --- Options (payload + env override) ---
 EFFECTIVE_INCLUDE_TOC="${INCLUDE_TOC:-$(jq -r '.options.generate_toc // true' "$PAYLOAD_FILE")}"
-EFFECTIVE_TOC_DEPTH="${TOC_LEVEL:-$(jq -r '.options.toc_depth // 3' "$PAYLOAD_FILE")}"
 EFFECTIVE_INCLUDE_COVER="${INCLUDE_COVER:-$(jq -r '.options.cover // true' "$PAYLOAD_FILE")}"
 EFFECTIVE_INCLUDE_METADATA="${INCLUDE_METADATA:-$(jq -r '.options.embed_metadata // true' "$PAYLOAD_FILE")}"
 
@@ -134,6 +128,18 @@ else
   CHAPTER_FILES+=("$file")
 fi
 
+# --- Optional colophon (metadata page) ---
+if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
+  ./scripts/colophon.sh "$PAYLOAD_FILE" "$WORKDIR/colophon.xhtml"
+  CHAPTER_FILES=("$WORKDIR/colophon.xhtml" "${CHAPTER_FILES[@]}")
+fi
+
+# --- Optional custom TOC page ---
+if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
+  ./scripts/toc.sh "$PAYLOAD_FILE" "$WORKDIR/toc.xhtml"
+  CHAPTER_FILES=("$WORKDIR/toc.xhtml" "${CHAPTER_FILES[@]}")
+fi
+
 # --- Cover ---
 COVER_FILE=""
 if [[ "${EFFECTIVE_INCLUDE_COVER,,}" == "true" ]]; then
@@ -159,7 +165,7 @@ EPUB_FILENAME="${SAFE_SLUG}-${TIMESTAMP}.epub"
 
 PANDOC_ARGS=("${CHAPTER_FILES[@]}" --output="$EPUB_FILENAME")
 
-[[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]] && PANDOC_ARGS+=(--toc --toc-depth="$EFFECTIVE_TOC_DEPTH")
+# No --toc here. Only metadata file, cover, css.
 [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]] && PANDOC_ARGS+=(--metadata-file="$META_FILE")
 [ -n "$COVER_FILE" ] && PANDOC_ARGS+=(--epub-cover-image="$COVER_FILE")
 [ -n "$EPUB_CSS" ] && PANDOC_ARGS+=(--css="$EPUB_CSS")

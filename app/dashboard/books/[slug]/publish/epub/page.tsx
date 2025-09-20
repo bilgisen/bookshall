@@ -65,7 +65,7 @@ export default function GenerateEbookPage() {
     includeMetadata: true,
     includeCover: true,
     includeTOC: true,
-    tocLevel: 3,
+    tocLevel: 6, // Keeping this in state for backward compatibility but not using it
   });
 
   // Check for existing EPUB data on mount
@@ -371,7 +371,7 @@ export default function GenerateEbookPage() {
                       onCheckedChange={(checked) => handleOptionChange('includeMetadata', checked === true)}
                       disabled={isLoading}
                     />
-                    <Label htmlFor="includeMetadata">Include Metadata</Label>
+                    <Label htmlFor="includeMetadata">Include Imprint</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -384,48 +384,30 @@ export default function GenerateEbookPage() {
                     <Label htmlFor="includeCover">Include Cover</Label>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="includeTOC" 
-                        checked={options.includeTOC}
-                        onCheckedChange={(checked) => handleOptionChange('includeTOC', checked === true)}
-                        disabled={isLoading}
-                      />
-                      <Label htmlFor="includeTOC">Include Table of Contents</Label>
-                    </div>
-                    
-                    {options.includeTOC && (
-                      <div className="pl-6 space-y-2">
-                        <Label htmlFor="tocLevel">TOC Level: {options.tocLevel}</Label>
-                        <Slider
-                          id="tocLevel"
-                          min={1}
-                          max={5}
-                          step={1}
-                          value={[options.tocLevel]}
-                          onValueChange={([value]) => handleOptionChange('tocLevel', value)}
-                          className="w-full max-w-md"
-                          disabled={isLoading}
-                        />
-                      </div>
-                    )}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="includeTOC" 
+                      checked={options.includeTOC}
+                      onCheckedChange={(checked) => handleOptionChange('includeTOC', checked === true)}
+                      disabled={isLoading}
+                    />
+                    <Label htmlFor="includeTOC">Include Table of Contents</Label>
                   </div>
 
-                  {/* Include Imprint option removed */}
+                  
                 </div>
 
                 {/* Status and Actions */}
                 <div className="space-y-4 pt-4">
                   {(status === 'publishing' || status === 'generating') && (
-                    <div className="space-y-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                    <div className="space-y-4 rounded-lg border border-primary/50 bg-primary/20 p-4">
                       <div className="flex items-center space-x-3">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                        <Loader2 className="h-6 w-6 animate-spin text-primary/80" />
                         <div className="flex-1">
-                          <p className="font-medium text-blue-800">
+                          <p className="font-medium text-primary">
                             {status === 'publishing' ? 'Starting EPUB generation...' : 'Generating your EPUB...'}
                           </p>
-                          <p className="text-sm text-blue-600">
+                          <p className="text-sm text-primary/80">
                             This may take a few moments. Please don&apos;t close this page.
                           </p>
                         </div>

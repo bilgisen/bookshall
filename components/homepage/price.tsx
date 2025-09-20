@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { CircleCheck } from "lucide-react";
+import { SubscriptionDetailsResult } from "@/lib/subscription";
+
+interface PublicPricingProps {
+  subscriptionDetails: SubscriptionDetailsResult;
+}
 
 const publicPlans = [
   {
@@ -55,7 +60,15 @@ const publicPlans = [
   },
 ];
 
-const PublicPricing = () => {
+export default function PublicPricing({ subscriptionDetails }: PublicPricingProps) {
+  // Use subscription details to determine UI state
+  const hasActiveSubscription = subscriptionDetails.hasSubscription;
+  const currentPlan = subscriptionDetails.subscription?.productId;
+  
+  // Log subscription details for debugging
+  console.log('Subscription Active:', hasActiveSubscription);
+  console.log('Current Plan:', currentPlan);
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center py-12 px-6">
       <h1 className="text-5xl font-semibold text-center tracking-tighter">
@@ -118,5 +131,3 @@ const PublicPricing = () => {
     
   );
 };
-
-export default PublicPricing;
