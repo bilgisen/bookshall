@@ -1,5 +1,1 @@
-// Export user balances
-export * from './userBalances';
-
-// Export credit transactions
-export * from './creditTransactions';
+// Archived. See /db/_archive/schema_index.ts

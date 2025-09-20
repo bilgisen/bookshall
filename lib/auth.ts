@@ -71,38 +71,38 @@ async function processSubscriptionUpdate(subData: SubscriptionData | null, userI
   
   console.log("🔑 [Subscription] Resolved user ID:", resolvedUserId);
   
-  // Build subscription data with proper schema mapping
+  // Build subscription data with proper schema mapping for Drizzle
   const subscriptionData = {
     id: subData.id,
-    created_at: safeParseDate(subData.created_at) || new Date(),
-    modified_at: safeParseDate(subData.modified_at) || new Date(),
+    createdAt: safeParseDate(subData.created_at) || new Date(),
+    modifiedAt: safeParseDate(subData.modified_at) || new Date(),
     amount: subData.amount || 0,
     currency: subData.currency || 'usd',
-    recurring_interval: subData.recurring_interval || 'month',
+    recurringInterval: subData.recurring_interval || 'month',
     status: subData.status || 'active',
-    current_period_start: safeParseDate(subData.current_period_start) || new Date(),
-    current_period_end: safeParseDate(subData.current_period_end) || new Date(),
-    cancel_at_period_end: subData.cancel_at_period_end || false,
-    canceled_at: safeParseDate(subData.canceled_at),
-    started_at: safeParseDate(subData.started_at) || new Date(),
-    ends_at: safeParseDate(subData.ends_at),
-    ended_at: safeParseDate(subData.ended_at),
-    customer_id: subData.customer_id || subData.customer?.id || null,
-    product_id: subData.product_id || null,
-    discount_id: subData.discount_id || null,
-    checkout_id: subData.checkout_id || "",
-    customer_cancellation_reason: subData.customer_cancellation_reason || null,
-    customer_cancellation_comment: subData.customer_cancellation_comment || null,
+    currentPeriodStart: safeParseDate(subData.current_period_start) || new Date(),
+    currentPeriodEnd: safeParseDate(subData.current_period_end) || new Date(),
+    cancelAtPeriodEnd: subData.cancel_at_period_end || false,
+    canceledAt: safeParseDate(subData.canceled_at),
+    startedAt: safeParseDate(subData.started_at) || new Date(),
+    endsAt: safeParseDate(subData.ends_at),
+    endedAt: safeParseDate(subData.ended_at),
+    customerId: subData.customer_id || subData.customer?.id || null,
+    productId: subData.product_id || null,
+    discountId: subData.discount_id || null,
+    checkoutId: subData.checkout_id || "",
+    customerCancellationReason: subData.customer_cancellation_reason || null,
+    customerCancellationComment: subData.customer_cancellation_comment || null,
     metadata: subData.metadata ? JSON.stringify(subData.metadata) : null,
-    custom_field_data: subData.custom_field_data ? JSON.stringify(subData.custom_field_data) : null,
-    user_id: resolvedUserId,
+    customFieldData: subData.custom_field_data ? JSON.stringify(subData.custom_field_data) : null,
+    userId: resolvedUserId,
   };
   
   // Log the data being saved to the database
   console.log("📊 [DB] Prepared subscription data for database:", JSON.stringify({
     ...subscriptionData,
     metadata: subscriptionData.metadata ? '[REDACTED]' : null,
-    custom_field_data: subscriptionData.custom_field_data ? '[REDACTED]' : null
+    customFieldData: subscriptionData.customFieldData ? '[REDACTED]' : null
   }, null, 2));
 
   // Only log if we have valid subscription data
@@ -110,12 +110,12 @@ async function processSubscriptionUpdate(subData: SubscriptionData | null, userI
     console.log("💾 [Subscription] Processed subscription data:", {
       id: subscriptionData.id,
       status: subscriptionData.status,
-      userId: subscriptionData.user_id,
+      userId: subscriptionData.userId,
       amount: subscriptionData.amount,
-      customerId: subscriptionData.customer_id,
-      productId: subscriptionData.product_id,
-      currentPeriodStart: subscriptionData.current_period_start ? new Date(subscriptionData.current_period_start).toISOString() : null,
-      currentPeriodEnd: subscriptionData.current_period_end ? new Date(subscriptionData.current_period_end).toISOString() : null,
+      customerId: subscriptionData.customerId,
+      productId: subscriptionData.productId,
+      currentPeriodStart: subscriptionData.currentPeriodStart ? new Date(subscriptionData.currentPeriodStart).toISOString() : null,
+      currentPeriodEnd: subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toISOString() : null,
     });
   }
 
@@ -244,7 +244,7 @@ export const auth = betterAuth({
             // Handle subscription events
             try {
               // Extract subscription data from webhook payload
-              const subscriptionData = await processSubscriptionUpdate(data, data.customer?.externalId);
+              const subscriptionData = await processSubscriptionUpdate(data, data.customer?.external_id);
 
               if (!subscriptionData) {
                 console.log("ℹ️ [DB] No subscription data to process");
@@ -254,70 +254,46 @@ export const auth = betterAuth({
               console.log("💾 [Webhook] Final subscription data:", {
                 id: subscriptionData.id,
                 status: subscriptionData.status,
-                userId: subscriptionData.user_id,
+                userId: subscriptionData.userId,
                 amount: subscriptionData.amount,
-                customerId: subscriptionData.customer_id,
-                productId: subscriptionData.product_id,
-                currentPeriodStart: subscriptionData.current_period_start ? new Date(subscriptionData.current_period_start).toISOString() : null,
-                currentPeriodEnd: subscriptionData.current_period_end ? new Date(subscriptionData.current_period_end).toISOString() : null,
+                customerId: subscriptionData.customerId,
+                productId: subscriptionData.productId,
+                currentPeriodStart: subscriptionData.currentPeriodStart ? new Date(subscriptionData.currentPeriodStart).toISOString() : null,
+                currentPeriodEnd: subscriptionData.currentPeriodEnd ? new Date(subscriptionData.currentPeriodEnd).toISOString() : null,
               });
               
               // STEP 3: Use Drizzle's onConflictDoUpdate for proper upsert
               console.log("💾 [DB] Attempting to upsert subscription data");
               
               try {
-                // Map snake_case fields to camelCase for Drizzle
+                // Insert or update the subscription in the database
                 const result = await db
                   .insert(subscription)
-                  .values({
-                    id: subscriptionData.id,
-                    createdAt: subscriptionData.created_at,
-                    modifiedAt: subscriptionData.modified_at || new Date(),
-                    amount: subscriptionData.amount,
-                    currency: subscriptionData.currency,
-                    recurringInterval: subscriptionData.recurring_interval,
-                    status: subscriptionData.status,
-                    currentPeriodStart: subscriptionData.current_period_start,
-                    currentPeriodEnd: subscriptionData.current_period_end,
-                    cancelAtPeriodEnd: subscriptionData.cancel_at_period_end,
-                    canceledAt: subscriptionData.canceled_at,
-                    startedAt: subscriptionData.started_at,
-                    endsAt: subscriptionData.ends_at,
-                    endedAt: subscriptionData.ended_at,
-                    customerId: subscriptionData.customer_id,
-                    productId: subscriptionData.product_id,
-                    discountId: subscriptionData.discount_id,
-                    checkoutId: subscriptionData.checkout_id,
-                    customerCancellationReason: subscriptionData.customer_cancellation_reason,
-                    customerCancellationComment: subscriptionData.customer_cancellation_comment,
-                    metadata: subscriptionData.metadata,
-                    customFieldData: subscriptionData.custom_field_data,
-                    userId: subscriptionData.user_id,
-                  })
+                  .values(subscriptionData)
                   .onConflictDoUpdate({
                     target: subscription.id,
                     set: {
                       modifiedAt: new Date(),
                       amount: subscriptionData.amount,
                       currency: subscriptionData.currency,
-                      recurringInterval: subscriptionData.recurring_interval,
+                      recurringInterval: subscriptionData.recurringInterval,
                       status: subscriptionData.status,
-                      currentPeriodStart: subscriptionData.current_period_start,
-                      currentPeriodEnd: subscriptionData.current_period_end,
-                      cancelAtPeriodEnd: subscriptionData.cancel_at_period_end,
-                      canceledAt: subscriptionData.canceled_at,
-                      startedAt: subscriptionData.started_at,
-                      endsAt: subscriptionData.ends_at,
-                      endedAt: subscriptionData.ended_at,
-                      customerId: subscriptionData.customer_id,
-                      productId: subscriptionData.product_id,
-                      discountId: subscriptionData.discount_id,
-                      checkoutId: subscriptionData.checkout_id,
-                      customerCancellationReason: subscriptionData.customer_cancellation_reason,
-                      customerCancellationComment: subscriptionData.customer_cancellation_comment,
+                      currentPeriodStart: subscriptionData.currentPeriodStart,
+                      currentPeriodEnd: subscriptionData.currentPeriodEnd,
+                      cancelAtPeriodEnd: subscriptionData.cancelAtPeriodEnd,
+                      canceledAt: subscriptionData.canceledAt,
+                      startedAt: subscriptionData.startedAt,
+                      endsAt: subscriptionData.endsAt,
+                      endedAt: subscriptionData.endedAt,
+                      customerId: subscriptionData.customerId,
+                      productId: subscriptionData.productId,
+                      discountId: subscriptionData.discountId,
+                      checkoutId: subscriptionData.checkoutId,
+                      customerCancellationReason: subscriptionData.customerCancellationReason,
+                      customerCancellationComment: subscriptionData.customerCancellationComment,
                       metadata: subscriptionData.metadata,
-                      customFieldData: subscriptionData.custom_field_data,
-                      userId: subscriptionData.user_id,
+                      customFieldData: subscriptionData.customFieldData,
+                      userId: subscriptionData.userId,
                     },
                   });
                   

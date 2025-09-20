@@ -127,11 +127,7 @@ export const subscription = pgTable("subscription", {
   userId: text("userId").references(() => user.id), // opsiyonel bırakıldı
 });
 
-/* ============================
-   BOOKS MODULE (B - uyarlanmış)
-   - dikkat: books.coverImageUrl **REFERANS YOK** (çünkü media.bookId -> books.id var;
-     çift yönlü FK circular TS hatası oluşturuyordu)
-   ============================ */
+
 
 /** user_profiles - extends Better-Auth user (1:1-ish) */
 export const userProfiles = pgTable("user_profiles", {
