@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { and, eq, sql } from 'drizzle-orm';
-import { chapters, books } from '@/db';
+import { chapters, books } from '@/db/schema';
 import { generateJSON, generateHTML } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
 

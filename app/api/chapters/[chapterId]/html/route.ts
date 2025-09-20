@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
 import { eq } from 'drizzle-orm';
-import { books, chapters } from '@/db';
+import { books, chapters } from '@/db/schema';
 import { generateCompleteDocumentHTML } from '@/lib/generateChapterHTML';
 
 // Database schema types are imported from @/db

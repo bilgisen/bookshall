@@ -1,5 +1,5 @@
 import { db } from '@/db/drizzle';
-import { books, chapters } from '@/db';
+import { books, chapters } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 

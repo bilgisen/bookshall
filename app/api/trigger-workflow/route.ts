@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
-import { books, workflowStatus } from '@/db';
+import { books, workflowStatus } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 type PublishOptions = {

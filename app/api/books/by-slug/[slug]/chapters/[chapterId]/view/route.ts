@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
 import { and, eq } from 'drizzle-orm';
-import { chapters, books } from '@/db';
+import { chapters, books } from '@/db/schema';
 import { JSONContent } from '@tiptap/react';
 
 export async function GET(

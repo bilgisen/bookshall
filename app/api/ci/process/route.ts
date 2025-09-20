@@ -1,7 +1,7 @@
 // app/api/ci/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
-import { workflowStatus } from '@/db';
+import { workflowStatus } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { triggerEpubWorkflow, PublishOptions } from '@/lib/workflows/trigger-epub';
 

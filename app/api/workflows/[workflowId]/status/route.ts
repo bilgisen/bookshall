@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
-import { workflowStatus } from '@/db';
+import { workflowStatus } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 type WorkflowResult = {

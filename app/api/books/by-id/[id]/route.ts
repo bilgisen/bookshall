@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/drizzle';
-import { books, chapters } from '@/db';
+import { books, chapters } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { CreditService } from '@/lib/services/credit/credit.service';

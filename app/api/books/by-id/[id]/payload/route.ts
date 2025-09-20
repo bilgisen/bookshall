@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { and, eq, asc } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db/drizzle';
-import { books, chapters } from '@/db';
+import { books, chapters } from '@/db/schema';
 import { createClient } from '@supabase/supabase-js';
 
 // Constants

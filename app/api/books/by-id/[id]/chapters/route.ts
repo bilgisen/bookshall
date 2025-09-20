@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { and, eq } from 'drizzle-orm';
-import { books, chapters } from '@/db';
+import { books, chapters } from '@/db/schema';
 
 // GET /api/books/by-id/[id]/chapters
 // Get all chapters for a book by book ID
