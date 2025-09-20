@@ -122,6 +122,12 @@ export default function ChapterForm({
     return { type: 'doc', content: [] };
   }, [initialData?.content]);
 
+  // Ensure parentChapterId is properly formatted as a string before using it in defaultValues
+  const formattedParentChapterId = React.useMemo(() => {
+    if (!initialData?.parentChapterId) return null;
+    return String(initialData.parentChapterId);
+  }, [initialData?.parentChapterId]);
+
   // Create base values with proper string types for IDs
   const defaultValues: Omit<ChapterFormValues, 'uuid' | 'parentChapterId' | 'bookId'> & {
     id?: string | number;
@@ -132,7 +138,7 @@ export default function ChapterForm({
     ...(initialData?.id && { id: initialData.id }),
     title: initialData?.title ?? '',
     content: formContent,
-    parentChapterId: initialData?.parentChapterId ? String(initialData.parentChapterId) : null,
+    parentChapterId: formattedParentChapterId, // Now properly declared
     order: initialData?.order ?? 0,
     level: initialData?.level ?? 1,
     isDraft: initialData?.isDraft ?? false,
@@ -210,7 +216,7 @@ export default function ChapterForm({
       
       return {
         ...chapter,
-        id: String(chapter.id),
+        id: String(chapter.id), // Ensure ID is always a string for consistency
         disabled: isCurrentChapter, // Only disable the current chapter
         level: chapter.level || 0
       };

@@ -68,8 +68,13 @@ function ParentChapterSelect({
   const selectValue = value ?? "none";
 
   const handleChange = (val: string) => {
-    console.log('ParentChapterSelect - onChange:', { oldValue: value, newValue: val });
-    onChange(val === "none" ? null : val);
+    console.log('ParentChapterSelect - onChange:', { 
+      oldValue: value, 
+      newValue: val,
+      parentChapters: parentChapters.map(c => `${c.id}:${c.title}`)
+    });
+    // Always ensure we're returning null for "none" or a string ID
+    onChange(val === "none" ? null : String(val));
   };
 
   // Sort chapters by level and then by title

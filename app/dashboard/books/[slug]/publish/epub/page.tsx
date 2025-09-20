@@ -64,7 +64,6 @@ export default function GenerateEbookPage() {
     includeMetadata: true,
     includeCover: true,
     includeTOC: true,
-    tocLevel: 6, // Keeping this in state for backward compatibility but not using it
   });
 
   // Check for existing EPUB data on mount

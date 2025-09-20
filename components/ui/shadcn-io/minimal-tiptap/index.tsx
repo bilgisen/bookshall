@@ -457,23 +457,21 @@ function MinimalTiptap({
 
         <Separator orientation="vertical" className="h-6" />
 
-        <Button
-          variant="ghost"
+        <Toggle
           size="sm"
-          onClick={setLink}
+          pressed={editor?.isActive('link')}
+          onPressedChange={setLink}
           disabled={!editor?.isEditable}
-          className={editor?.isActive('link') ? 'bg-accent' : ''}
         >
           <LinkIcon className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
+        </Toggle>
+        <Toggle
           size="sm"
-          onClick={() => editor?.chain().focus().unsetLink().run()}
+          onPressedChange={() => editor?.chain().focus().unsetLink().run()}
           disabled={!editor?.isActive('link') || !editor?.isEditable}
         >
           <UnlinkIcon className="h-4 w-4" />
-        </Button>
+        </Toggle>
 
         <Separator orientation="vertical" className="h-6" />
 
