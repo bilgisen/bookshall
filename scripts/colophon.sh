@@ -7,14 +7,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# --- Auth header (optional API key or GitHub token) ---
-AUTH_HEADER=()
-if [ -n "${BOOKSHALL_API_KEY:-}" ]; then
-  AUTH_HEADER=(-H "Authorization: Bearer $BOOKSHALL_API_KEY")
-elif [ -n "${GITHUB_TOKEN:-}" ]; then
-  AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
-fi
-
 show_help() {
   echo "Generate a colophon page for an EPUB book"
   echo ""
@@ -25,44 +17,18 @@ show_help() {
   echo "  output.xhtml   Path where the generated XHTML file should be saved"
   echo ""
   echo "Environment variables:"
-  echo "  DEBUG               Set to 'true' to enable debug output"
-  echo "  BOOKSHALL_API_KEY   API key for authentication (optional)"
-  echo "  GITHUB_TOKEN        GitHub token for authentication (optional, fallback)"
+  echo "  DEBUG          Set to 'true' to enable debug output"
   exit 0
 }
 
 # Parse arguments
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      show_help
-      ;;
-    -*)
-      echo -e "${RED}Error: Unknown option: $1${NC}" >&2
-      echo "Use --help for usage information"
-      exit 1
-      ;;
-    *)
-      if [ -z "$PAYLOAD_FILE" ]; then
-        PAYLOAD_FILE="$1"
-      elif [ -z "$OUTPUT_FILE" ]; then
-        OUTPUT_FILE="$1"
-      else
-        echo -e "${RED}Error: Too many arguments${NC}" >&2
-        echo "Use --help for usage information"
-        exit 1
-      fi
-      shift
-      ;;
-  esac
-done
-
-# Validate required arguments
-if [ -z "$PAYLOAD_FILE" ] || [ -z "$OUTPUT_FILE" ]; then
-  echo -e "${RED}Error: Missing required arguments${NC}" >&2
-  echo "Use --help for usage information"
+if [ $# -ne 2 ]; then
+  show_help
   exit 1
 fi
+
+PAYLOAD_FILE="$1"
+OUTPUT_FILE="$2"
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
@@ -89,7 +55,10 @@ fi
 
 # Ensure output directory exists
 OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
-mkdir -p "$OUTPUT_DIR"
+if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null; then
+  echo -e "${RED}❌ Error: Failed to create output directory: $OUTPUT_DIR${NC}" >&2
+  exit 1
+fi
 
 # --- Extract fields from payload ---
 BOOK_TITLE=$(jq -r '.book.title // "Untitled Book"' "$PAYLOAD_FILE")
@@ -155,19 +124,14 @@ if ! mv -f "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"; then
   exit 1
 fi
 
+# Show success message
+echo -e "${GREEN}✅ Success: Colophon page created at $OUTPUT_FILE${NC}"
+
+# Show debug info if enabled
 if [ "${DEBUG:-false}" = "true" ]; then
-  echo -e "${GREEN}✅ Success: Colophon page created at $OUTPUT_FILE${NC}"
   echo -e "${YELLOW}Debug: Book title: $BOOK_TITLE${NC}"
   echo -e "${YELLOW}Debug: Author: $BOOK_AUTHOR${NC}"
-  if [ -n "$BOOK_PUBLISHER" ]; then
-    echo -e "${YELLOW}Debug: Publisher: $BOOK_PUBLISHER${NC}"
-  fi
-  if [ -n "$BOOK_ISBN" ]; then
-    echo -e "${YELLOW}Debug: ISBN: $BOOK_ISBN${NC}"
-  fi
-  if [ -n "$BOOK_YEAR" ]; then
-    echo -e "${YELLOW}Debug: Year: $BOOK_YEAR${NC}"
-  fi
-else
-  echo -e "${GREEN}✅ Success: Colophon page created at $OUTPUT_FILE${NC}"
+  [ -n "$BOOK_PUBLISHER" ] && echo -e "${YELLOW}Debug: Publisher: $BOOK_PUBLISHER${NC}"
+  [ -n "$BOOK_ISBN" ] && echo -e "${YELLOW}Debug: ISBN: $BOOK_ISBN${NC}"
+  [ -n "$BOOK_YEAR" ] && echo -e "${YELLOW}Debug: Year: $BOOK_YEAR${NC}"
 fi
