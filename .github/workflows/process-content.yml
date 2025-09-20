@@ -103,6 +103,7 @@ jobs:
         run: |
           chmod +x ./scripts/validate-inputs.sh
           chmod +x ./scripts/fetch-book.sh
+          chmod +x ./scripts/colophon.sh
 
       - name: Validate inputs
         run: ./scripts/validate-inputs.sh
