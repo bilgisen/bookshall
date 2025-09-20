@@ -161,12 +161,13 @@ async function handleSubscriptionDeleted(event: PolarEvent<{ id: string }>) {
 export async function POST(req: Request) {
   try {
     // Get headers and raw payload
-    const headersList = headers();
+    const headersList = await headers();
     const signature = headersList.get('polar-signature') || '';
+    const eventType = headersList.get('polar-event-type');
     const payload = await req.text();
     
     // Log incoming webhook for debugging
-    console.log('🔔 Received Polar webhook with type:', headersList.get('polar-event-type'));
+    console.log('🔔 Received Polar webhook with type:', eventType);
 
     // Verify the webhook signature
     if (!verifySignature(payload, signature)) {

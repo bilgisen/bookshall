@@ -1,19 +1,15 @@
 import { getSubscriptionDetails } from "@/lib/subscription";
-import { auth } from "@/lib/auth";
+import { authClient } from "@/lib/auth-client";
 import PricingTable from "./_component/pricing-table";
 
 export default async function PricingPage() {
-  // Make auth check optional
-  let subscriptionDetails = { hasSubscription: false };
+  const { data: session } = await authClient.getSession();
+  const userId = session?.user?.id;
   
-  try {
-    const session = await auth();
-    if (session?.user?.id) {
-      subscriptionDetails = await getSubscriptionDetails(session.user.id);
-    }
-  } catch (error) {
-    console.error('Error fetching subscription details:', error);
-  }
+  // Only fetch subscription details if user is logged in
+  const subscriptionDetails = userId 
+    ? await getSubscriptionDetails(userId)
+    : { hasSubscription: false };
 
   return (
     <div className="flex flex-col items-center justify-center w-full min-h-screen">
