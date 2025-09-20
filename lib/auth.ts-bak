@@ -19,9 +19,20 @@ function safeParseDate(value: string | Date | null | undefined): Date | null {
   return new Date(value);
 }
 
+// Env check
+if (!process.env.POLAR_ACCESS_TOKEN) {
+  throw new Error("Missing POLAR_ACCESS_TOKEN");
+}
+if (!process.env.POLAR_ENVIRONMENT) {
+  throw new Error("Missing POLAR_ENVIRONMENT");
+}
+
 const polarClient = new Polar({
-  accessToken: process.env.POLAR_ACCESS_TOKEN,
-  server: "sandbox",
+  accessToken: process.env.POLAR_ACCESS_TOKEN!,
+  server:
+    process.env.POLAR_ENVIRONMENT === "production"
+      ? "production"
+      : "sandbox",
 });
 
 export const auth = betterAuth({
