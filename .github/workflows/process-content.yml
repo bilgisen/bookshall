@@ -104,6 +104,7 @@ jobs:
           chmod +x ./scripts/validate-inputs.sh
           chmod +x ./scripts/fetch-book.sh
           chmod +x ./scripts/colophon.sh
+          chmod +x ./scripts/toc.sh
 
       - name: Validate inputs
         run: ./scripts/validate-inputs.sh
