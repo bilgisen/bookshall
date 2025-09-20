@@ -55,19 +55,28 @@ interface SubscriptionObject {
   ended_at: number | null;
   customer: string;
   customer_email?: string; // Added for user lookup
+  discount?: {
+    id: string;
+  };
+  cancellation_details?: {
+    reason?: string;
+    comment?: string;
+  };
   items: {
     data: Array<{
       price: {
+        id: string;
         unit_amount: number;
         recurring?: {
           interval: string;
         };
         product: string;
       };
+      quantity: number;
     }>;
   };
   latest_invoice: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, string | number | boolean | null | undefined | string[]>;
 }
 
 // Handle subscription created/updated event
@@ -98,6 +107,16 @@ async function handleSubscriptionEvent(event: PolarEvent<SubscriptionObject>) {
       }
     }
 
+    // Ensure we have a valid user ID before proceeding
+    if (!userId) {
+      console.error('❌ No user ID found for subscription:', subscriptionData.id);
+      throw new Error('No user ID found for subscription');
+    }
+
+    // Ensure userId is a string
+    const userIdStr = String(userId);
+
+    // Build the subscription object with all required fields
     const subscriptionObj = {
       id: subscriptionData.id,
       createdAt: new Date(subscriptionData.created * 1000),
@@ -111,25 +130,45 @@ async function handleSubscriptionEvent(event: PolarEvent<SubscriptionObject>) {
       cancelAtPeriodEnd: subscriptionData.cancel_at_period_end || false,
       canceledAt: subscriptionData.canceled_at ? new Date(subscriptionData.canceled_at * 1000) : null,
       startedAt: new Date(subscriptionData.start_date * 1000),
+      // Include both endsAt and endedAt to match schema
       endsAt: subscriptionData.ended_at ? new Date(subscriptionData.ended_at * 1000) : null,
+      endedAt: subscriptionData.ended_at ? new Date(subscriptionData.ended_at * 1000) : null,
       customerId: subscriptionData.customer,
       productId: subscriptionData.items.data[0]?.price.product || '',
-      checkoutId: subscriptionData.latest_invoice || '',
-      userId: userId,
-      metadata: JSON.stringify(subscriptionData.metadata || {}),
+      discountId: subscriptionData.discount?.id || null,
+      checkoutId: subscriptionData.latest_invoice || `ch_${subscriptionData.id}`,
+      customerCancellationReason: subscriptionData.cancellation_details?.reason || null,
+      customerCancellationComment: subscriptionData.cancellation_details?.comment || null,
+      userId: userIdStr, // Ensure userId is a string
+      metadata: JSON.stringify({
+        ...subscriptionData.metadata,
+        customer_email: subscriptionData.customer_email,
+        items: subscriptionData.items.data.map(item => ({
+          price: item.price.id,
+          quantity: item.quantity,
+        })),
+      }),
+      customFieldData: JSON.stringify({}) // Initialize as empty object if no custom fields
     };
 
     if (existing) {
       // Update existing subscription
+      const { id, ...updateData } = subscriptionObj;
       await db
         .update(subscription)
-        .set(subscriptionObj)
-        .where(eq(subscription.id, subscriptionData.id));
-      console.log(`✅ Updated subscription ${subscriptionData.id}`);
+        .set({
+          ...updateData,
+          modifiedAt: new Date()
+        })
+        .where(eq(subscription.id, id));
+      console.log(`✅ Updated subscription ${id}`);
     } else {
       // Create new subscription
-      await db.insert(subscription).values(subscriptionObj);
-      console.log(`✅ Created new subscription ${subscriptionData.id}`);
+      await db.insert(subscription).values({
+        ...subscriptionObj,
+        modifiedAt: new Date()
+      });
+      console.log(`✅ Created new subscription ${subscriptionObj.id}`);
     }
   } catch (error) {
     console.error('❌ Error handling subscription event:', error);
