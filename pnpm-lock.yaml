@@ -142,7 +142,7 @@ dependencies:
     version: 3.4.3(@tiptap/core@3.4.4)
   '@tiptap/extension-bullet-list':
     specifier: ^3.4.1
-    version: 3.4.3(@tiptap/extension-list@3.4.3)
+    version: 3.4.3(@tiptap/extension-list@3.4.4)
   '@tiptap/extension-code':
     specifier: ^3.4.1
     version: 3.4.3(@tiptap/core@3.4.4)
@@ -177,14 +177,14 @@ dependencies:
     specifier: ^3.4.1
     version: 3.4.3(@tiptap/core@3.4.4)
   '@tiptap/extension-link':
-    specifier: ^3.4.1
-    version: 3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
+    specifier: ^3.4.4
+    version: 3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
   '@tiptap/extension-list-item':
     specifier: ^3.4.1
-    version: 3.4.3(@tiptap/extension-list@3.4.3)
+    version: 3.4.3(@tiptap/extension-list@3.4.4)
   '@tiptap/extension-ordered-list':
     specifier: ^3.4.1
-    version: 3.4.3(@tiptap/extension-list@3.4.3)
+    version: 3.4.3(@tiptap/extension-list@3.4.4)
   '@tiptap/extension-paragraph':
     specifier: ^3.4.1
     version: 3.4.3(@tiptap/core@3.4.4)
@@ -5120,12 +5120,12 @@ packages:
     dev: false
     optional: true
 
-  /@tiptap/extension-bullet-list@3.4.3(@tiptap/extension-list@3.4.3):
+  /@tiptap/extension-bullet-list@3.4.3(@tiptap/extension-list@3.4.4):
     resolution: {integrity: sha512-/7+3BcQpsGQiVatsGaM3Pf4jQ96v+zUQDSVY4xa7l08yykp/nvheAiV9mk2UoXkVOQ3jc2uUEsaZ0NkQFyxFUg==}
     peerDependencies:
       '@tiptap/extension-list': ^3.4.3
     dependencies:
-      '@tiptap/extension-list': 3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
+      '@tiptap/extension-list': 3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
     dev: false
 
   /@tiptap/extension-bullet-list@3.4.4(@tiptap/extension-list@3.4.4):
@@ -5318,17 +5318,6 @@ packages:
       '@tiptap/core': 3.4.4(@tiptap/pm@3.4.4)
     dev: false
 
-  /@tiptap/extension-link@3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4):
-    resolution: {integrity: sha512-x13vdrNu/r0p7A5h1c7JYqQrhd4U+E7e0WO82WcryCxUinfsm+GLr4YBfhkabMsc2/6BSxeqbyZJ6dlT1ugjHg==}
-    peerDependencies:
-      '@tiptap/core': ^3.4.3
-      '@tiptap/pm': ^3.4.3
-    dependencies:
-      '@tiptap/core': 3.4.4(@tiptap/pm@3.4.4)
-      '@tiptap/pm': 3.4.4
-      linkifyjs: 4.3.2
-    dev: false
-
   /@tiptap/extension-link@3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4):
     resolution: {integrity: sha512-swWOkUeSsO6Xp83ik1mzOuDq8xyDZDbZk9NNHHIDWWlHSBp0/Rm+adHlfbr2tyahi69wwuH5gHxUiAua7X/w+Q==}
     peerDependencies:
@@ -5340,12 +5329,12 @@ packages:
       linkifyjs: 4.3.2
     dev: false
 
-  /@tiptap/extension-list-item@3.4.3(@tiptap/extension-list@3.4.3):
+  /@tiptap/extension-list-item@3.4.3(@tiptap/extension-list@3.4.4):
     resolution: {integrity: sha512-S1vs/f4cFEmgJhSxtxJAXZVctTuLC9+8iSL98gEMdfcCX4BrcXcw+9CfBu4osTXiQI/Q2RxEAkZXaaoXUP65sw==}
     peerDependencies:
       '@tiptap/extension-list': ^3.4.3
     dependencies:
-      '@tiptap/extension-list': 3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
+      '@tiptap/extension-list': 3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
     dev: false
 
   /@tiptap/extension-list-item@3.4.4(@tiptap/extension-list@3.4.4):
@@ -5364,16 +5353,6 @@ packages:
       '@tiptap/extension-list': 3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
     dev: false
 
-  /@tiptap/extension-list@3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4):
-    resolution: {integrity: sha512-fug1YoSJgfG/WkzlcoxT988Or9dG9juJHCgbgMSGeo7bwilm/Gf4pIxn/ZyNOkG9ZhHmxsxcV9PiAd+0b1Cp8g==}
-    peerDependencies:
-      '@tiptap/core': ^3.4.3
-      '@tiptap/pm': ^3.4.3
-    dependencies:
-      '@tiptap/core': 3.4.4(@tiptap/pm@3.4.4)
-      '@tiptap/pm': 3.4.4
-    dev: false
-
   /@tiptap/extension-list@3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4):
     resolution: {integrity: sha512-O7k3FxyRocVgFNP7rIKvpPMjnme8sf8lx8lYyKQIzo0xEZ1b8KGBzY7Z8wT59BhSrIil6de2E2FsEhgKcVvvKA==}
     peerDependencies:
@@ -5384,12 +5363,12 @@ packages:
       '@tiptap/pm': 3.4.4
     dev: false
 
-  /@tiptap/extension-ordered-list@3.4.3(@tiptap/extension-list@3.4.3):
+  /@tiptap/extension-ordered-list@3.4.3(@tiptap/extension-list@3.4.4):
     resolution: {integrity: sha512-zZ/c8on3itYQmZyFfQUcpwsUz68UtUH8x5E9G183oaQGloCtH3YTvO4k89FA0TASrdvQPfmJ7R2hyiO8TYdBFw==}
     peerDependencies:
       '@tiptap/extension-list': ^3.4.3
     dependencies:
-      '@tiptap/extension-list': 3.4.3(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
+      '@tiptap/extension-list': 3.4.4(@tiptap/core@3.4.4)(@tiptap/pm@3.4.4)
     dev: false
 
   /@tiptap/extension-ordered-list@3.4.4(@tiptap/extension-list@3.4.4):

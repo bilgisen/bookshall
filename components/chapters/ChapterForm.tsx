@@ -203,21 +203,24 @@ export default function ChapterForm({
   
   // Ensure parentChapters is always an array and properly formatted
   const safeParentChapters = React.useMemo(() => {
-    if (!Array.isArray(parentChapters)) {
-      console.warn('parentChapters is not an array, defaulting to empty array');
-      return [];
-    }
-    
-    const formattedChapters = parentChapters.map(chapter => ({
-      ...chapter,
-      id: String(chapter.id),
-      disabled: !!chapter.disabled,
-      level: chapter.level || 0
-    }));
-    
-    console.log('Formatted parent chapters:', formattedChapters);
-    return formattedChapters;
-  }, [parentChapters]);
+    return (Array.isArray(parentChapters) ? parentChapters : []).map(chapter => {
+      // Only disable the current chapter (if it exists)
+      const isCurrentChapter = initialData?.id !== undefined && 
+                             String(chapter.id) === String(initialData.id);
+      
+      return {
+        ...chapter,
+        id: String(chapter.id),
+        disabled: isCurrentChapter, // Only disable the current chapter
+        level: chapter.level || 0
+      };
+    });
+  }, [parentChapters, initialData?.id]);
+  
+  // Debug log to verify parent chapters
+  React.useEffect(() => {
+    console.log('Parent chapters:', safeParentChapters);
+  }, [safeParentChapters]);
   
   // Wrap the async submit handler to match the expected type
   const handleFormSubmit = async (data: FormValues) => {

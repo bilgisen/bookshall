@@ -13,7 +13,8 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
-import { Table as TableIcon } from 'lucide-react';
+import { Link } from '@tiptap/extension-link';
+import { Table as TableIcon, Link as LinkIcon, Unlink as UnlinkIcon } from 'lucide-react';
 
 import {
   Bold,
@@ -157,6 +158,7 @@ function MinimalTiptap({
       }
     }
   };
+
   // Normalize content prop into what TipTap expects
   const normalizeForEditor = React.useCallback((c: string | object | null) => {
     if (!c) return '';
@@ -230,6 +232,14 @@ function MinimalTiptap({
       TableRow,
       TableHeader,
       TableCell,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: 'https',
+        HTMLAttributes: {
+          class: 'text-blue-600 underline hover:text-blue-800',
+        },
+      }),
     ],
     editable,
     immediatelyRender: false,
@@ -252,6 +262,20 @@ function MinimalTiptap({
       preserveWhitespace: 'full',
     },
   });
+
+  const setLink = React.useCallback(() => {
+    if (!editor) return;
+    const prev = editor.getAttributes('link').href;
+    const url = window.prompt('URL', prev || 'https://');
+
+    if (url === null) return;
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
 
   // Update content when the content prop changes
   React.useEffect(() => {
@@ -436,10 +460,29 @@ function MinimalTiptap({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          onClick={setLink}
+          disabled={!editor?.isEditable}
+          className={editor?.isActive('link') ? 'bg-accent' : ''}
+        >
+          <LinkIcon className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor?.chain().focus().unsetLink().run()}
+          disabled={!editor?.isActive('link') || !editor?.isEditable}
+        >
+          <UnlinkIcon className="h-4 w-4" />
+        </Button>
+
+        <Separator orientation="vertical" className="h-6" />
+
+        <Toggle
+          size="sm"
+          onPressedChange={() => editor.chain().focus().setHorizontalRule().run()}
         >
           <Minus className="h-4 w-4" />
-        </Button>
+        </Toggle>
 
         <Separator orientation="vertical" className="h-6" />
 

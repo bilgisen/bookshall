@@ -21,7 +21,7 @@ export function ChapterHeader(props: ChapterHeaderProps) {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           <p className="text-muted-foreground mt-1">
-            <Link href={`/dashboard/books/${bookSlug}`} className="hover:underline flex items-center">
+            <Link href={`/dashboard/books/${bookSlug}/view`} className="hover:underline flex items-center">
               <BookOpen className="h-4 w-4 mr-1" />
               {bookName}
             </Link>
