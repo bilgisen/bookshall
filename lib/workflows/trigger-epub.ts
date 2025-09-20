@@ -1,6 +1,6 @@
 // lib/workflows/trigger-epub.ts
 import { db } from '@/db/drizzle';
-import { workflowStatus } from '@/db';
+import { workflowStatus } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export interface PublishOptions {
