@@ -25,7 +25,7 @@ import { chapterFormSchema, type ChapterFormValues } from '@/lib/validation/chap
 import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import type { InferInsertModel } from 'drizzle-orm';
-import { chapters } from '@/db';
+import { chapters } from '@/db/schema';
 
 type DbChapter = InferInsertModel<typeof chapters> & {
   id?: string | number;

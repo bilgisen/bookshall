@@ -9,6 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Toggle } from '@/components/ui/toggle';
 import { Placeholder } from '@tiptap/extension-placeholder';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { Table as TableIcon } from 'lucide-react';
+
 import {
   Bold,
   Italic,
@@ -217,7 +223,13 @@ function MinimalTiptap({
       }),
       Placeholder.configure({
         placeholder
-      })
+      }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     editable,
     immediatelyRender: false,
@@ -408,6 +420,16 @@ function MinimalTiptap({
         >
           <Quote className="h-4 w-4" />
         </Toggle>
+
+        <Separator orientation="vertical" className="h-6" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true })}
+        >
+          <TableIcon className="h-4 w-4" />
+        </Button>
 
         <Separator orientation="vertical" className="h-6" />
 
