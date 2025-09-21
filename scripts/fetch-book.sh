@@ -281,7 +281,6 @@ while IFS= read -r chap; do
 
       # Add to chapters list
       echo "$chapter_file" >> "$WORKDIR/_chapters.txt"
-    fi  # End of content_url check
 done < <(process_chapters)
 
 if [ -f "$WORKDIR/_chapters.txt" ]; then
