@@ -160,8 +160,8 @@ fi
 
 # --- Optional colophon (metadata page) ---
 if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
-  ./scripts/colophon.sh "$PAYLOAD_FILE" "$WORKDIR/colophon.xhtml"
-  CHAPTER_FILES=("$WORKDIR/colophon.xhtml" "${CHAPTER_FILES[@]}")
+  ./scripts/colophon.sh "$PAYLOAD_FILE" "$WORKDIR/imprint.xhtml"
+  CHAPTER_FILES=("$WORKDIR/imprint.xhtml" "${CHAPTER_FILES[@]}")
 fi
 
 # --- Optional custom TOC page ---
