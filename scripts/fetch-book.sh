@@ -105,13 +105,13 @@ CHAPTER_FILES=()
 jq -c '(.book.chapters // []) | sort_by(.order)[]' "$PAYLOAD_FILE" \
   | nl -w2 -s':' \
   | while IFS=: read -r idx chap; do
-      local order=$(jq -r '.order' <<<"$chap")
-      local title=$(jq -r '.title' <<<"$chap")
-      local content=$(jq -r '.content' <<<"$chap")
+      order=$(jq -r '.order' <<<"$chap")
+      title=$(jq -r '.title' <<<"$chap")
+      content=$(jq -r '.content' <<<"$chap")
 
       # Generate chapter file (use chXXX.xhtml format for compatibility with EPUB standards)
-      local chapter_num=$(printf "%03d" "$order")
-      local chapter_file="$CHAPTER_DIR/ch${chapter_num}.xhtml"
+      chapter_num=$(printf "%03d" "$order")
+      chapter_file="$CHAPTER_DIR/ch${chapter_num}.xhtml"
 
       # Skip if this is the TOC (order=0)
       if [ "$order" -eq 0 ]; then
