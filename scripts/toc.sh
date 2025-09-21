@@ -56,8 +56,8 @@ generate_list() {
   # Process chapters, filtering out order=0 and levels > MAX_LEVEL in the jq query
   jq -c '.book.chapters 
         | sort_by(.order)[] 
-        | select(.order > 0 and .level <= ($ENV.MAX_LEVEL|tonumber)) 
-        | {order, level, title}' "$PAYLOAD_FILE" | while read -r chapter; do
+        | {order, level: (.level // 1), title}
+        | select(.order > 0 and .level <= ($ENV.MAX_LEVEL|tonumber))' "$PAYLOAD_FILE" | while read -r chapter; do
     
     # Clean title - only remove potentially problematic tags, preserve basic formatting
     local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' |
