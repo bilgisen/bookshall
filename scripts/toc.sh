@@ -25,10 +25,17 @@ case "$BOOK_LANG" in
 esac
 
 # --- Determine TOC depth automatically ---
-MAX_LEVEL=$(jq '[.book.chapters[].level] | max // 1' "$PAYLOAD_FILE")
-if [ "$MAX_LEVEL" -lt 1 ] || [ "$MAX_LEVEL" -gt 3 ]; then
-  MAX_LEVEL=2  # Default to 2 levels if invalid
+# Calculate TOC depth based on the maximum chapter level (capped at 5)
+MAX_LEVEL=$(jq -r '[.book.chapters[].level // 1] | max' "$PAYLOAD_FILE" 2>/dev/null)
+
+# Ensure MAX_LEVEL is a valid number between 1 and 5
+if ! [[ "$MAX_LEVEL" =~ ^[1-9][0-9]*$ ]] || [ "$MAX_LEVEL" -lt 1 ]; then
+  MAX_LEVEL=1  # Minimum 1 level
+elif [ "$MAX_LEVEL" -gt 5 ]; then
+  MAX_LEVEL=5  # Maximum 5 levels
 fi
+
+echo "🔍 Using TOC depth: $MAX_LEVEL (based on maximum chapter level)" >&2
 
 # --- Prepare output file ---
 # Output will be written directly later
