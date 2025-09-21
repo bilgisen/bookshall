@@ -34,11 +34,39 @@ Q_INCLUDE_COVER=${INCLUDE_COVER:-true}
 
 PAYLOAD_URL="$NEXT_PUBLIC_APP_URL/api/books/by-id/$BOOK_ID/payload?generate_toc=$Q_INCLUDE_TOC&toc_depth=$Q_TOC_LEVEL&includeMetadata=$Q_INCLUDE_METADATA&includeCover=$Q_INCLUDE_COVER"
 echo "📥 Fetching payload: $PAYLOAD_URL"
-curl -fsSL "${AUTH_HEADER[@]}" "$PAYLOAD_URL" -o "$PAYLOAD_FILE"
 
-if ! jq -e '.book' "$PAYLOAD_FILE" >/dev/null 2>&1; then
-  echo "❌ Invalid payload.json (missing .book)"
+# Add debug output for the payload being fetched
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "Debug: Fetching payload from: $PAYLOAD_URL" >&2
+  echo "Debug: Using auth header: ${AUTH_HEADER[*]}" >&2
+fi
+
+# Download the payload with error handling
+if ! curl -fsSL "${AUTH_HEADER[@]}" "$PAYLOAD_URL" -o "$PAYLOAD_FILE"; then
+  echo "❌ Failed to download payload from $PAYLOAD_URL" >&2
+  echo "❌ HTTP Status: $(curl -s -o /dev/null -w "%{http_code}" "$PAYLOAD_URL")" >&2
   exit 1
+fi
+
+# Validate the payload is valid JSON
+if ! jq -e '.' "$PAYLOAD_FILE" >/dev/null 2>&1; then
+  echo "❌ Downloaded payload is not valid JSON" >&2
+  echo "❌ First 100 chars of payload: $(head -c 100 "$PAYLOAD_FILE")" >&2
+  exit 1
+fi
+
+# Validate the payload has the expected structure
+if ! jq -e '.book' "$PAYLOAD_FILE" >/dev/null 2>&1; then
+  echo "❌ Invalid payload.json (missing .book)" >&2
+  echo "❌ Payload structure:" >&2
+  jq -c '.' "$PAYLOAD_FILE" | head -n 20 >&2
+  exit 1
+fi
+
+# Debug: Show payload structure if debug is enabled
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "Debug: Payload structure:" >&2
+  jq -c '.book | {id, title, author, chapters: (.chapters | length)}' "$PAYLOAD_FILE" >&2
 fi
 
 # --- Escape helper for YAML ---
@@ -137,19 +165,63 @@ echo "rights: \"All rights reserved\"" >> "$META_FILE"
 echo "📝 metadata.yaml created"
 
 # --- Fetch chapters ---
-CHAPTER_FILES=()
-jq -c '(.book.chapters // []) | sort_by(if .order == null then 0 else .order end)[]' "$PAYLOAD_FILE" \
-  2>/dev/null | while IFS= read -r chap; do
+{
+  echo "Debug: Starting chapter processing..." >&2
+  
+  # First, validate the chapters array exists and is not empty
+  if ! jq -e '.book.chapters | length > 0' "$PAYLOAD_FILE" >/dev/null; then
+    echo "⚠️  Warning: No chapters found in payload" >&2
+    # Create a default chapter if none exist
+    echo "{\"title\":\"$BOOK_TITLE\",\"order\":1,\"content\":\"<p>No content available</p>\"}" | jq -c .
+  else
+    # Extract and process chapters with better error handling
+    jq -c '(.book.chapters // []) | sort_by(.order // 0) | .[] | select(. != null)' "$PAYLOAD_FILE" 2>&1 || {
+      echo "❌ Error processing chapters:" >&2
+      jq -c '.book.chapters[] | {order, title, has_content: (has("content") or has("url"))}' "$PAYLOAD_FILE" >&2
+      exit 1
+    }
+  fi
+} | while IFS= read -r chap; do
   if [ -z "$chap" ]; then
     echo "⚠️  Warning: Empty chapter data" >&2
     continue
   fi
-      order=$(jq -r '.order' <<<"$chap")
-      title=$(jq -r '.title' <<<"$chap")
-      content_url=$(jq -r '.url // empty' <<<"$chap")
+  
+  if [ "${DEBUG:-false}" = "true" ]; then
+    echo "Debug: Processing chapter: $(jq -r '{order, title, has_url: (has("url") and (.url != null))}' <<<"$chap")" >&2
+  fi
+  order=$(jq -r '.order' <<<"$chap")
+  title=$(jq -r '.title' <<<"$chap")
+  content_url=$(jq -r '.url // empty' <<<"$chap")
+  
+  # Download chapter content if URL is available
+  if [ -n "$content_url" ]; then
+    echo "📥 Downloading chapter content from $content_url"
+    # Create a temporary file for the chapter content
+    temp_file=$(mktemp)
+    
+    # Download the chapter content with error handling
+    if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
+      echo "⚠️  Failed to download chapter content from $content_url" >&2
+      content="<p>Failed to load chapter content.</p>"
+    else
+      # Extract the main content from the HTML response
+      content=$(cat "$temp_file" | 
+        # Remove any existing DOCTYPE and HTML/HEAD tags
+        sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/\?html[^>]*>//g' -e 's/<\/\?head[^>]*>//g' |
+        # Extract the content between <body> tags or use the whole content
+        sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
+        # Remove any remaining script and style tags
+        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//g' -e 's/<style[^>]*>[\s\S]*?<\/style>//g' |
+        # Clean up any empty lines
+        sed '/^[[:space:]]*$/d' |
+        # Ensure proper XHTML structure
+        sed -e 's/&/&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
+      )
       
-      # Download chapter content if URL is available
-      if [ -n "$content_url" ]; then
+      # If we couldn't extract any meaningful content, use a fallback
+      if [ -z "$content" ]; then
+        content="<p>No content available for this chapter.</p>"
         echo "📥 Downloading chapter content from $content_url"
         # Create a temporary file for the chapter content
         temp_file=$(mktemp)
