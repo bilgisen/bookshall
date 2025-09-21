@@ -32,8 +32,8 @@ MAX_LEVEL=$(jq -r '
               elif type == "string" and test("^[0-9]+$") then tonumber
               elif . == null or . == "" then 1
               else 1 end)
-   | select(. >= 1)]
-  | if length > 0 then max else 1 end
+   | select(type == "number" and . >= 1)]
+  | if length > 0 then (map(select(type == "number")) | max) else 1 end
 ' "$PAYLOAD_FILE" 2>/dev/null) || MAX_LEVEL=1
 
 # Ensure MAX_LEVEL is a valid number between 1 and 5
@@ -62,10 +62,12 @@ generate_list() {
   local first_item=true
 
   # Process chapters, filtering out order=0 and levels > MAX_LEVEL in the jq query
-  jq -c '.book.chapters 
-        | sort_by(.order)[] 
-        | {order, level: (.level // 1), title}
-        | select(.order > 0 and .level <= ($ENV.MAX_LEVEL|tonumber))' "$PAYLOAD_FILE" | while read -r chapter; do
+  jq -c --arg max_level "$MAX_LEVEL" '
+    .book.chapters 
+    | sort_by(.order)[] 
+    | {order, level: (.level // 1), title}
+    | select(.order > 0 and .level <= ($max_level|tonumber))
+    | .level = (.level // 1)' "$PAYLOAD_FILE" | while read -r chapter; do
     
     # Clean title - only remove potentially problematic tags, preserve basic formatting
     local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' |
