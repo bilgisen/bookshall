@@ -47,7 +47,12 @@ generate_list() {
   local prev_level=1
   
   # First, generate the TOC entries with proper nesting
-  jq -c '.book.chapters[] | select(.level <= $ENV.MAX_LEVEL)' "$PAYLOAD_FILE" | while read -r chapter; do
+  jq -c '.book.chapters | sort_by(.order)[] | select(.level <= ($ENV.MAX_LEVEL | tonumber)) | {order, level, title, id}' "$PAYLOAD_FILE" | while read -r chapter; do
+    # Skip the TOC chapter (order=0)
+    local order=$(jq -r '.order' <<<"$chapter")
+    if [ "$order" -eq 0 ]; then
+      continue
+    fi
     # Clean up the title by removing any HTML tags and leading/trailing whitespace
     local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' | 
                   sed -e 's/<[^>]*>//g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
@@ -99,6 +104,12 @@ generate_list() {
     echo "</li>" >> "$OUTPUT_FILE"
   fi
 }
+
+# Debug: Check chapters in payload
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "Debug: Chapters in payload:" >&2
+  jq '.book.chapters' "$PAYLOAD_FILE" >&2
+fi
 
 # --- Generate XHTML ---
 {

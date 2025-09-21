@@ -7,10 +7,6 @@ shopt -s nullglob
 # ------------------------------------------------------------------
 
 # === Required ENV ===
-if [ -z "${BOOK_ID:-}" ]; then
-  echo "❌ BOOK_ID is not set"
-  exit 1
-fi
 if [ -z "${NEXT_PUBLIC_APP_URL:-}" ]; then
   echo "❌ NEXT_PUBLIC_APP_URL is not set"
   exit 1
@@ -51,10 +47,31 @@ escape_for_yaml() {
   printf '%s' "$raw" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
-# --- Extract fields ---
-BOOK_TITLE=$(jq -r '.book.title // "Untitled Book"' "$PAYLOAD_FILE")
-BOOK_AUTHOR=$(jq -r '.book.author // "Unknown Author"' "$PAYLOAD_FILE")
-BOOK_LANG=$(jq -r '.book.language // "en"' "$PAYLOAD_FILE")
+# --- Extract fields with better error handling ---
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "Debug: Payload structure:" >&2
+  jq '.' "$PAYLOAD_FILE" >&2
+fi
+
+# Extract BOOK_ID from payload
+BOOK_ID=$(jq -r '.book.id' "$PAYLOAD_FILE")
+if [ -z "$BOOK_ID" ] || [ "$BOOK_ID" = "null" ]; then
+  echo "❌ Could not extract BOOK_ID from payload"
+  exit 1
+fi
+echo "📚 Processing book with ID: $BOOK_ID"
+
+# Extract book title - only use the book's title, never fall back to chapter titles
+BOOK_TITLE=$(jq -r '.book.title | select(. != null) | tostring' "$PAYLOAD_FILE")
+if [ -z "$BOOK_TITLE" ] || [ "$BOOK_TITLE" = "null" ]; then
+  BOOK_TITLE="Untitled Book"
+  echo "⚠️  Warning: No book title found in payload, using default" >&2
+else
+  echo "📖 Book title: $BOOK_TITLE" >&2
+fi
+
+BOOK_AUTHOR=$(jq -r '(.book.author // "Unknown Author") | tostring' "$PAYLOAD_FILE")
+BOOK_LANG=$(jq -r '(.book.language // "en") | tostring' "$PAYLOAD_FILE")
 BOOK_PUBLISHER=$(jq -r '.book.publisher // "Unknown Publisher"' "$PAYLOAD_FILE")
 BOOK_SLUG=$(jq -r '.book.slug // ("book-" + env.BOOK_ID)' "$PAYLOAD_FILE")
 BOOK_ISBN=$(jq -r '.book.isbn // empty' "$PAYLOAD_FILE")
@@ -107,7 +124,44 @@ jq -c '(.book.chapters // []) | sort_by(.order)[]' "$PAYLOAD_FILE" \
   | while IFS=: read -r idx chap; do
       order=$(jq -r '.order' <<<"$chap")
       title=$(jq -r '.title' <<<"$chap")
-      content=$(jq -r '.content' <<<"$chap")
+      content_url=$(jq -r '.url // empty' <<<"$chap")
+      
+      # Download chapter content if URL is available
+      if [ -n "$content_url" ]; then
+        echo "📥 Downloading chapter content from $content_url"
+        # Create a temporary file for the chapter content
+        local temp_file=$(mktemp)
+        
+        # Download the chapter content with error handling
+        if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
+          echo "⚠️  Failed to download chapter content from $content_url" >&2
+          content="<p>Failed to load chapter content.</p>"
+        else
+          # Extract the main content from the HTML response
+          content=$(cat "$temp_file" | 
+            # Remove any existing DOCTYPE and HTML/HEAD tags
+            sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/\?html[^>]*>//g' -e 's/<\/\?head[^>]*>//g' |
+            # Extract the content between <body> tags or use the whole content
+            sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
+            # Remove any remaining script and style tags
+            sed -e 's/<script[^>]*>[\s\S]*?<\/script>//g' -e 's/<style[^>]*>[\s\S]*?<\/style>//g' |
+            # Clean up any empty lines
+            sed '/^[[:space:]]*$/d' |
+            # Ensure proper XHTML structure
+            sed -e 's/&/&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
+          )
+          
+          # If we couldn't extract any meaningful content, use a fallback
+          if [ -z "$content" ]; then
+            content="<p>No content available for this chapter.</p>"
+          fi
+        fi
+        
+        # Clean up the temporary file
+        rm -f "$temp_file"
+      else
+        content="<p>No content URL provided for this chapter.</p>"
+      fi
 
       # Generate chapter file (use chXXX.xhtml format for compatibility with EPUB standards)
       chapter_num=$(printf "%03d" "$order")

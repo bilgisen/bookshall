@@ -127,7 +127,7 @@ BOOK_YEAR=$(jq -r '.book.metadata.publish_year // .book.publish_year // empty' "
 
   # Subtitle (optional)
   if [ -n "$BOOK_SUBTITLE" ]; then
-    echo "  <div class=\"subtitle\">$BOOK_SUBTITLE</div>"
+    echo "  <div class=\"subtitle\">$BOOK_SUBTITLE</div><br/>"
   fi
 
   # Author
