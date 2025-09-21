@@ -24,23 +24,22 @@ case "$BOOK_LANG" in
   *)  TOC_TITLE="Table of Contents" ;;
 esac
 
-# --- Determine TOC depth automatically ---
-# Calculate TOC depth based on the maximum chapter level (capped at 5)
+# --- Determine TOC depth automatically (Robust version) ---
+# 1. Önce tüm chapter'ları al ve level değerlerini güvenli bir şekilde işle
 MAX_LEVEL=$(jq -r '
-  [.book.chapters[]
-   | (.level | if type == "number" and . != null then .
-              elif type == "string" and test("^[0-9]+$") then tonumber
-              elif . == null or . == "" then 1
-              else 1 end)
-   | select(type == "number" and . >= 1)]
-  | if length > 0 then (map(select(type == "number")) | max) else 1 end
+  def to_valid_number:
+    if type == "number" and . >= 1 and . <= 5 then .
+    elif type == "string" and test("^[1-5]$") then tonumber
+    else 1
+    end;
+
+  [.book.chapters[] | .level | to_valid_number] | 
+  if length > 0 then max else 1 end
 ' "$PAYLOAD_FILE" 2>/dev/null) || MAX_LEVEL=1
 
-# Ensure MAX_LEVEL is a valid number between 1 and 5
-if ! [[ "$MAX_LEVEL" =~ ^[0-9]+$ ]] || [ -z "$MAX_LEVEL" ] || [ "$MAX_LEVEL" -lt 1 ]; then
-  MAX_LEVEL=1  # Minimum 1 level
-elif [ "$MAX_LEVEL" -gt 5 ]; then
-  MAX_LEVEL=5  # Maximum 5 levels
+# Ensure MAX_LEVEL is between 1 and 5
+if [[ ! "$MAX_LEVEL" =~ ^[1-5]$ ]]; then
+  MAX_LEVEL=1
 fi
 
 echo "🔍 Using TOC depth: $MAX_LEVEL (based on maximum chapter level)" >&2
@@ -48,40 +47,37 @@ echo "🔍 Using TOC depth: $MAX_LEVEL (based on maximum chapter level)" >&2
 # --- Prepare output file ---
 # Output will be written directly later
 
-# Debug info
-if [ "${DEBUG:-false}" = "true" ]; then
-  echo "TOC Generation Debug:" >&2
-  echo "  MAX_LEVEL: $MAX_LEVEL" >&2
-  echo "  PAYLOAD_FILE: $PAYLOAD_FILE" >&2
-  echo "  OUTPUT_FILE: $OUTPUT_FILE" >&2
-fi
-
 generate_list() {
   local indent="$1"
   local prev_level=1
   local first_item=true
 
-  # Process chapters, filtering out order=0 and levels > MAX_LEVEL in the jq query
+  # Process chapters with robust jq filter
   jq -c --arg max_level "$MAX_LEVEL" '
     .book.chapters 
-    | sort_by(.order)[] 
-    | {order, level: (.level // 1), title}
-    | select(.order > 0 and .level <= ($max_level|tonumber))
-    | .level = (.level // 1)' "$PAYLOAD_FILE" | while read -r chapter; do
+    | sort_by(.order // 0)[] 
+    | select((.order // 0) > 0)
+    | .level = (
+        if (.level | type) == "number" and .level >= 1 and .level <= ($max_level | tonumber) then .level
+        elif (.level | type) == "string" and .level | test("^[1-5]$") then .level | tonumber
+        else 1
+        end
+      )
+    | select(.level <= ($max_level | tonumber))
+    | {order: (.order // 0), level: .level, title: (.title // "Untitled Chapter")}
+  ' "$PAYLOAD_FILE" | while IFS= read -r chapter_json; do
     
-    # Clean title - only remove potentially problematic tags, preserve basic formatting
-    local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' |
-                 sed -e 's/<script\b[^>]*>[\s\S]*?<\/script>//g' \
-                     -e 's/<style\b[^>]*>[\s\S]*?<\/style>//g' \
-                     -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-    local level=$(echo "$chapter" | jq -r '.level // 1')
-    local order=$(echo "$chapter" | jq -r '.order')
-    local filename=$(printf "ch%03d.xhtml" "$order")
-
-    # Debug output
-    if [ "${DEBUG:-false}" = "true" ]; then
-      echo "Processing chapter: $title (level: $level, order: $order, file: $filename)" >&2
+    # Extract values from JSON using jq (safer than regex)
+    local title=$(echo "$chapter_json" | jq -r '.title')
+    local level=$(echo "$chapter_json" | jq -r '.level')
+    local order=$(echo "$chapter_json" | jq -r '.order')
+    
+    # Validate extracted values
+    if [[ ! "$level" =~ ^[1-5]$ ]] || [[ ! "$order" =~ ^[0-9]+$ ]] || [ "$order" -le 0 ]; then
+      continue
     fi
+    
+    local filename=$(printf "ch%03d.xhtml" "$order")
 
     # Handle list level changes
     if [ $level -gt $prev_level ]; then
@@ -102,28 +98,23 @@ generate_list() {
       echo "</li>" >> "$OUTPUT_FILE"
     fi
 
-    # Add list item with link
-    printf "%s<li><a href=\"%s\">%s</a>" "$indent" "$filename" "$title" >> "$OUTPUT_FILE"
+    # Add list item with link (escape HTML entities in title)
+    local escaped_title=$(printf '%s' "$title" | sed 's/&/\&amp;/g; s/</\</g; s/>/\>/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g')
+    printf "%s<li><a href=\"%s\">%s</a>" "$indent" "$filename" "$escaped_title" >> "$OUTPUT_FILE"
 
     prev_level=$level
     first_item=false
   done
 
   # Close any remaining open tags
-  for ((i=prev_level; i>=1; i--)); do
+  if [ "$first_item" = false ]; then
     echo "</li>" >> "$OUTPUT_FILE"
-    if [ $i -gt 1 ]; then
-      indent=${indent:2}
-      printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
-    fi
+  fi
+  for ((i=prev_level; i>1; i--)); do
+    indent=${indent:2}
+    printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
   done
 }
-
-# Debug: Check chapters in payload
-if [ "${DEBUG:-false}" = "true" ]; then
-  echo "Debug: Chapters in payload:" >&2
-  jq '.book.chapters' "$PAYLOAD_FILE" >&2
-fi
 
 # --- Generate XHTML ---
 {
@@ -155,11 +146,3 @@ fi
 } > "$OUTPUT_FILE"
 
 echo "✅ TOC page created at $OUTPUT_FILE (depth=$MAX_LEVEL)"
-
-# Debug output
-if [ "${DEBUG:-false}" = "true" ]; then
-  echo "=== TOC Preview ==="
-  head -n 20 "$OUTPUT_FILE"
-  echo "..."
-  tail -n 10 "$OUTPUT_FILE"
-fi
