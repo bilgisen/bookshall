@@ -31,7 +31,7 @@ if [ "$MAX_LEVEL" -lt 1 ] || [ "$MAX_LEVEL" -gt 3 ]; then
 fi
 
 # --- Prepare output file ---
-> "$OUTPUT_FILE" # Create or clear the output file
+# Output will be written directly later
 
 # Debug info
 if [ "${DEBUG:-false}" = "true" ]; then
@@ -43,66 +43,63 @@ fi
 
 generate_list() {
   local indent="$1"
-  # Process chapters directly from the payload file
   local prev_level=1
-  
-  # First, generate the TOC entries with proper nesting
-  jq -c '.book.chapters | sort_by(.order)[] | select(.level <= ($ENV.MAX_LEVEL | tonumber)) | {order, level, title, id}' "$PAYLOAD_FILE" | while read -r chapter; do
-    # Skip the TOC chapter (order=0)
-    local order=$(jq -r '.order' <<<"$chapter")
-    if [ "$order" -eq 0 ]; then
-      continue
-    fi
-    # Clean up the title by removing any HTML tags and leading/trailing whitespace
-    local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' | 
-                  sed -e 's/<[^>]*>//g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  local first_item=true
+
+  # Process chapters, filtering out order=0 and levels > MAX_LEVEL in the jq query
+  jq -c '.book.chapters 
+        | sort_by(.order)[] 
+        | select(.order > 0 and .level <= ($ENV.MAX_LEVEL|tonumber)) 
+        | {order, level, title}' "$PAYLOAD_FILE" | while read -r chapter; do
+    
+    # Clean title - only remove potentially problematic tags, preserve basic formatting
+    local title=$(echo "$chapter" | jq -r '.title // "Untitled Chapter"' |
+                 sed -e 's/<script\b[^>]*>[\s\S]*?<\/script>//g' \
+                     -e 's/<style\b[^>]*>[\s\S]*?<\/style>//g' \
+                     -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     local level=$(echo "$chapter" | jq -r '.level // 1')
-    local order=$(echo "$chapter" | jq -r '.order // 0')
-    
-    # Generate proper filename - skip order 0 for TOC
-    local filename
-    if [ $order -eq 0 ]; then
-      filename="toc.xhtml"
-    else
-      filename=$(printf "ch%03d.xhtml" "$order")
-    fi
-    
+    local order=$(echo "$chapter" | jq -r '.order')
+    local filename=$(printf "ch%03d.xhtml" "$order")
+
     # Debug output
     if [ "${DEBUG:-false}" = "true" ]; then
       echo "Processing chapter: $title (level: $level, order: $order, file: $filename)" >&2
     fi
-    
-    # Close previous list items if going up a level
-    if [ $level -lt $prev_level ]; then
-      for ((i=prev_level; i>level; i--)); do
-        printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
-        indent=${indent:2}
-        printf "%s</li>\n" "$indent" >> "$OUTPUT_FILE"
-      done
-    # Start new sublist if going down a level
-    elif [ $level -gt $prev_level ]; then
-      printf "\n%s<ol>\n" "$indent" >> "$OUTPUT_FILE"
+
+    # Handle list level changes
+    if [ $level -gt $prev_level ]; then
+      # Start new sublist
+      echo "" >> "$OUTPUT_FILE"
+      printf "%s<ol>\n" "$indent" >> "$OUTPUT_FILE"
       indent="  $indent"
-    # Close previous list item if at same level
-    elif [ $prev_level -gt 0 ]; then
+    elif [ $level -lt $prev_level ]; then
+      # Close previous levels
+      for ((i=prev_level; i>level; i--)); do
+        echo "</li>" >> "$OUTPUT_FILE"
+        indent=${indent:2}
+        printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
+      done
+      echo "</li>" >> "$OUTPUT_FILE"
+    elif [ "$first_item" = false ]; then
+      # Close previous item at same level
       echo "</li>" >> "$OUTPUT_FILE"
     fi
-    
-    # Add the list item
-    printf "%s<li><a href=\"%s\">%s" "$indent" "$filename" "$title" >> "$OUTPUT_FILE"
-    
+
+    # Add list item with link
+    printf "%s<li><a href=\"%s\">%s</a>" "$indent" "$filename" "$title" >> "$OUTPUT_FILE"
+
     prev_level=$level
+    first_item=false
   done
-  
+
   # Close any remaining open tags
-  for ((i=prev_level; i>1; i--)); do
+  for ((i=prev_level; i>=1; i--)); do
     echo "</li>" >> "$OUTPUT_FILE"
-    indent=${indent:2}
-    printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
+    if [ $i -gt 1 ]; then
+      indent=${indent:2}
+      printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
+    fi
   done
-  if [ $prev_level -ge 1 ]; then
-    echo "</li>" >> "$OUTPUT_FILE"
-  fi
 }
 
 # Debug: Check chapters in payload
@@ -139,9 +136,6 @@ fi
   echo '</body>'
   echo '</html>'
 } > "$OUTPUT_FILE"
-
-# Clean up
-rm -f "$OUTPUT_FILE.json"
 
 echo "✅ TOC page created at $OUTPUT_FILE (depth=$MAX_LEVEL)"
 

@@ -165,7 +165,8 @@ echo "rights: \"All rights reserved\"" >> "$META_FILE"
 echo "📝 metadata.yaml created"
 
 # --- Fetch chapters ---
-{
+# Function to process chapters
+process_chapters() {
   echo "Debug: Starting chapter processing..." >&2
   
   # First, validate the chapters array exists and is not empty
@@ -181,7 +182,10 @@ echo "📝 metadata.yaml created"
       exit 1
     }
   fi
-} | while IFS= read -r chap; do
+}
+
+# Process chapters and read them into the loop
+while IFS= read -r chap; do
   if [ -z "$chap" ]; then
     echo "⚠️  Warning: Empty chapter data" >&2
     continue
@@ -205,67 +209,50 @@ echo "📝 metadata.yaml created"
       echo "⚠️  Failed to download chapter content from $content_url" >&2
       content="<p>Failed to load chapter content.</p>"
     else
-      # Extract the main content from the HTML response
-      content=$(cat "$temp_file" | 
-        # Remove any existing DOCTYPE and HTML/HEAD tags
-        sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/\?html[^>]*>//g' -e 's/<\/\?head[^>]*>//g' |
-        # Extract the content between <body> tags or use the whole content
-        sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
-        # Remove any remaining script and style tags
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//g' -e 's/<style[^>]*>[\s\S]*?<\/style>//g' |
-        # Clean up any empty lines
-        sed '/^[[:space:]]*$/d' |
-        # Ensure proper XHTML structure
-        sed -e 's/&/&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
-      )
+      # Extract and clean the main content using xmllint for better HTML parsing
+      if command -v xmllint >/dev/null 2>&1; then
+        # Use xmllint if available (better HTML parsing)
+        content=$(xmllint --html --xmlout --xpath "//body" "$temp_file" 2>/dev/null | 
+          sed -e 's/^.*<body[^>]*>//' -e 's/<\/body>.*$//' |
+          # Remove any script and style tags completely
+          sed -e '/<script\b[^>]*>/,/<\/script>/d' -e '/<style\b[^>]*>/,/<\/style>/d' |
+          # Clean up whitespace
+          sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+          # Remove empty lines
+          sed '/^[[:space:]]*$/d'
+        )
+      else
+        # Fallback to sed if xmllint is not available
+        content=$(cat "$temp_file" | 
+          # Remove any existing DOCTYPE and HTML/HEAD tags
+          sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/?html[^>]*>//g' -e 's/<\/?head[^>]*>//g' |
+          # Extract the content between <body> tags or use the whole content
+          sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
+          # Remove any remaining script and style tags
+          sed -e '/<script\b[^>]*>/,/<\/script>/d' -e '/<style\b[^>]*>/,/<\/style>/d' |
+          # Clean up any empty lines and whitespace
+          sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' |
+          # Ensure proper XHTML escaping
+          sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
+        )
+      fi
       
       # If we couldn't extract any meaningful content, use a fallback
       if [ -z "$content" ]; then
         content="<p>No content available for this chapter.</p>"
-        echo "📥 Downloading chapter content from $content_url"
-        # Create a temporary file for the chapter content
-        temp_file=$(mktemp)
-        
-        # Download the chapter content with error handling
-        if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
-          echo "⚠️  Failed to download chapter content from $content_url" >&2
-          content="<p>Failed to load chapter content.</p>"
-        else
-          # Extract the main content from the HTML response
-          content=$(cat "$temp_file" | 
-            # Remove any existing DOCTYPE and HTML/HEAD tags
-            sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/\?html[^>]*>//g' -e 's/<\/\?head[^>]*>//g' |
-            # Extract the content between <body> tags or use the whole content
-            sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
-            # Remove any remaining script and style tags
-            sed -e 's/<script[^>]*>[\s\S]*?<\/script>//g' -e 's/<style[^>]*>[\s\S]*?<\/style>//g' |
-            # Clean up any empty lines
-            sed '/^[[:space:]]*$/d' |
-            # Ensure proper XHTML structure
-            sed -e 's/&/&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
-          )
-          
-          # If we couldn't extract any meaningful content, use a fallback
-          if [ -z "$content" ]; then
-            content="<p>No content available for this chapter.</p>"
-          fi
-        fi
-        
-        # Clean up the temporary file
-        rm -f "$temp_file"
-      else
-        content="<p>No content URL provided for this chapter.</p>"
       fi
+    fi
+    
+    # Clean up the temporary file
+    rm -f "$temp_file"
+  else
+    content="<p>No content URL provided for this chapter.</p>"
+  fi
 
-      # Generate chapter file (use chXXX.xhtml format for compatibility with EPUB standards)
-      chapter_num=$(printf "%03d" "$order")
-      chapter_file="$CHAPTER_DIR/ch${chapter_num}.xhtml"
+  # Generate chapter file (use chXXX.xhtml format for compatibility with EPUB standards)
+  chapter_num=$(printf "%03d" "$order")
+  chapter_file="$CHAPTER_DIR/ch${chapter_num}.xhtml"
 
-      # Skip if this is the TOC (order=0)
-      if [ "$order" -eq 0 ]; then
-        echo "ℹ️  Skipping TOC chapter (order=0)"
-        continue
-      fi
 
       echo "📄 Generating chapter: $chapter_file"
 
@@ -295,7 +282,7 @@ echo "📝 metadata.yaml created"
       # Add to chapters list
       echo "$chapter_file" >> "$WORKDIR/_chapters.txt"
     fi  # End of content_url check
-  done  # End of while read chap loop
+done < <(process_chapters)
 
 if [ -f "$WORKDIR/_chapters.txt" ]; then
   mapfile -t CHAPTER_FILES < "$WORKDIR/_chapters.txt"
@@ -303,14 +290,12 @@ if [ -f "$WORKDIR/_chapters.txt" ]; then
 else
   echo "⚠️ No chapters found, creating placeholder"
   file="$CHAPTER_DIR/chapter-001.xhtml"
-  echo "<h1>$BOOK_TITLE</h1><p>No content</p>" > "$file"
-  CHAPTER_FILES+=("$file")
 fi
 
 # --- Optional colophon (metadata page) ---
 if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
   ./scripts/colophon.sh "$PAYLOAD_FILE" "$WORKDIR/imprint.xhtml"
-  CHAPTER_FILES=("$WORKDIR/imprint.xhtml" "${CHAPTER_FILES[@]}")
+  CHAPTER_FILES+=("$WORKDIR/imprint.xhtml")
 fi
 
 # --- Optional custom TOC page ---
@@ -318,10 +303,8 @@ if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
   # Generate TOC as toc.xhtml
   ./scripts/toc.sh "$PAYLOAD_FILE" "$WORKDIR/toc.xhtml"
   
-  # Ensure TOC is the first file
   if [[ -f "$WORKDIR/toc.xhtml" ]]; then
-    # Remove any existing TOC file from CHAPTER_FILES to avoid duplicates
-    CHAPTER_FILES=("$WORKDIR/toc.xhtml" "${CHAPTER_FILES[@]}")
+    CHAPTER_FILES+=("$WORKDIR/toc.xhtml")
   fi
   
   # Rename ch001.xhtml to toc.xhtml if it exists (legacy support)
