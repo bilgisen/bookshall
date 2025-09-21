@@ -26,10 +26,17 @@ esac
 
 # --- Determine TOC depth automatically ---
 # Calculate TOC depth based on the maximum chapter level (capped at 5)
-MAX_LEVEL=$(jq -r '[.book.chapters[].level // 1] | max' "$PAYLOAD_FILE" 2>/dev/null)
+MAX_LEVEL=$(jq -r '
+  [.book.chapters[]
+   | (.level | if type == "number" then . 
+              elif type == "string" and test("^[0-9]+$") then tonumber 
+              else 1 end) // 1
+   | select(. >= 1)]
+  | if length > 0 then max else 1 end
+' "$PAYLOAD_FILE" 2>/dev/null) || MAX_LEVEL=1
 
 # Ensure MAX_LEVEL is a valid number between 1 and 5
-if ! [[ "$MAX_LEVEL" =~ ^[1-9][0-9]*$ ]] || [ "$MAX_LEVEL" -lt 1 ]; then
+if ! [[ "$MAX_LEVEL" =~ ^[0-9]+$ ]] || [ -z "$MAX_LEVEL" ] || [ "$MAX_LEVEL" -lt 1 ]; then
   MAX_LEVEL=1  # Minimum 1 level
 elif [ "$MAX_LEVEL" -gt 5 ]; then
   MAX_LEVEL=5  # Maximum 5 levels
