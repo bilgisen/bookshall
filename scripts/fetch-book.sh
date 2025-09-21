@@ -130,7 +130,7 @@ jq -c '(.book.chapters // []) | sort_by(.order)[]' "$PAYLOAD_FILE" \
       if [ -n "$content_url" ]; then
         echo "📥 Downloading chapter content from $content_url"
         # Create a temporary file for the chapter content
-        local temp_file=$(mktemp)
+        temp_file=$(mktemp)
         
         # Download the chapter content with error handling
         if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
