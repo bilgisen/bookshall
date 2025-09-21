@@ -28,9 +28,10 @@ esac
 # Calculate TOC depth based on the maximum chapter level (capped at 5)
 MAX_LEVEL=$(jq -r '
   [.book.chapters[]
-   | (.level | if type == "number" then . 
-              elif type == "string" and test("^[0-9]+$") then tonumber 
-              else 1 end) // 1
+   | (.level | if type == "number" and . != null then .
+              elif type == "string" and test("^[0-9]+$") then tonumber
+              elif . == null or . == "" then 1
+              else 1 end)
    | select(. >= 1)]
   | if length > 0 then max else 1 end
 ' "$PAYLOAD_FILE" 2>/dev/null) || MAX_LEVEL=1
