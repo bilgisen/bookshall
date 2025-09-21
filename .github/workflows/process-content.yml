@@ -120,9 +120,11 @@ jobs:
             --endpoint-url="$R2_ENDPOINT"
           echo "✅ Uploaded to R2"
           if [ -n "$R2_PUBLIC_URL" ]; then
-            EXPORT_URL="$R2_PUBLIC_URL/$CONTENT_ID.epub"
+            # Use the public URL with /epub/ path
+            EXPORT_URL="$R2_PUBLIC_URL/epub/$CONTENT_ID.epub"
           else
-            # Fallback to endpoint URL if public URL not configured
+            # Fallback to endpoint URL if public URL not configured (shouldn't happen in production)
+            echo "⚠️ R2_PUBLIC_URL not set, using R2_ENDPOINT"
             EXPORT_URL="$R2_ENDPOINT/$R2_BUCKET/$CONTENT_ID.epub"
           fi
           echo "📡 Calling back application with EPUB URL: $EXPORT_URL"

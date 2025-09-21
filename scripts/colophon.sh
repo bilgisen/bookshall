@@ -53,20 +53,22 @@ if ! jq -e '.book' "$PAYLOAD_FILE" >/dev/null 2>&1; then
   exit 1
 fi
 
-# Ensure output directory exists
+# Ensure output directory exists and set output filename to imprint.xhtml
 OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
+OUTPUT_FILE="$OUTPUT_DIR/imprint.xhtml"  # Always use imprint.xhtml as the filename
 if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null; then
   echo -e "${RED}❌ Error: Failed to create output directory: $OUTPUT_DIR${NC}" >&2
   exit 1
 fi
 
 # --- Extract fields from payload ---
-BOOK_TITLE=$(jq -r '.book.title // "Untitled Book"' "$PAYLOAD_FILE")
-BOOK_SUBTITLE=$(jq -r '.book.subtitle // empty' "$PAYLOAD_FILE")
-BOOK_AUTHOR=$(jq -r '.book.author // "Unknown Author"' "$PAYLOAD_FILE")
-BOOK_PUBLISHER=$(jq -r '.book.publisher // empty' "$PAYLOAD_FILE")
-BOOK_ISBN=$(jq -r '.book.isbn // empty' "$PAYLOAD_FILE")
-BOOK_YEAR=$(jq -r '.book.publish_year // empty' "$PAYLOAD_FILE")
+# Get the book title, ensuring we don't get chapter titles
+BOOK_TITLE=$(jq -r '.book.metadata.title // .book.title // "Untitled Book"' "$PAYLOAD_FILE")
+BOOK_SUBTITLE=$(jq -r '.book.metadata.subtitle // .book.subtitle // empty' "$PAYLOAD_FILE")
+BOOK_AUTHOR=$(jq -r '.book.metadata.author // .book.author // "Unknown Author"' "$PAYLOAD_FILE")
+BOOK_PUBLISHER=$(jq -r '.book.metadata.publisher // .book.publisher // "BooksHall"' "$PAYLOAD_FILE")
+BOOK_ISBN=$(jq -r '.book.metadata.isbn // .book.isbn // empty' "$PAYLOAD_FILE")
+BOOK_YEAR=$(jq -r '.book.metadata.publish_year // .book.publish_year // empty' "$PAYLOAD_FILE")
 
 # --- Generate XHTML ---
 {
@@ -75,57 +77,97 @@ BOOK_YEAR=$(jq -r '.book.publish_year // empty' "$PAYLOAD_FILE")
   
   echo '<?xml version="1.0" encoding="UTF-8"?>'
   echo '<!DOCTYPE html>'
-  echo '<html xmlns="http://www.w3.org/1999/xhtml" lang="en">'
-  echo '<head><meta charset="utf-8"/></head>'
-  echo '<body style="text-align:center;">'
+  echo '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">'
+  echo '<head>'
+  echo '  <meta charset="utf-8"/>'
+  echo "  <title>About the Book - $BOOK_TITLE</title>"
+  echo '  <style type="text/css">
+    body {
+      font-family: serif;
+      line-height: 1.6;
+      margin: 2em auto;
+      max-width: 40em;
+      padding: 0 1em;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    .subtitle {
+      font-style: italic;
+      color: #555;
+      margin-bottom: 1.5em;
+    }
+    .author {
+      font-size: 1.2em;
+      margin: 1.5em 0;
+    }
+    .publisher {
+      margin: 1.5em 0;
+      color: #444;
+    }
+    .copyright {
+      margin-top: 2em;
+      font-size: 0.9em;
+      color: #666;
+    }
+    hr {
+      width: 50%;
+      margin: 1.5em auto;
+      border: 0;
+      border-top: 1px solid #ddd;
+    }
+  </style>'
+  echo '</head>'
+  echo '<body epub:type="colophon">'
 
   # Title
-  echo "  <h3>$BOOK_TITLE</h3>"
+  echo "  <h1>$BOOK_TITLE</h1>"
 
   # Subtitle (optional)
   if [ -n "$BOOK_SUBTITLE" ]; then
-    echo "  <p>$BOOK_SUBTITLE</p>"
+    echo "  <div class=\"subtitle\">$BOOK_SUBTITLE</div>"
   fi
-
-  echo "  <hr/>"
 
   # Author
-  echo "  <p><strong>$BOOK_AUTHOR</strong></p>"
+  echo "  <div class=\"author\">$BOOK_AUTHOR</div>"
 
-  echo "  <hr/>"
+  # Publisher info
+  echo '  <div class="publisher">'
+  [ -n "$BOOK_PUBLISHER" ] && echo "    <div>$BOOK_PUBLISHER</div>"
+  [ -n "$BOOK_ISBN" ] && echo "    <div>ISBN: $BOOK_ISBN</div>"
+  [ -n "$BOOK_YEAR" ] && echo "    <div>$BOOK_YEAR</div>"
+  echo '  </div>'
 
-  # Publisher, ISBN, Year
-  publine=""
-  [ -n "$BOOK_PUBLISHER" ] && publine="$BOOK_PUBLISHER"
-  [ -n "$BOOK_ISBN" ] && publine="${publine:+$publine, }ISBN: $BOOK_ISBN"
-  [ -n "$BOOK_YEAR" ] && publine="${publine:+$publine, }$BOOK_YEAR"
+  # Copyright notice
+  current_year=$(date +'%Y')
+  echo '  <div class="copyright">'
+  echo "    &copy; $current_year $BOOK_AUTHOR<br/>"
+  echo '    All rights reserved'
+  echo '  </div>'
 
-  if [ -n "$publine" ]; then
-    echo "  <p>$publine</p>"
-  fi
-
-  echo '  <hr/>'
   echo '  </body>'
   echo '</html>'
-} > "$OUTPUT_FILE.tmp"
+} > "${OUTPUT_FILE}.tmp"
 
 # Check if file was written successfully
 if [ $? -ne 0 ]; then
   echo -e "${RED}❌ Error: Failed to write output to $OUTPUT_FILE${NC}" >&2
-  rm -f "$OUTPUT_FILE.tmp" 2>/dev/null
+  rm -f "${OUTPUT_FILE}.tmp" 2>/dev/null
   exit 1
 fi
 
 # Atomically move the file to the final destination
-if ! mv -f "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"; then
+if ! mv -f "${OUTPUT_FILE}.tmp" "$OUTPUT_FILE"; then
   echo -e "${RED}❌ Error: Failed to move output file to $OUTPUT_FILE${NC}" >&2
   echo -e "${YELLOW}Check directory permissions and disk space${NC}" >&2
-  rm -f "$OUTPUT_FILE.tmp" 2>/dev/null
+  rm -f "${OUTPUT_FILE}.tmp" 2>/dev/null
   exit 1
 fi
 
 # Show success message
-echo -e "${GREEN}✅ Success: Colophon page created at $OUTPUT_FILE${NC}"
+echo -e "${GREEN}✅ Success: Imprint page created at $OUTPUT_FILE${NC}"
 
 # Show debug info if enabled
 if [ "${DEBUG:-false}" = "true" ]; then

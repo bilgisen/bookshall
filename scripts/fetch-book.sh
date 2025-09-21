@@ -105,17 +105,47 @@ CHAPTER_FILES=()
 jq -c '(.book.chapters // []) | sort_by(.order)[]' "$PAYLOAD_FILE" \
   | nl -w2 -s':' \
   | while IFS=: read -r idx chap; do
-      cid=$(jq -r '.id' <<<"$chap")
-      curl_url=$(jq -r '.url' <<<"$chap")
-      filename="$CHAPTER_DIR/chapter-$(printf "%03d" "$idx").xhtml"
-      echo "  - Fetching chapter $idx ($cid)"
-      if curl -fsSL "${AUTH_HEADER[@]}" "$curl_url" -o "$filename"; then
-        echo "    -> saved $filename"
-      else
-        echo "⚠️  Failed to fetch chapter $cid"
-        echo "<h1>Missing chapter</h1>" > "$filename"
+      local order=$(jq -r '.order' <<<"$chap")
+      local title=$(jq -r '.title' <<<"$chap")
+      local content=$(jq -r '.content' <<<"$chap")
+
+      # Generate chapter file (use chXXX.xhtml format for compatibility with EPUB standards)
+      local chapter_num=$(printf "%03d" "$order")
+      local chapter_file="$CHAPTER_DIR/ch${chapter_num}.xhtml"
+
+      # Skip if this is the TOC (order=0)
+      if [ "$order" -eq 0 ]; then
+        echo "ℹ️  Skipping TOC chapter (order=0)"
+        continue
       fi
-      echo "$filename" >> "$WORKDIR/_chapters.txt"
+
+      echo "📄 Generating chapter: $chapter_file"
+
+      # Create chapter content with proper XHTML structure
+      {
+        echo '<?xml version="1.0" encoding="UTF-8"?>'
+        echo '<!DOCTYPE html>'
+        echo '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">'
+        echo '<head>'
+        echo '  <meta charset="utf-8"/>'
+        echo "  <title>${title}</title>"
+        echo '  <style type="text/css">
+            body { font-family: serif; line-height: 1.5; margin: 1em; }
+            h1 { font-size: 1.5em; margin-bottom: 1em; }
+            p { margin: 0.5em 0; text-indent: 1.5em; }
+            .no-indent { text-indent: 0; }
+          </style>'
+        echo '</head>'
+        echo '<body>'
+        echo "  <h1>${title}</h1>"
+        # Clean up content by removing any existing body/html tags
+        echo "$content" | sed -e 's/<\/\?body[^>]*>//g' -e 's/<\/\?html[^>]*>//g'
+        echo '</body>'
+        echo '</html>'
+      } > "$chapter_file"
+
+      # Add to chapters list
+      echo "$chapter_file" >> "$WORKDIR/_chapters.txt"
     done
 
 if [ -f "$WORKDIR/_chapters.txt" ]; then
@@ -136,8 +166,19 @@ fi
 
 # --- Optional custom TOC page ---
 if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
+  # Generate TOC as toc.xhtml
   ./scripts/toc.sh "$PAYLOAD_FILE" "$WORKDIR/toc.xhtml"
-  CHAPTER_FILES=("$WORKDIR/toc.xhtml" "${CHAPTER_FILES[@]}")
+  
+  # Ensure TOC is the first file
+  if [[ -f "$WORKDIR/toc.xhtml" ]]; then
+    # Remove any existing TOC file from CHAPTER_FILES to avoid duplicates
+    CHAPTER_FILES=("$WORKDIR/toc.xhtml" "${CHAPTER_FILES[@]}")
+  fi
+  
+  # Rename ch001.xhtml to toc.xhtml if it exists (legacy support)
+  if [[ -f "$WORKDIR/ch001.xhtml" ]]; then
+    mv "$WORKDIR/ch001.xhtml" "$WORKDIR/toc.xhtml"
+  fi
 fi
 
 # --- Cover ---
