@@ -47,24 +47,25 @@ echo "🔍 Using TOC depth: $MAX_LEVEL (based on maximum chapter level)" >&2
 # --- Prepare output file ---
 # Output will be written directly later
 
+# --- Updated generate_list function ---
 generate_list() {
   local indent="$1"
   local prev_level=1
   local first_item=true
 
   # Process chapters with robust jq filter
-  jq -c --arg max_level "$MAX_LEVEL" '
+  jq -c --argjson max_level "$MAX_LEVEL" '
     .book.chapters 
     | sort_by(.order // 0)[] 
     | select((.order // 0) > 0)
-    | .level = (
-        if (.level | type) == "number" and .level >= 1 and .level <= ($max_level | tonumber) then .level
+    | .level_normalized = (
+        if (.level | type) == "number" and .level >= 1 and .level <= $max_level then .level
         elif (.level | type) == "string" and .level | test("^[1-5]$") then .level | tonumber
         else 1
         end
       )
-    | select(.level <= ($max_level | tonumber))
-    | {order: (.order // 0), level: .level, title: (.title // "Untitled Chapter")}
+    | select(.level_normalized <= $max_level)
+    | {order: (.order // 0), level: .level_normalized, title: (.title // "Untitled Chapter")}
   ' "$PAYLOAD_FILE" | while IFS= read -r chapter_json; do
     
     # Extract values from JSON using jq (safer than regex)
@@ -74,25 +75,34 @@ generate_list() {
     
     # Validate extracted values
     if [[ ! "$level" =~ ^[1-5]$ ]] || [[ ! "$order" =~ ^[0-9]+$ ]] || [ "$order" -le 0 ]; then
+      echo "Warning: Skipping chapter due to invalid level/order: title='$title', level='$level', order='$order'" >&2
       continue
     fi
     
     local filename=$(printf "ch%03d.xhtml" "$order")
 
+    # Debug output
+    if [ "${DEBUG:-false}" = "true" ]; then
+      echo "Debug: Processing chapter: $title (level: $level, order: $order, file: $filename)" >&2
+    fi
+
     # Handle list level changes
     if [ $level -gt $prev_level ]; then
       # Start new sublist
-      echo "" >> "$OUTPUT_FILE"
+      if [ "$first_item" = false ] || [ $prev_level -gt 1 ]; then
+        echo "" >> "$OUTPUT_FILE"
+      fi
       printf "%s<ol>\n" "$indent" >> "$OUTPUT_FILE"
       indent="  $indent"
     elif [ $level -lt $prev_level ]; then
       # Close previous levels
-      for ((i=prev_level; i>level; i--)); do
+      if [ "$first_item" = false ]; then
         echo "</li>" >> "$OUTPUT_FILE"
+      fi
+      for ((i=prev_level; i>level; i--)); do
         indent=${indent:2}
         printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
       done
-      echo "</li>" >> "$OUTPUT_FILE"
     elif [ "$first_item" = false ]; then
       # Close previous item at same level
       echo "</li>" >> "$OUTPUT_FILE"
@@ -114,6 +124,9 @@ generate_list() {
     indent=${indent:2}
     printf "%s</ol>\n" "$indent" >> "$OUTPUT_FILE"
   done
+  if [ "$prev_level" -eq 1 ] && [ "$first_item" = false ]; then
+    echo "</ol>" >> "$OUTPUT_FILE"
+  fi
 }
 
 # --- Generate XHTML ---
@@ -146,3 +159,11 @@ generate_list() {
 } > "$OUTPUT_FILE"
 
 echo "✅ TOC page created at $OUTPUT_FILE (depth=$MAX_LEVEL)"
+
+# Debug output
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "=== TOC Preview ==="
+  head -n 20 "$OUTPUT_FILE"
+  echo "..."
+  tail -n 10 "$OUTPUT_FILE"
+fi

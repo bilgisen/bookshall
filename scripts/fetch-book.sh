@@ -137,6 +137,13 @@ EFFECTIVE_INCLUDE_METADATA="${INCLUDE_METADATA:-$(jq -r '.options.embed_metadata
 echo "📚 $BOOK_TITLE by $BOOK_AUTHOR"
 echo "⚙️  Options → TOC=$EFFECTIVE_INCLUDE_TOC, Cover=$EFFECTIVE_INCLUDE_COVER, Metadata=$EFFECTIVE_INCLUDE_METADATA"
 
+# Debug book metadata
+echo "Debug: Book Metadata" >&2
+echo "  Title: '$BOOK_TITLE'" >&2
+echo "  Author: '$BOOK_AUTHOR'" >&2
+echo "  Language: '$BOOK_LANG'" >&2
+echo "  Publisher: '$BOOK_PUBLISHER'" >&2
+
 # --- metadata.yaml ---
 META_FILE="$WORKDIR/metadata.yaml"
 cat > "$META_FILE" <<EOF
@@ -146,6 +153,10 @@ author: "$(escape_for_yaml "$BOOK_AUTHOR")"
 lang: "$(escape_for_yaml "$BOOK_LANG")"
 publisher: "$(escape_for_yaml "$BOOK_PUBLISHER")"
 EOF
+
+# Debug metadata file content
+echo "Debug: Generated metadata.yaml content:" >&2
+cat "$META_FILE" >&2
 
 if [ -n "$BOOK_ISBN" ]; then
   echo "isbn: \"$BOOK_ISBN\"" >> "$META_FILE"
@@ -351,18 +362,65 @@ SAFE_SLUG="${BOOK_SLUG// /_}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 EPUB_FILENAME="${SAFE_SLUG}-${TIMESTAMP}.epub"
 
-# Use the ordered files array instead of CHAPTER_FILES
-PANDOC_ARGS=("${ORDERED_FILES[@]}" --output="$EPUB_FILENAME")
+# Explicitly order files: imprint -> toc -> chapters
+EPUB_FILES=()
 
-# No --toc here. Only metadata file, cover, css.
+# 1. Add imprint (colophon) if enabled and exists
+if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
+  if [[ -f "$WORKDIR/imprint.xhtml" ]]; then
+    EPUB_FILES+=("$WORKDIR/imprint.xhtml")
+    echo "📄 Adding imprint to EPUB (1/3)"
+  else
+    echo "⚠️  Imprint requested but file not found" >&2
+  fi
+fi
+
+# 2. Add TOC if enabled and exists
+if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
+  if [[ -f "$WORKDIR/toc.xhtml" ]]; then
+    EPUB_FILES+=("$WORKDIR/toc.xhtml")
+    echo "📄 Adding TOC to EPUB (2/3)"
+  else
+    echo "⚠️  TOC requested but file not found" >&2
+  fi
+fi
+
+# 3. Add chapter files
+chapter_count=0
+for chap_file in "${CHAPTER_FILES[@]}"; do
+  if [[ -f "$chap_file" ]]; then
+    EPUB_FILES+=("$chap_file")
+    ((chapter_count++))
+  else
+    echo "⚠️  Warning: Chapter file not found: $chap_file" >&2
+  fi
+done
+echo "📄 Adding $chapter_count chapters to EPUB (3/3)"
+
+# Setup pandoc arguments
+PANDOC_ARGS=()
+# Disable automatic title page to use our custom imprint
+PANDOC_ARGS+=(--epub-title-page=false)
+# Add metadata
+PANDOC_ARGS+=(--metadata="title:$BOOK_TITLE")
+PANDOC_ARGS+=(--metadata="author:$BOOK_AUTHOR")
+PANDOC_ARGS+=(--metadata="language:$BOOK_LANG")
+[ -n "$BOOK_PUBLISHER" ] && PANDOC_ARGS+=(--metadata="publisher:$BOOK_PUBLISHER")
+[ -n "$BOOK_YEAR" ] && PANDOC_ARGS+=(--metadata="date:$BOOK_YEAR")
+# Add metadata file as additional metadata source
 [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]] && PANDOC_ARGS+=(--metadata-file="$META_FILE")
+# Add cover and CSS if specified
 [ -n "$COVER_FILE" ] && PANDOC_ARGS+=(--epub-cover-image="$COVER_FILE")
 [ -n "$EPUB_CSS" ] && PANDOC_ARGS+=(--css="$EPUB_CSS")
+# Add ordered files and output
+PANDOC_ARGS+=("${EPUB_FILES[@]}" --output="$EPUB_FILENAME")
 
-echo "🔧 Running pandoc with ${#PANDOC_ARGS[@]} files..."
+echo "🔧 Running pandoc with ${#PANDOC_ARGS[@]} arguments..."
 if [ "${DEBUG:-false}" = "true" ]; then
-  echo "Files being passed to pandoc:"
-  printf '  %s\n' "${PANDOC_ARGS[@]}"
+  echo "Files being passed to pandoc in order:"
+  for i in "${!EPUB_FILES[@]}"; do
+    echo "  [$((i+1))] ${EPUB_FILES[$i]}"
+  done
 fi
 
 # Run pandoc with error handling

@@ -433,7 +433,6 @@ export function generateImprintHTML(book: BookImprintData): string {
     </style>
   </head>
   <body>
-    <h1>${escapeHtml(meta.title)}</h1>
     ${content}
   </body>
 </html>`;
