@@ -294,7 +294,8 @@ echo "📝 metadata.yaml created"
 
       # Add to chapters list
       echo "$chapter_file" >> "$WORKDIR/_chapters.txt"
-    done
+    fi  # End of content_url check
+  done  # End of while read chap loop
 
 if [ -f "$WORKDIR/_chapters.txt" ]; then
   mapfile -t CHAPTER_FILES < "$WORKDIR/_chapters.txt"
