@@ -273,8 +273,9 @@ while IFS= read -r chap; do
         echo '</head>'
         echo '<body>'
         echo "  <h1>${title}</h1>"
-        # Clean up content by removing any existing body/html tags
-        echo "$content" | sed -e 's/<\/\?body[^>]*>//g' -e 's/<\/\?html[^>]*>//g'
+        # Clean up content by removing any existing body/html tags and unescape HTML entities
+        echo "$content" | sed -e 's/<\/?body[^>]*>//g' -e 's/<\/?html[^>]*>//g' \
+          -e 's/&amp;/\&/g' -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&quot;/"/g' -e 's/&#39;/\'"'"'/g'
         echo '</body>'
         echo '</html>'
       } > "$chapter_file"
@@ -291,10 +292,18 @@ else
   file="$CHAPTER_DIR/chapter-001.xhtml"
 fi
 
+# Create a new array for ordered files
+ORDERED_FILES=()
+
 # --- Optional colophon (metadata page) ---
-if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]]; then
+if [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" && -f "$WORKDIR/imprint.xhtml" ]]; then
   ./scripts/colophon.sh "$PAYLOAD_FILE" "$WORKDIR/imprint.xhtml"
-  CHAPTER_FILES+=("$WORKDIR/imprint.xhtml")
+  if [[ -f "$WORKDIR/imprint.xhtml" ]]; then
+    ORDERED_FILES+=("$WORKDIR/imprint.xhtml")
+    echo "✅ Added imprint.xhtml to EPUB"
+  else
+    echo "⚠️  Warning: Failed to generate imprint.xhtml" >&2
+  fi
 fi
 
 # --- Optional custom TOC page ---
@@ -303,14 +312,21 @@ if [[ "${EFFECTIVE_INCLUDE_TOC,,}" == "true" ]]; then
   ./scripts/toc.sh "$PAYLOAD_FILE" "$WORKDIR/toc.xhtml"
   
   if [[ -f "$WORKDIR/toc.xhtml" ]]; then
-    CHAPTER_FILES+=("$WORKDIR/toc.xhtml")
-  fi
-  
-  # Rename ch001.xhtml to toc.xhtml if it exists (legacy support)
-  if [[ -f "$WORKDIR/ch001.xhtml" ]]; then
-    mv "$WORKDIR/ch001.xhtml" "$WORKDIR/toc.xhtml"
+    ORDERED_FILES+=("$WORKDIR/toc.xhtml")
+    echo "✅ Added toc.xhtml to EPUB"
+  else
+    echo "⚠️  Warning: Failed to generate toc.xhtml" >&2
   fi
 fi
+
+# Add all chapters after TOC and imprint
+for chap_file in "${CHAPTER_FILES[@]}"; do
+  if [[ -f "$chap_file" ]]; then
+    ORDERED_FILES+=("$chap_file")
+  else
+    echo "⚠️  Warning: Chapter file not found: $chap_file" >&2
+  fi
+done
 
 # --- Cover ---
 COVER_FILE=""
@@ -335,15 +351,25 @@ SAFE_SLUG="${BOOK_SLUG// /_}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%SZ")
 EPUB_FILENAME="${SAFE_SLUG}-${TIMESTAMP}.epub"
 
-PANDOC_ARGS=("${CHAPTER_FILES[@]}" --output="$EPUB_FILENAME")
+# Use the ordered files array instead of CHAPTER_FILES
+PANDOC_ARGS=("${ORDERED_FILES[@]}" --output="$EPUB_FILENAME")
 
 # No --toc here. Only metadata file, cover, css.
 [[ "${EFFECTIVE_INCLUDE_METADATA,,}" == "true" ]] && PANDOC_ARGS+=(--metadata-file="$META_FILE")
 [ -n "$COVER_FILE" ] && PANDOC_ARGS+=(--epub-cover-image="$COVER_FILE")
 [ -n "$EPUB_CSS" ] && PANDOC_ARGS+=(--css="$EPUB_CSS")
 
-echo "🔧 Running pandoc..."
-pandoc "${PANDOC_ARGS[@]}"
+echo "🔧 Running pandoc with ${#PANDOC_ARGS[@]} files..."
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "Files being passed to pandoc:"
+  printf '  %s\n' "${PANDOC_ARGS[@]}"
+fi
+
+# Run pandoc with error handling
+if ! pandoc "${PANDOC_ARGS[@]}"; then
+  echo "❌ Error: Failed to generate EPUB with pandoc" >&2
+  exit 1
+fi
 
 mkdir -p output
 cp "$EPUB_FILENAME" output/book.epub
