@@ -53,16 +53,34 @@ if [ "${DEBUG:-false}" = "true" ]; then
   jq '.' "$PAYLOAD_FILE" >&2
 fi
 
+# Function to safely extract numeric values with default
+safe_extract_number() {
+  local field=$1
+  local default=$2
+  local raw_value
+  
+  raw_value=$(jq -r "$field" "$PAYLOAD_FILE" 2>/dev/null)
+  
+  # Check if the value is a valid number or empty/null
+  if [[ "$raw_value" =~ ^[0-9]+$ ]]; then
+    echo "$raw_value"
+  else
+    echo "$default"
+  fi
+}
+
 # Extract BOOK_ID from payload
-BOOK_ID=$(jq -r '.book.id' "$PAYLOAD_FILE")
+BOOK_ID=$(jq -r '.book.id' "$PAYLOAD_FILE" 2>/dev/null || true)
 if [ -z "$BOOK_ID" ] || [ "$BOOK_ID" = "null" ]; then
   echo "❌ Could not extract BOOK_ID from payload"
+  echo "❌ Payload content:"
+  head -n 50 "$PAYLOAD_FILE"
   exit 1
 fi
 echo "📚 Processing book with ID: $BOOK_ID"
 
 # Extract book title - only use the book's title, never fall back to chapter titles
-BOOK_TITLE=$(jq -r '.book.title | select(. != null) | tostring' "$PAYLOAD_FILE")
+BOOK_TITLE=$(jq -r '.book.title | select(. != null) | tostring' "$PAYLOAD_FILE" 2>/dev/null || true)
 if [ -z "$BOOK_TITLE" ] || [ "$BOOK_TITLE" = "null" ]; then
   BOOK_TITLE="Untitled Book"
   echo "⚠️  Warning: No book title found in payload, using default" >&2
@@ -70,14 +88,15 @@ else
   echo "📖 Book title: $BOOK_TITLE" >&2
 fi
 
-BOOK_AUTHOR=$(jq -r '(.book.author // "Unknown Author") | tostring' "$PAYLOAD_FILE")
-BOOK_LANG=$(jq -r '(.book.language // "en") | tostring' "$PAYLOAD_FILE")
-BOOK_PUBLISHER=$(jq -r '.book.publisher // "Unknown Publisher"' "$PAYLOAD_FILE")
-BOOK_SLUG=$(jq -r '.book.slug // ("book-" + env.BOOK_ID)' "$PAYLOAD_FILE")
-BOOK_ISBN=$(jq -r '.book.isbn // empty' "$PAYLOAD_FILE")
-BOOK_YEAR=$(jq -r '.book.publish_year // empty' "$PAYLOAD_FILE")
+# Safely extract all fields with proper error handling
+BOOK_AUTHOR=$(jq -r '(.book.author // "Unknown Author") | tostring' "$PAYLOAD_FILE" 2>/dev/null || echo "Unknown Author")
+BOOK_LANG=$(jq -r '(.book.language // "en") | tostring' "$PAYLOAD_FILE" 2>/dev/null || echo "en")
+BOOK_PUBLISHER=$(jq -r '(.book.publisher // "Unknown Publisher") | tostring' "$PAYLOAD_FILE" 2>/dev/null || echo "Unknown Publisher")
+BOOK_SLUG=$(jq -r '(.book.slug // ("book-" + env.BOOK_ID)) | tostring' "$PAYLOAD_FILE" 2>/dev/null || echo "book-${BOOK_ID}")
+BOOK_ISBN=$(jq -r '.book.isbn // empty' "$PAYLOAD_FILE" 2>/dev/null || true)
+BOOK_YEAR=$(safe_extract_number '.book.publish_year' "")
 
-META_GENERATED_AT=$(jq -r '.metadata.generated_at // empty' "$PAYLOAD_FILE")
+META_GENERATED_AT=$(jq -r '.metadata.generated_at // empty' "$PAYLOAD_FILE" 2>/dev/null || true)
 META_GENERATED_BY=$(jq -r '.metadata.generated_by // empty' "$PAYLOAD_FILE")
 META_USER_ID=$(jq -r '.metadata.user_id // empty' "$PAYLOAD_FILE")
 META_USER_EMAIL=$(jq -r '.metadata.user_email // empty' "$PAYLOAD_FILE")
@@ -119,9 +138,12 @@ echo "📝 metadata.yaml created"
 
 # --- Fetch chapters ---
 CHAPTER_FILES=()
-jq -c '(.book.chapters // []) | sort_by(.order)[]' "$PAYLOAD_FILE" \
-  | nl -w2 -s':' \
-  | while IFS=: read -r idx chap; do
+jq -c '(.book.chapters // []) | sort_by(if .order == null then 0 else .order end)[]' "$PAYLOAD_FILE" \
+  2>/dev/null | while IFS= read -r chap; do
+  if [ -z "$chap" ]; then
+    echo "⚠️  Warning: Empty chapter data" >&2
+    continue
+  fi
       order=$(jq -r '.order' <<<"$chap")
       title=$(jq -r '.title' <<<"$chap")
       content_url=$(jq -r '.url // empty' <<<"$chap")
