@@ -19,116 +19,81 @@ if [[ ! -f "$PAYLOAD_FILE" ]]; then
   exit 1
 fi
 
-# jq script'ini bir değişkene atayalım ki okunabilirliği artsın
+# jq script'ini bir değişkene atayalım
 read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
-  def escape_html:
-      gsub("&"; "&amp;")
-    | gsub("<"; "<")
-    | gsub(">"; ">")
-    | gsub("\""; "&quot;");
+def escape_html:
+  gsub("&"; "&amp;") |
+  gsub("<"; "<") |
+  gsub(">"; ">") |
+  gsub("\""; "&quot;");
 
-  def pad_num:
-    (. + 2) | tostring | ("000" + .) | .[-3:];
+def pad_num:
+  (. + 2 | tostring | "000\(.)" | .[-3:]);
 
-  # Her bir chapter objesine, children (alt başlıklar) alanını ekler
-  def add_children($chapters):
-    . as $parent |
-    $chapters | map(select(.parent == $parent.id)) | sort_by(.order // 0);
+# Ana dil ve başlık
+(.book.language // "en") as $lang |
+({
+  "tr": "İçindekiler",
+  "en": "Table of Contents",
+  "fr": "Table des matières",
+  "de": "Inhaltsverzeichnis",
+  "es": "Índice",
+  "ru": "Содержание",
+  "zh": "目录",
+  "ar": "جدول المحتويات"
+}[$lang] // "Table of Contents") as $title |
 
-  # Recursive olarak <ul><li>...</li></ul> yapısını oluşturur
-  def build_toc($all_chapters; $indent_level):
-    if length == 0 then
-      ""
-    else
-      # Girinti miktarını hesapla
-      ("\n" + ("  " * ($indent_level))) as $nl_indent |
-      ("\n" + ("  " * ($indent_level - 1))) as $nl_indent_close |
-      # Her bir chapter için <li> oluştur ve gerekirse children için recursive çağır
-      ($all_chapters as $chaps |
-       map(
-         "<li><a href=\"ch\(.order | pad_num).xhtml\">\(.title | escape_html)</a>" +
-         (if (.children // []) | length > 0 then
-           "<ul>" + (.children | build_toc($chaps; $indent_level + 1)) + ($nl_indent_close + "</ul>")
-          else
-           ""
-          end) +
-         "</li>"
-       ) |
-       join($nl_indent)
-      ) as $list_items |
-      # Sonuç: <ul> etiketleri ve içerik
-      $nl_indent + $list_items + $nl_indent_close
-    end;
+# Chapter'ları hazırla: ID ile indeksle ve sırala
+(.book.chapters | sort_by(.order // 0) | map({(.id) : .}) | add // {}) as $chapters_by_id |
 
-  # Ana işlemler
-  (.book.language // "en") as $lang |
-  ({
-    "tr": "İçindekiler",
-    "en": "Table of Contents",
-    "fr": "Table des matières",
-    "de": "Inhaltsverzeichnis",
-    "es": "Índice",
-    "ru": "Содержание",
-    "zh": "目录",
-    "ar": "جدول المحتويات"
-  }[$lang] // "Table of Contents") as $title |
+# Chapter'ları tekrar al ve parent/children ilişkisini kur
+[.book.chapters[] | .children = [.book.chapters[] | select(.parent == .id)] | sort_by(.children[].order // 0)? // .] as $chapters_with_children |
 
-  # Chapter listesini al ve children alanını ekle
-  .book.chapters | sort_by(.order // 0) as $sorted_chapters |
-  
-  # Debug: Chapter sayısı
-  # ($sorted_chapters | length | debug("Chapter sayısı: ")) |
-  
-  (reduce $sorted_chapters[] as $chapter ({}; .[$chapter.id] = $chapter)) as $chapter_dict |
-  
-  # Debug: Chapter dict uzunluğu
-  # ($chapter_dict | length | debug("Chapter dict uzunluğu: ")) |
-  
-  (reduce $sorted_chapters[] as $chapter ([]; 
-    . + [($chapter | .children = ($chapter | add_children($sorted_chapters)))]
-  )) as $chapters_with_children |
+# Kök chapter'ları (parent'ı null veya olmayanları) bul
+($chapters_with_children | map(select(.parent == null or .parent == "")) | sort_by(.order // 0)) as $root_chapters |
 
-  # Debug: Chapters with children uzunluğu
-  # ($chapters_with_children | length | debug("Chapters with children uzunluğu: ")) |
-  
-  # Root-level (parent'sı null veya olmayan) chapter'ları bul - DÜZELTİLDİ
-  ($chapters_with_children | map(select(.parent == null or (.parent | type?) == "null" or (.parent | length) == 0)) | sort_by(.order // 0)) as $root_chapters |
+# Recursive TOC oluşturma fonksiyonu
+def build_item($all_chapters_by_id; $depth):
+  "<li><a href=\"ch\(.order | pad_num).xhtml\">\(.title | escape_html)</a>" +
+  (if (.children | length > 0) and ($depth < 10) then # Güvenlik önlemi: max 10 seviye
+    "<ol>" + 
+    ([.children[] | build_item($all_chapters_by_id; $depth + 1)] | join("")) +
+    "</ol>"
+   else "" end) +
+  "</li>";
 
-  # Debug: Root chapters sayısı
-  # ($root_chapters | length | debug("Root chapters sayısı: ")) |
-
-  # XML çıktısını oluştur
-  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+# XML çıktısını oluştur
+"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE html>
 <html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" lang=\"\($lang)\" xml:lang=\"\($lang)\">
 <head>
   <meta charset=\"utf-8\" />
-  <title>\($title)</title>
+  <title>\($title | escape_html)</title>
 </head>
 <body>
   <nav epub:type=\"toc\" id=\"toc\">
-    <h1>\($title)</h1>
-    <ul>
-      \(
-        $root_chapters | build_toc($chapters_with_children; 3)
-      )
-    </ul>
+    <h1>\($title | escape_html)</h1>
+    <ol>
+      \($root_chapters | map(build_item($chapters_by_id; 1)) | join(""))
+    </ol>
   </nav>
 </body>
 </html>"
-
 EOF_JQ_SCRIPT
 
 # Debug: jq script tanımlandı
 echo "DEBUG: jq script'i tanımlandı" >&2
 
-# jq script'ini çalıştır
+# jq script'ini çalıştır - Hatanın oluştuğu yer büyük olasılıkla burası
 echo "DEBUG: jq komutu çalıştırılıyor..." >&2
-if jq -r "$JQ_SCRIPT" "$PAYLOAD_FILE" > "$OUTPUT_FILE"; then
-  echo "DEBUG: jq komutu başarıyla tamamlandı" >&2
+# jq komutunu doğrudan çalıştır ve çıktıyı göster
+if OUTPUT=$(jq -r "$JQ_SCRIPT" "$PAYLOAD_FILE" 2>&1); then
+    echo "DEBUG: jq komutu başarıyla tamamlandı" >&2
+    echo "$OUTPUT" > "$OUTPUT_FILE"
 else
-  echo "HATA: jq komutu başarısız oldu" >&2
-  exit 1
+    echo "HATA: jq komutu başarısız oldu. jq çıktısı:" >&2
+    echo "$OUTPUT" >&2
+    exit 1
 fi
 
 echo "✅ TOC sayfası oluşturuldu: $OUTPUT_FILE"
