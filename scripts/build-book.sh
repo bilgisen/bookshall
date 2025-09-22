@@ -57,7 +57,8 @@ mapfile -t chapters_json < <(jq -c '(.book.chapters // []) | sort_by(.order // 0
 for chap_json in "${chapters_json[@]}"; do
     order=$(jq -r '.order' <<<"$chap_json")
     title=$(jq -r '.title' <<<"$chap_json")
-    title_tag=$(jq -r '.title_tag // "h1"' <<<"$chap_json")
+    # Önce title_tag kontrol et, yoksa level'a göre belirle (1-6 arası)
+    title_tag=$(jq -r '.title_tag // ("h" + (.level | if . and . >= 1 and . <= 6 then . else 1 end | tostring))' <<<"$chap_json")
     content_url=$(jq -r '.url // ""' <<<"$chap_json")
     chapter_file="$CHAPTER_DIR/ch$(printf "%03d" "$order").html"
     echo "  📥 Bölüm $order: $title (${title_tag})"
@@ -98,7 +99,7 @@ PANDOC_ARGS=(
   --metadata="date=$(get_book_value '.book.publish_year' '')"
   --metadata-file="$META_FILE"
   --toc
-  --toc-depth=3
+  --toc-depth=2
   --epub-title-page=false
 )
 [[ -n "$COVER_FILE" ]] && PANDOC_ARGS+=(--epub-cover-image="$COVER_FILE")
