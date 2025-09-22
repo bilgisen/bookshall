@@ -12,12 +12,8 @@ if [[ ! -f "$PAYLOAD_FILE" ]]; then
 fi
 
 read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
-def escape_html:
-  gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;");
-
-def pad_num:
-  tostring | ("000" + .) | .[-3:];
-
+# --- Güvenli hiyerarşi oluşturma ve render ---
+# $all_chapters zaten tanımlı olsun (array veya [])
 (.book.language // "en") as $lang |
 ({
   "tr": "İçindekiler", "en": "Table of Contents", "fr": "Table des matières",
@@ -28,23 +24,47 @@ def pad_num:
 # .book.chapters'ın bir dizi olduğundan emin ol, değilse boş dizi kullan.
 (.book.chapters | if type == "array" then . else [] end) as $all_chapters |
 
-# --- DÜZELTİLMİŞ HİYERARŞİ KODU ---
-# Her bir bölümü $current_chapter olarak sakla ve iç döngüde buna referans ver.
-[$all_chapters[]
- | . as $current_chapter
- | .children = ([$all_chapters[] | select(.parent == $current_chapter.id)] | sort_by(.order // 0))
-] as $chapters |
-# --- DÜZELTME SONU ---
+# Parent ID'ye göre çocukları grupla
+reduce $all_chapters[] as $c ({}; .[($c.parent // "")] += [$c]) as $children_by_parent |
 
-# Kök (ana) bölümleri bul
-($chapters | map(select(.parent == null or .parent == "")) | sort_by(.order // 0)) as $roots |
+# recursive node builder with depth guard (avoid cycles)
+def build_node($node; $depth):
+  if $depth > 50 then
+    ($node + {children: []})
+  else
+    ($children_by_parent[($node.id // "")] // []
+     | sort_by(.order // 0)
+     | map(build_node(.; $depth + 1))) as $kids
+    | ($node + {children: $kids});
+  end;
+
+# collect roots: parent == null OR parent == "" OR parent missing
+($children_by_parent[""] // []) as $roots_from_empty |
+($children_by_parent[null] // []) as $roots_from_null |
+($all_chapters | map(select(.parent == null or .parent == "")) ) as $explicit_roots |
+
+# unify roots (remove duplicates) and sort
+($roots_from_empty + $roots_from_null + $explicit_roots)
+| unique_by(.id)
+| sort_by(.order // 0)
+| map(build_node(.; 1)) as $roots |
+
+# render function: safe title & order fallback
+def pad_num:
+  tostring | ("000" + .) | .[-3:];
+
+def escape_html:
+  (.|tostring) | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;");
 
 def build_item($depth):
-  "<li><a href=\"ch\(.order | pad_num).xhtml\">\(.title | escape_html)</a>"
-  + (if (.children | length > 0) and ($depth < 10) then
+  "<li><a href=\"" +
+   ( (.url // ("ch" + ( (.order // 0) | pad_num ) + ".xhtml")) | escape_html ) +
+   "\">" + ((.title // "") | escape_html) + "</a>"
+  + (if (.children | length > 0) and ($depth < 50) then
        "<ol>" + ([.children[] | build_item($depth+1)] | join("")) + "</ol>"
      else "" end)
   + "</li>";
+# --- son ---
 
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE html>
