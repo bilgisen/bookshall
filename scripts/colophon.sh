@@ -28,7 +28,7 @@ if [ $# -ne 2 ]; then
 fi
 
 PAYLOAD_FILE="$1"
-OUTPUT_FILE="$2"
+OUTPUT_FILE="$2" # Bu satır değişmedi, komut satırı argümanını kullanmaya devam ediyor
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
@@ -53,9 +53,8 @@ if ! jq -e '.book' "$PAYLOAD_FILE" >/dev/null 2>&1; then
   exit 1
 fi
 
-# Ensure output directory exists and set output filename to imprint.xhtml
+# Ensure output directory exists
 OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
-OUTPUT_FILE="$OUTPUT_DIR/imprint.xhtml"  # Always use imprint.xhtml as the filename
 if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null; then
   echo -e "${RED}❌ Error: Failed to create output directory: $OUTPUT_DIR${NC}" >&2
   exit 1

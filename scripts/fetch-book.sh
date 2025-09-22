@@ -211,15 +211,16 @@ while IFS= read -r chap; do
   
   # Download chapter content if URL is available
   if [ -n "$content_url" ]; then
+    # URL'deki boşlukları temizle
+    content_url=$(echo "$content_url" | sed 's/[[:space:]]*$//')
     echo "📥 Downloading chapter content from $content_url"
+    
     # Create a temporary file for the chapter content
     temp_file=$(mktemp)
     
     # Download the chapter content with error handling
-    if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
-      echo "⚠️  Failed to download chapter content from $content_url" >&2
-      content="<p>Failed to load chapter content.</p>"
-    else
+    if curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$temp_file"; then
+      echo "✅ Successfully downloaded content" >&2
       # Extract and clean the main content using xmllint for better HTML parsing
       if command -v xmllint >/dev/null 2>&1; then
         # Use xmllint if available (better HTML parsing)
@@ -228,6 +229,36 @@ while IFS= read -r chap; do
           # Remove any script and style tags completely
           sed -e '/<script\b[^>]*>/,/<\/script>/d' -e '/<style\b[^>]*>/,/<\/style>/d' |
           # Clean up whitespace
+          sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+          # Remove empty lines
+          sed '/^[[:space:]]*$/d'
+        )
+      else
+        # Fallback to sed if xmllint is not available
+        content=$(cat "$temp_file" | 
+          # Remove any existing DOCTYPE and HTML/HEAD tags
+          sed -e 's/<!DOCTYPE[^>]*>//g' -e 's/<\/?html[^>]*>//g' -e 's/<\/?head[^>]*>//g' |
+          # Extract the content between <body> tags or use the whole content
+          sed -n '/<body[^>]*>/,/<\/body>/p' | sed -e 's/<body[^>]*>//' -e 's/<\/body>//' |
+          # Remove any remaining script and style tags
+          sed -e '/<script\b[^>]*>/,/<\/script>/d' -e '/<style\b[^>]*>/,/<\/style>/d' |
+          # Clean up any empty lines and whitespace
+          sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' |
+          # Ensure proper XHTML escaping
+          sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
+        )
+      fi
+      
+      # If we couldn't extract any meaningful content, use a fallback
+      if [ -z "$content" ]; then
+        content="<p>No content available for this chapter.</p>"
+      fi
+    else
+      echo "❌ Failed to download chapter content from $content_url" >&2
+      echo "❌ HTTP Status: $(curl -s -o /dev/null -w "%{http_code}" "${AUTH_HEADER[@]}" "$content_url")" >&2
+      content="<p>Failed to load chapter content.</p>"
+    # Clean up the temporary file
+    rm -f "$temp_file"
           sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
           # Remove empty lines
           sed '/^[[:space:]]*$/d'
