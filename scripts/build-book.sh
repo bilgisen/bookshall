@@ -86,9 +86,16 @@ META_FILE="$WORKDIR/metadata.yaml"
 } > "$META_FILE"
 
 PANDOC_INPUT_FILES=("$WORKDIR/colophon.xhtml" "$WORKDIR/toc.xhtml" "$CHAPTER_DIR"/*.html)
+# Metadata'ları doğrudan Pandoc'a geçiriyoruz
 PANDOC_ARGS=(
   --from=html --to=epub3
   --output="$EPUB_FILENAME"
+  --metadata="title=$(get_book_value '.book.title' 'Başlıksız Kitap' | sed 's/"/\\"/g')"
+  --metadata="author=$(get_book_value '.book.author' 'Bilinmeyen Yazar' | sed 's/"/\\"/g')"
+  --metadata="language=$(get_book_value '.book.language' 'tr')"
+  --metadata="publisher=$(get_book_value '.book.publisher' '' | sed 's/"/\\"/g')"
+  --metadata="isbn=$(get_book_value '.book.isbn' '')"
+  --metadata="date=$(get_book_value '.book.publish_year' '')"
   --metadata-file="$META_FILE"
   --epub-title-page=false
 )
