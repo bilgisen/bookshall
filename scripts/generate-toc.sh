@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Debug: Script başlangıcı
+echo "DEBUG: Script başlatılıyor" >&2
+
 [[ $# -eq 2 ]] || { echo "Kullanım: $0 <payload.json> <toc.xhtml>" >&2; exit 1; }
 
 PAYLOAD_FILE=$1
 OUTPUT_FILE=$2
 
+# Debug: Dosya yolları
+echo "DEBUG: Payload dosyası: $PAYLOAD_FILE" >&2
+echo "DEBUG: Output dosyası: $OUTPUT_FILE" >&2
+
+# Dosya var mı kontrol et
+if [[ ! -f "$PAYLOAD_FILE" ]]; then
+  echo "HATA: Payload dosyası bulunamadı: $PAYLOAD_FILE" >&2
+  exit 1
+fi
+
 # jq script'ini bir değişkene atayalım ki okunabilirliği artsın
 read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
   def escape_html:
       gsub("&"; "&amp;")
-    | gsub("<"; "&lt;")
-    | gsub(">"; "&gt;")
+    | gsub("<"; "<")
+    | gsub(">"; ">")
     | gsub("\""; "&quot;");
 
   def pad_num:
@@ -62,13 +75,27 @@ read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
 
   # Chapter listesini al ve children alanını ekle
   .book.chapters | sort_by(.order // 0) as $sorted_chapters |
+  
+  # Debug: Chapter sayısı
+  # ($sorted_chapters | length | debug("Chapter sayısı: ")) |
+  
   (reduce $sorted_chapters[] as $chapter ({}; .[$chapter.id] = $chapter)) as $chapter_dict |
+  
+  # Debug: Chapter dict uzunluğu
+  # ($chapter_dict | length | debug("Chapter dict uzunluğu: ")) |
+  
   (reduce $sorted_chapters[] as $chapter ([]; 
     . + [($chapter | .children = ($chapter | add_children($sorted_chapters)))]
   )) as $chapters_with_children |
 
-  # Root-level (parent'sı null veya olmayan) chapter'ları bul
-  ($chapters_with_children | map(select(.parent == null or (.parent | type) == "null")) | sort_by(.order // 0)) as $root_chapters |
+  # Debug: Chapters with children uzunluğu
+  # ($chapters_with_children | length | debug("Chapters with children uzunluğu: ")) |
+  
+  # Root-level (parent'sı null veya olmayan) chapter'ları bul - DÜZELTİLDİ
+  ($chapters_with_children | map(select(.parent == null or (.parent | type?) == "null" or (.parent | length) == 0)) | sort_by(.order // 0)) as $root_chapters |
+
+  # Debug: Root chapters sayısı
+  # ($root_chapters | length | debug("Root chapters sayısı: ")) |
 
   # XML çıktısını oluştur
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -92,7 +119,16 @@ read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
 
 EOF_JQ_SCRIPT
 
+# Debug: jq script tanımlandı
+echo "DEBUG: jq script'i tanımlandı" >&2
+
 # jq script'ini çalıştır
-jq -r "$JQ_SCRIPT" "$PAYLOAD_FILE" > "$OUTPUT_FILE"
+echo "DEBUG: jq komutu çalıştırılıyor..." >&2
+if jq -r "$JQ_SCRIPT" "$PAYLOAD_FILE" > "$OUTPUT_FILE"; then
+  echo "DEBUG: jq komutu başarıyla tamamlandı" >&2
+else
+  echo "HATA: jq komutu başarısız oldu" >&2
+  exit 1
+fi
 
 echo "✅ TOC sayfası oluşturuldu: $OUTPUT_FILE"
