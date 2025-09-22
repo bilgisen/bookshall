@@ -8,10 +8,10 @@ OUTPUT_FILE=$2
 
 jq -r '
   def escape_html:
-      gsub("&";  "&amp;")
-    | gsub("<";  "&lt;")
-    | gsub(">";  "&gt;")
-    | gsub("\\"";"&quot;");          # tırnak kaçışı: \"
+      gsub("&"; "&amp;")
+    | gsub("<"; "<")
+    | gsub(">"; ">")
+    | gsub("\""; "&quot;");
 
   def pad_num: (. + 2) | tostring | ("000" + .) | .[-3:];
 
@@ -27,7 +27,7 @@ jq -r '
       "ar": "جدول المحتويات"
     }[$lang] // "Table of Contents") as $title
 
-  | "<?xml version=\"1.0\" encoding=\"UTF-8\"\"?>
+  | "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE html>
 <html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\">
 <head>
