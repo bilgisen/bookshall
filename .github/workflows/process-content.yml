@@ -116,13 +116,21 @@ jobs:
       - name: Upload EPUB to R2
         run: |
           echo "☁️ Uploading EPUB to Cloudflare R2..."
-          EPUB_FILE=$(ls *.epub | head -n1)
-          aws s3 cp "$EPUB_FILE" s3://$R2_BUCKET/$CONTENT_ID.epub \
+          # Look for EPUB in the output directory
+          EPUB_FILE="output/$(ls -1 output/*.epub 2>/dev/null | head -n1 | xargs basename 2>/dev/null || true)"
+          if [ ! -f "$EPUB_FILE" ]; then
+            echo "❌ No EPUB file found in output/ directory"
+            ls -la output/ || true
+            exit 1
+          fi
+          
+          # Upload to the 'upload' folder in R2
+          aws s3 cp "$EPUB_FILE" "s3://$R2_BUCKET/upload/$CONTENT_ID.epub" \
             --endpoint-url="$R2_ENDPOINT"
           echo "✅ Uploaded to R2"
           if [ -n "$R2_PUBLIC_URL" ]; then
-            # Use the public URL with /epub/ path
-            EXPORT_URL="$R2_PUBLIC_URL/epub/$CONTENT_ID.epub"
+            # Use the public URL with /upload/ path
+            EXPORT_URL="$R2_PUBLIC_URL/upload/$CONTENT_ID.epub"
           else
             # Fallback to endpoint URL if public URL not configured (shouldn't happen in production)
             echo "⚠️ R2_PUBLIC_URL not set, using R2_ENDPOINT"
