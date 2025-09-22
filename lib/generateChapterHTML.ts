@@ -161,12 +161,26 @@ function convertTiptapToHTML(content: TiptapDocument | null | undefined): string
         const level = (node.attrs && typeof node.attrs === 'object' && 'level' in node.attrs)
           ? Number(node.attrs.level) || 1
           : 1;
-        const headingTag = `h${Math.min(Math.max(1, level), 6)}`;
-        if (node.content) {
-          html += `<${headingTag}>${convertTiptapContentToText(node.content)}</${headingTag}>`;
+        
+        // Başlık seviyelerini kaydır:
+        // h1 -> h3, h2 -> h4, h3 -> h5, h4 -> h6, h5/h6 -> p.strong
+        let headingHtml = '';
+        const content = node.content ? convertTiptapContentToText(node.content) : '';
+        
+        if (level === 1) {
+          headingHtml = `<h3>${content}</h3>`;
+        } else if (level === 2) {
+          headingHtml = `<h4>${content}</h4>`;
+        } else if (level === 3) {
+          headingHtml = `<h5>${content}</h5>`;
+        } else if (level === 4) {
+          headingHtml = `<h6>${content}</h6>`;
         } else {
-          html += `<${headingTag}></${headingTag}>`;
+          // h5 ve h6 için p.strong kullan
+          headingHtml = `<p><strong>${content}</strong></p>`;
         }
+        
+        html += headingHtml;
         break;
       case 'bulletList':
         if (node.content) {

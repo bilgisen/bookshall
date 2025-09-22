@@ -77,7 +77,7 @@ function ParentChapterSelect({
     onChange(val === "none" ? null : String(val));
   };
 
-  // Sort chapters by level and then by title
+  // Filter to only include top-level (level-1) chapters
   const sortedChapters = React.useMemo(() => {
     if (!Array.isArray(parentChapters)) {
       console.warn('ParentChapterSelect - parentChapters is not an array:', parentChapters);
@@ -88,18 +88,21 @@ function ParentChapterSelect({
     console.log('ParentChapterSelect - Raw parentChapters:', parentChapters);
     
     try {
-      const sorted = [...parentChapters].sort((a, b) => {
-        const levelA = typeof a.level === 'number' ? a.level : 0;
-        const levelB = typeof b.level === 'number' ? b.level : 0;
-        
-        if (levelA !== levelB) return levelA - levelB;
+      // Filter out non-level-1 chapters
+      const topLevelChapters = parentChapters.filter(chapter => {
+        const level = typeof chapter.level === 'number' ? chapter.level : 0;
+        return level === 1;
+      });
+      
+      // Sort by title
+      const sorted = [...topLevelChapters].sort((a, b) => {
         return String(a.title).localeCompare(String(b.title));
       });
       
-      console.log('ParentChapterSelect - Sorted chapters:', sorted);
+      console.log('ParentChapterSelect - Top level chapters:', sorted);
       return sorted;
     } catch (error) {
-      console.error('ParentChapterSelect - Error sorting chapters:', error);
+      console.error('ParentChapterSelect - Error processing chapters:', error);
       return [];
     }
   }, [parentChapters]);
@@ -128,9 +131,9 @@ function ParentChapterSelect({
           No parent (Top level chapter)
         </SelectItem>
         {sortedChapters.length > 0 ? (
-          sortedChapters.map((chapter, index) => {
+          sortedChapters.map((chapter) => {
             const chapterId = String(chapter.id);
-            console.log(`Rendering chapter ${index}:`, { id: chapterId, title: chapter.title, level: chapter.level });
+            console.log(`Rendering top-level chapter:`, { id: chapterId, title: chapter.title });
             
             return (
               <SelectItem 
@@ -140,10 +143,9 @@ function ParentChapterSelect({
                 className={cn(
                   chapter.disabled ? 'opacity-50 cursor-not-allowed' : '',
                   'whitespace-nowrap overflow-hidden text-ellipsis',
-                  'flex items-center gap-2'
+                  'flex items-center gap-2 font-medium' // Make top-level items bolder
                 )}
               >
-                {showLevelIndicator && getLevelIndicator(chapter.level)}
                 <span className="truncate">{chapter.title}</span>
               </SelectItem>
             );

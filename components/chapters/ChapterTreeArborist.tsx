@@ -66,24 +66,26 @@ export function ChapterTreeArborist({
     }
   });
 
-  // Transform the tree data for react-arborist
+  // Transform the tree data for react-arborist with max depth of 2
   const treeData = useMemo(() => {
     if (!data?.tree) return [];
     
-    const transformChapters = (chapters: Chapter[]): Chapter[] => {
+    const transformChapters = (chapters: Chapter[], currentLevel = 0): Chapter[] => {
+      // Stop recursion if we've reached max depth (level 1)
+      if (currentLevel >= 2) return [];
+      
       return chapters.map(chapter => {
-        // Ensure children is always an array and properly transformed
-        const children = Array.isArray(chapter.children) 
-          ? transformChapters(chapter.children) 
+        // Only include children if we haven't reached max depth
+        const children = currentLevel < 1 && Array.isArray(chapter.children) 
+          ? transformChapters(chapter.children, currentLevel + 1)
           : [];
           
         // Create a new object with properly typed properties
-        // First, extract all the properties we need
         const { 
           id, 
           title, 
           isDraft = false, 
-          level = 1, 
+          level = currentLevel, 
           order = 0, 
           parentChapterId = null,
           ...rest
@@ -111,6 +113,30 @@ export function ChapterTreeArborist({
     const sortedChapters = [...(data.tree || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     return transformChapters(sortedChapters);
   }, [data]);
+
+  // Handle drag and drop
+  const onMove = useCallback((args: {
+    dragIds: string[];
+    dragNodes: NodeApi<Chapter>[];
+    parentId: null | string;
+    parentNode: NodeApi<Chapter> | null;
+    index: number;
+  }) => {
+    const { dragIds, parentId, parentNode } = args;
+    
+    // Prevent dropping into a node that's at or beyond max depth
+    if (parentNode && parentNode.level >= 1) {
+      toast.error('Maximum derinliğe ulaşıldı. 2 seviyeden daha derine yerleştirilemez.');
+      return;
+    }
+    
+    // Handle the move operation
+    // This is where you would typically call an API to update the chapter's parent
+    console.log('Move:', { dragIds, parentId, parentNode });
+    
+    // Update the local state optimistically
+    // In a real app, you would handle this in a mutation and update the cache
+  }, []);
 
   const handleMove = useCallback(async (args: {
     dragIds: string[];
