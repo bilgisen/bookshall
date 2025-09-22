@@ -10,8 +10,8 @@ OUTPUT_FILE=$2
 read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
   def escape_html:
       gsub("&"; "&amp;")
-    | gsub("<"; "<")
-    | gsub(">"; ">")
+    | gsub("<"; "&lt;")
+    | gsub(">"; "&gt;")
     | gsub("\""; "&quot;");
 
   def pad_num:
