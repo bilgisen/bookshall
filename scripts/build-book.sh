@@ -57,15 +57,16 @@ mapfile -t chapters_json < <(jq -c '(.book.chapters // []) | sort_by(.order // 0
 for chap_json in "${chapters_json[@]}"; do
     order=$(jq -r '.order' <<<"$chap_json")
     title=$(jq -r '.title' <<<"$chap_json")
+    title_tag=$(jq -r '.title_tag // "h1"' <<<"$chap_json")
     content_url=$(jq -r '.url // ""' <<<"$chap_json")
     chapter_file="$CHAPTER_DIR/ch$(printf "%03d" "$order").html"
-    echo "  📥 Bölüm $order: $title"
+    echo "  📥 Bölüm $order: $title (${title_tag})"
     if [[ -n "$content_url" ]]; then
         if ! curl -fsSL "${AUTH_HEADER[@]}" "$content_url" -o "$chapter_file"; then
-            echo "<h1>$title</h1><p>İçerik yüklenemedi.</p>" > "$chapter_file"
+            echo "<${title_tag}>${title}</${title_tag}><p>İçerik yüklenemedi.</p>" > "$chapter_file"
         fi
     else
-        echo "<h1>$title</h1><p>İçerik mevcut değil.</p>" > "$chapter_file"
+        echo "<${title_tag}>${title}</${title_tag}><p>İçerik mevcut değil.</p>" > "$chapter_file"
     fi
 done
 
