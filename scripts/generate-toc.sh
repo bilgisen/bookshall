@@ -1,27 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ----------  KULLANIM  ----------
-if [[ $# -ne 2 ]]; then
-  echo "Kullanım: $0 <payload.json> <output.xhtml>" >&2
-  exit 1
-fi
+[[ $# -eq 2 ]] || { echo "Kullanım: $0 <payload.json> <toc.xhtml>" >&2; exit 1; }
 
 PAYLOAD_FILE=$1
 OUTPUT_FILE=$2
 
-# ----------  TEK JQ ÇAĞRISI  ----------
-read -r -d '' XHTML <<'JQ' || true
 jq -r '
   def escape_html:
       gsub("&";  "&amp;")
     | gsub("<";  "&lt;")
     | gsub(">";  "&gt;")
-    | gsub("\"";"&quot;");
+    | gsub("\\"";"&quot;");          # tırnak kaçışı: \"
 
   def pad_num: (. + 2) | tostring | ("000" + .) | .[-3:];
 
-  # 1) Dil → TOC başlığı look-up table
   (.book.language // "en") as $lang
   | ({
       "tr": "İçindekiler",
@@ -34,21 +27,7 @@ jq -r '
       "ar": "جدول المحتويات"
     }[$lang] // "Table of Contents") as $title
 
-  # 2) TOC gövdesi
-  | "<nav epub:type=\"toc\" id=\"toc\">
-      <h1>\($title)</h1>
-      <ul>
-        \(
-          .book.chapters
-          | sort_by(.order // 0)
-          | map("<li><a href=\"ch\(.order | pad_num).html\">\(.title | escape_html)</a></li>")
-          | join("\n        ")
-        )
-      </ul>
-    </nav>" as $toc_body
-
-  # 3) Tam XHTML çıktısı
-  | "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+  | "<?xml version=\"1.0\" encoding=\"UTF-8\"\"?>
 <!DOCTYPE html>
 <html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\">
 <head>
@@ -56,13 +35,19 @@ jq -r '
   <title>\($title)</title>
 </head>
 <body>
-  \($toc_body)
+  <nav epub:type=\"toc\" id=\"toc\">
+    <h1>\($title)</h1>
+    <ul>
+      \(
+        .book.chapters
+        | sort_by(.order // 0)
+        | map("<li><a href=\"ch\(.order | pad_num).html\">\(.title | escape_html)</a></li>")
+        | join("\n      ")
+      )
+    </ul>
+  </nav>
 </body>
 </html>"
-' "$PAYLOAD_FILE"
-JQ
-
-# ----------  DOSYAYA YAZ  ----------
-printf '%s\n' "$XHTML" > "$OUTPUT_FILE"
+' "$PAYLOAD_FILE" > "$OUTPUT_FILE"
 
 echo "✅ TOC sayfası oluşturuldu: $OUTPUT_FILE"
