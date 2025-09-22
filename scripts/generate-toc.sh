@@ -18,15 +18,15 @@ TOC_BODY=$(jq -r '
   # Dil kodlarına göre TOC başlıkları
   def get_toc_title:
     if . == "tr" then "İçindekiler"
-    elif . == "en" then "Table of Contents"
-    elif . == "fr" then "Table des matières"
-    elif . == "de" then "Inhaltsverzeichnis"
-    elif . == "es" then "Índice"
-    elif . == "ru" then "Содержание"
-    elif . == "zh" then "目录"
-    elif . == "ar" then "جدول المحتويات"
+    else if . == "en" then "Table of Contents"
+    else if . == "fr" then "Table des matières"
+    else if . == "de" then "Inhaltsverzeichnis"
+    else if . == "es" then "Índice"
+    else if . == "ru" then "Содержание"
+    else if . == "zh" then "目录"
+    else if . == "ar" then "جدول المحتويات"
     else "Table of Contents"
-    end;
+    end end end end end end end end;
 
   (.book.language // "en") as $lang
   | ($lang | get_toc_title) as $title
@@ -49,15 +49,15 @@ TOC_BODY=$(jq -r '
   # TOC başlığını kitap diline göre ayarla
   TOC_TITLE=$(jq -r '
     if .book.language == "tr" then "İçindekiler"
-    elif .book.language == "en" then "Table of Contents"
-    elif .book.language == "fr" then "Table des matières"
-    elif .book.language == "de" then "Inhaltsverzeichnis"
-    elif .book.language == "es" then "Índice"
-    elif .book.language == "ru" then "Содержание"
-    elif .book.language == "zh" then "目录"
-    elif .book.language == "ar" then "جدول المحتويات"
+    else if .book.language == "en" then "Table of Contents"
+    else if .book.language == "fr" then "Table des matières"
+    else if .book.language == "de" then "Inhaltsverzeichnis"
+    else if .book.language == "es" then "Índice"
+    else if .book.language == "ru" then "Содержание"
+    else if .book.language == "zh" then "目录"
+    else if .book.language == "ar" then "جدول المحتويات"
     else "Table of Contents"
-    end' "$PAYLOAD_FILE")
+    end end end end end end end end' "$PAYLOAD_FILE")
   echo '<head><meta charset="utf-8"/><title>'"$TOC_TITLE"'</title></head>'
   echo '<body>'
   echo "$TOC_BODY"
