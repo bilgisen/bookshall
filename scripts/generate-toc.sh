@@ -13,32 +13,30 @@ fi
 
 read -r -d '' JQ_SCRIPT << 'EOF_JQ_SCRIPT'
 def escape_html:
-  gsub("&"; "&amp;")
-  | gsub("<"; "&lt;")
-  | gsub(">"; "&gt;")
-  | gsub("\""; "&quot;");
+  gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;");
 
 def pad_num:
   tostring | ("000" + .) | .[-3:];
 
 (.book.language // "en") as $lang |
 ({
-  "tr": "İçindekiler",
-  "en": "Table of Contents",
-  "fr": "Table des matières",
-  "de": "Inhaltsverzeichnis",
-  "es": "Índice",
-  "ru": "Содержание",
-  "zh": "目录",
-  "ar": "جدول المحتويات"
+  "tr": "İçindekiler", "en": "Table of Contents", "fr": "Table des matières",
+  "de": "Inhaltsverzeichnis", "es": "Índice", "ru": "Содержание",
+  "zh": "目录", "ar": "جدول المحتويات"
 }[$lang] // "Table of Contents") as $title |
 
-# chapters'ı sırala ve çocukları ekle
-[.book.chapters[] 
- | .children = ([.book.chapters[] | select(.parent == .id)] | sort_by(.order // 0))
-] as $chapters |
+# .book.chapters'ın bir dizi olduğundan emin ol, değilse boş dizi kullan.
+(.book.chapters | if type == "array" then . else [] end) as $all_chapters |
 
-# kök chapters
+# --- DÜZELTİLMİŞ HİYERARŞİ KODU ---
+# Her bir bölümü $current_chapter olarak sakla ve iç döngüde buna referans ver.
+[$all_chapters[]
+ | . as $current_chapter
+ | .children = ([$all_chapters[] | select(.parent == $current_chapter.id)] | sort_by(.order // 0))
+] as $chapters |
+# --- DÜZELTME SONU ---
+
+# Kök (ana) bölümleri bul
 ($chapters | map(select(.parent == null or .parent == "")) | sort_by(.order // 0)) as $roots |
 
 def build_item($depth):
@@ -68,9 +66,9 @@ EOF_JQ_SCRIPT
 
 if OUTPUT=$(jq -r "$JQ_SCRIPT" "$PAYLOAD_FILE" 2>&1); then
     echo "$OUTPUT" > "$OUTPUT_FILE"
-    echo "✅ TOC sayfası oluşturuldu: $OUTPUT_FILE"
+    echo "✅ TOC sayfası başarıyla oluşturuldu: $OUTPUT_FILE"
 else
-    echo "HATA: jq komutu başarısız oldu:" >&2
+    echo "HATA: jq komutu başarısız oldu (exit code: $?):" >&2
     echo "$OUTPUT" >&2
     exit 1
 fi
