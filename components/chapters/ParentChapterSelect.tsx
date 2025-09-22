@@ -36,22 +36,14 @@ export interface ParentChapterSelectProps {
    */
   disabled?: boolean;
   /**
-   * Additional class names for the select trigger
-   */
-  className?: string;
-  /**
    * Placeholder text when no value is selected
    */
   placeholder?: string;
   /**
-   * Whether to show the level indicator for chapters
+   * Additional class names for the select trigger
    */
-  showLevelIndicator?: boolean;
+  className?: string;
 }
-
-const getLevelIndicator = (level: number = 0) => {
-  return '— '.repeat(level) + ' ';
-};
 
 /**
  * A select component for choosing a parent chapter with support for hierarchical display
@@ -63,7 +55,6 @@ function ParentChapterSelect({
   disabled = false,
   className,
   placeholder = "Select parent chapter",
-  showLevelIndicator = true,
 }: ParentChapterSelectProps) {
   const selectValue = value ?? "none";
 
@@ -71,27 +62,32 @@ function ParentChapterSelect({
     console.log('ParentChapterSelect - onChange:', { 
       oldValue: value, 
       newValue: val,
-      parentChapters: parentChapters.map(c => `${c.id}:${c.title}`)
+      parentChapters: parentChapters?.map(c => `${c.id}:${c.title}`) || []
     });
-    // Always ensure we're returning null for "none" or a string ID
-    onChange(val === "none" ? null : String(val));
+    
+    // Convert "none" to null, otherwise ensure it's a string
+    const newValue = val === "none" ? null : String(val);
+    console.log('ParentChapterSelect - Processed value:', newValue);
+    
+    // Update the form
+    onChange(newValue);
   };
 
-  // Filter to only include top-level (level-1) chapters
+  // Filter to only include top-level (level-0) chapters
   const sortedChapters = React.useMemo(() => {
     if (!Array.isArray(parentChapters)) {
       console.warn('ParentChapterSelect - parentChapters is not an array:', parentChapters);
       return [];
     }
     
-    // Log the raw input for debugging
+    // Debug log the raw input
     console.log('ParentChapterSelect - Raw parentChapters:', parentChapters);
     
     try {
-      // Filter out non-level-1 chapters
+      // Filter for top-level chapters (level 0 or undefined)
       const topLevelChapters = parentChapters.filter(chapter => {
         const level = typeof chapter.level === 'number' ? chapter.level : 0;
-        return level === 1;
+        return level === 0; // Get top-level chapters (level 0)
       });
       
       // Sort by title
@@ -110,12 +106,12 @@ function ParentChapterSelect({
   // Log when the component renders
   React.useEffect(() => {
     console.log('ParentChapterSelect - Component rendered with:', {
-      props: { value, disabled, placeholder, showLevelIndicator },
+      props: { value, disabled, placeholder },
       selectValue,
       parentChaptersCount: parentChapters?.length || 0,
       sortedChaptersCount: sortedChapters.length
     });
-  }, [value, disabled, placeholder, showLevelIndicator, parentChapters, sortedChapters, selectValue]);
+  }, [value, disabled, placeholder, parentChapters, sortedChapters, selectValue]);
 
   return (
     <Select 
@@ -133,7 +129,13 @@ function ParentChapterSelect({
         {sortedChapters.length > 0 ? (
           sortedChapters.map((chapter) => {
             const chapterId = String(chapter.id);
-            console.log(`Rendering top-level chapter:`, { id: chapterId, title: chapter.title });
+            console.log(`Rendering chapter option:`, { 
+              id: chapterId, 
+              title: chapter.title,
+              level: chapter.level,
+              disabled: chapter.disabled,
+              currentValue: selectValue
+            });
             
             return (
               <SelectItem 
@@ -143,7 +145,8 @@ function ParentChapterSelect({
                 className={cn(
                   chapter.disabled ? 'opacity-50 cursor-not-allowed' : '',
                   'whitespace-nowrap overflow-hidden text-ellipsis',
-                  'flex items-center gap-2 font-medium' // Make top-level items bolder
+                  'flex items-center gap-2',
+                  chapter.level === 0 ? 'font-medium' : '' // Only make top-level items bolder
                 )}
               >
                 <span className="truncate">{chapter.title}</span>

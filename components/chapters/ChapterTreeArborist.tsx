@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useMemo, useCallback } from 'react';
-import { Tree, NodeRendererProps, NodeApi } from 'react-arborist';
+// 1. Gereksiz ve sorun yaratan import'ları kaldırın
+// import React, { useMemo, useCallback, ComponentProps } from 'react'; 
+import React, { useMemo, useCallback } from 'react'; 
+// 2. NodeApi import'unu kaldırın (kullanılmıyor)
+// import { Tree, NodeRendererProps, NodeApi } from 'react-arborist'; 
+import { Tree, NodeRendererProps, MoveHandler } from 'react-arborist'; // MoveHandler'ı doğrudan import edin
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -16,7 +20,7 @@ interface Chapter {
   name?: string; // Added for tree compatibility
   order: number;
   parentChapterId: string | null;
-  children?: Chapter[];
+  children?: Chapter[]; // This is used by react-arborist directly
   isDraft?: boolean;
   level?: number;
   wordCount?: number;
@@ -27,8 +31,8 @@ interface Chapter {
   excerpt?: string | null;
   content?: unknown;
   bookId?: string;
-  isOpen?: boolean; // Added for tree compatibility
-  isLeaf?: boolean; // Added for tree compatibility
+  isOpen?: boolean; // This is used by react-arborist to track open/closed state
+  // isLeaf is not needed as react-arborist determines this based on children
 }
 
 interface ChapterTreeArboristProps {
@@ -66,87 +70,32 @@ export function ChapterTreeArborist({
     }
   });
 
-  // Transform the tree data for react-arborist with max depth of 2
+  // Transform the tree data for react-arborist
   const treeData = useMemo(() => {
     if (!data?.tree) return [];
     
-    const transformChapters = (chapters: Chapter[], currentLevel = 0): Chapter[] => {
-      // Stop recursion if we've reached max depth (level 1)
-      if (currentLevel >= 2) return [];
-      
-      return chapters.map(chapter => {
-        // Only include children if we haven't reached max depth
-        const children = currentLevel < 1 && Array.isArray(chapter.children) 
-          ? transformChapters(chapter.children, currentLevel + 1)
-          : [];
-          
-        // Create a new object with properly typed properties
-        const { 
-          id, 
-          title, 
-          isDraft = false, 
-          level = currentLevel, 
-          order = 0, 
-          parentChapterId = null,
-          ...rest
-        } = chapter;
-        
-        return {
-          id,
-          title, // Keep the original title
-          name: title || 'Untitled Chapter', // Add name for tree compatibility
-          isDraft,
-          level,
-          order,
-          parentChapterId,
-          // Include other properties that might be needed
-          ...rest,
-          // Tree-specific properties
-          children,
-          isOpen: true,
-          isLeaf: children.length === 0
-        };
-      });
+    // Ensure isOpen is set correctly for react-arborist
+    const transformChapters = (chapters: Chapter[]): Chapter[] => {
+      return chapters.map(chapter => ({
+        ...chapter,
+        name: chapter.title || 'Untitled Chapter',
+        // isOpen: true, // Let react-arborist manage this or set initial state if needed
+        // isLeaf is determined by react-arborist based on children array
+        children: chapter.children ? transformChapters(chapter.children) : [] // Recursively transform children
+      }));
     };
     
-    // Sort chapters by order before transforming
+    // Sort root level chapters by order
     const sortedChapters = [...(data.tree || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     return transformChapters(sortedChapters);
   }, [data]);
 
-  // Handle drag and drop
-  const onMove = useCallback((args: {
-    dragIds: string[];
-    dragNodes: NodeApi<Chapter>[];
-    parentId: null | string;
-    parentNode: NodeApi<Chapter> | null;
-    index: number;
-  }) => {
-    const { dragIds, parentId, parentNode } = args;
-    
-    // Prevent dropping into a node that's at or beyond max depth
-    if (parentNode && parentNode.level >= 1) {
-      toast.error('Maximum derinliğe ulaşıldı. 2 seviyeden daha derine yerleştirilemez.');
-      return;
-    }
-    
-    // Handle the move operation
-    // This is where you would typically call an API to update the chapter's parent
-    console.log('Move:', { dragIds, parentId, parentNode });
-    
-    // Update the local state optimistically
-    // In a real app, you would handle this in a mutation and update the cache
-  }, []);
-
-  const handleMove = useCallback(async (args: {
-    dragIds: string[];
-    dragNodes: NodeApi<Chapter>[];
-    parentId: string | null;
-    parentNode: NodeApi<Chapter> | null;
-    index: number;
-  }) => {
+  // 3. handleMove fonksiyonunun args parametresine açık tip tanımı ekliyoruz.
+  //    MoveHandler<Chapter> tipinden parametre tipini çıkarıyoruz.
+  const handleMove = useCallback(async (args: Parameters<MoveHandler<Chapter>>[0]) => {
+    // args artık doğru şekilde tiplenmiş olacak.
     try {
-      const { dragIds, parentId, index } = args;
+      const { dragIds, parentId, index, parentNode } = args;
       const chapterId = dragIds[0];
       
       if (!data?.tree) return;
@@ -166,18 +115,46 @@ export function ChapterTreeArborist({
       const movedChapter = findChapterInTree(data.tree, chapterId);
       if (!movedChapter) {
         console.error('Chapter not found in the current tree');
+        toast.error('Bölüm bulunamadı.');
         return;
       }
       
-      // Determine the new parent and level
+      // --- Depth Control Logic ---
+      // Check if the new parent would exceed the maximum depth (e.g., 2 levels: 0 and 1)
+      const MAX_DEPTH = 1; // 0-based index: Level 0 (root), Level 1 (children of root)
+      
+      // Determine the potential new level for the moved chapter
+      let newLevel: number;
+      if (parentId === null || parentId === 'root') {
+        // Moving to root level
+        newLevel = 0; 
+      } else {
+        // Find the new parent node in the *current* tree structure (before the move)
+        const newParentNode = parentNode; // parentNode is the target parent node provided by react-arborist
+        if (!newParentNode) {
+             console.error('New parent node not found');
+             toast.error('Geçersiz hedef.');
+             return;
+        }
+        // Calculate the new level based on the parent's level
+        newLevel = (newParentNode.level ?? -1) + 1; 
+      }
+
+      // Check if the new level exceeds the maximum allowed depth
+      if (newLevel > MAX_DEPTH) {
+        toast.error('Maximum derinliğe ulaşıldı. 2 seviyeden daha derine yerleştirilemez.');
+        // Do not proceed with the move
+        return; 
+      }
+      // --- End Depth Control Logic ---
+
+      // Determine the new parent ID for the API call
       const newParentId = parentId === 'root' || !parentId ? null : parentId;
-      const newLevel = newParentId ? 
-        ((findChapterInTree(data.tree, newParentId)?.level || 0) + 1) : 1;
       
       // Prepare the update data
       const updateData = {
         order: index,
-        level: newLevel,
+        // level: newLevel, // Send the calculated new level if your API expects it
         parentChapterId: newParentId
       };
       
@@ -199,9 +176,9 @@ export function ChapterTreeArborist({
         throw new Error(`Failed to update chapter order: ${errorText}`);
       }
       
-      // Get the updated chapter data
-      const updatedChapter = await response.json();
-      console.log('Chapter updated successfully:', updatedChapter);
+      // Get the updated chapter data (optional, depending on API response)
+      // const updatedChapter = await response.json(); 
+      // console.log('Chapter updated successfully:', updatedChapter);
       
       // Force a re-render with the updated data
       await refetch();
@@ -210,9 +187,19 @@ export function ChapterTreeArborist({
       toast.success('Chapter order updated');
     } catch (error) {
       console.error('Error moving chapter:', error);
-      // Optionally show an error message to the user
+      toast.error('Bölüm taşınırken bir hata oluştu.');
+      // Optionally, you might want to refetch data here to revert the UI if the API call failed
+      // await refetch(); 
     }
   }, [bookSlug, refetch, data]);
+
+  // 4. onMove handler'ının tipini doğrudan MoveHandler<Chapter> olarak tanımlıyoruz.
+  const onMove: MoveHandler<Chapter> = useCallback((args) => { 
+    // args zaten doğru tipte
+    return handleMove(args); 
+    // Return type Promise<void> from handleMove is compatible with MoveHandler
+    // Previously returning `true` was incorrect for the MoveHandler type
+  }, [handleMove]);
 
   const ChapterNode = ({ node, style, dragHandle }: NodeRendererProps<Chapter>) => {
     const chapter = node.data;
@@ -225,14 +212,14 @@ export function ChapterTreeArborist({
         className={`flex items-center px-2 py-1 hover:bg-card ${isSelected ? 'bg-accent' : ''} rounded transition-colors`}
         onClick={() => onSelectChapter?.(chapter)}
       >
-        <div className="flex items-center flex-1">
-          <GripVertical className="w-4 h-4 text-gray-400 mr-2" />
+        <div className="flex items-center flex-1 min-w-0"> {/* Added min-w-0 for truncation */}
+          <GripVertical className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
           <span className="truncate">{chapter.name || chapter.title}</span>
           {chapter.isDraft && (
-            <span className="ml-2 text-xs text-gray-500">(Draft)</span>
+            <span className="ml-2 text-xs text-gray-500 whitespace-nowrap">(Draft)</span>
           )}
         </div>
-        <div className="flex space-x-1">
+        <div className="flex space-x-1 flex-shrink-0">
           {onViewChapter && (
             <Button
               variant="ghost"
@@ -252,11 +239,13 @@ export function ChapterTreeArborist({
               className="h-6 w-6"
               onClick={(e) => {
                 e.stopPropagation();
-                onEditChapter({
+                // Ensure title is present and avoid circular refs if passing data elsewhere
+                const chapterToEdit = {
                   ...chapter,
-                  title: chapter.name || chapter.title, // Ensure title is present
-                  children: undefined // Remove children to avoid circular references
-                });
+                  title: chapter.name || chapter.title,
+                  children: undefined // Remove children to avoid circular references if needed by caller
+                };
+                onEditChapter(chapterToEdit);
               }}
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -270,11 +259,13 @@ export function ChapterTreeArborist({
               onClick={async (e) => {
                 e.stopPropagation();
                 if (confirm('Are you sure you want to delete this chapter?')) {
-                  await onDeleteChapter({
-                    ...chapter,
-                    title: chapter.name || chapter.title, // Ensure title is present
-                    children: undefined // Remove children to avoid circular references
-                  });
+                  // Ensure title is present and avoid circular refs if passing data elsewhere
+                   const chapterToDelete = {
+                      ...chapter,
+                      title: chapter.name || chapter.title,
+                      children: undefined // Remove children to avoid circular references if needed by caller
+                   };
+                  await onDeleteChapter(chapterToDelete);
                 }
               }}
             >
@@ -285,6 +276,7 @@ export function ChapterTreeArborist({
       </div>
     );
   };
+
 
   if (isLoading) {
     return (
@@ -303,17 +295,19 @@ export function ChapterTreeArborist({
   return (
     <div className="h-full">
       <div className="flex-1 overflow-auto">
+        {/* Removed getChildren prop as it's not a standard prop for react-arborist Tree */}
+        {/* Controlled the depth by modifying the data structure and checking in onMove/handleMove */}
         <Tree<Chapter>
           data={treeData}
-          openByDefault={true}
+          openByDefault={false}
           width="100%"
-          height={600}
+          height={500}
           indent={24}
-          rowHeight={36}
-          paddingTop={8}
-          paddingBottom={8}
-          onMove={handleMove}
-          initialOpenState={undefined}
+          rowHeight={32}
+          paddingTop={30}
+          paddingBottom={10}
+          onMove={onMove} // Use the correctly typed onMove handler
+          // getChildren={getChildren} // Removed this line
         >
           {ChapterNode}
         </Tree>
