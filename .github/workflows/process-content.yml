@@ -102,15 +102,16 @@ jobs:
       - name: Make scripts executable
         run: |
           chmod +x ./scripts/validate-inputs.sh
-          chmod +x ./scripts/fetch-book.sh
-          chmod +x ./scripts/colophon.sh
-          chmod +x ./scripts/toc.sh
+          chmod +x ./scripts/build-book.sh
+          chmod +x ./scripts/generate-colophon.sh
+          chmod +x ./scripts/generate-toc.sh
+          chmod +x ./scripts/helpers.sh
 
       - name: Validate inputs
         run: ./scripts/validate-inputs.sh
 
-      - name: Fetch book content
-        run: ./scripts/fetch-book.sh
+      - name: Build EPUB
+        run: ./scripts/build-book.sh
 
       - name: Upload EPUB to R2
         run: |
