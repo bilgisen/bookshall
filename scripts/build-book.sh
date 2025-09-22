@@ -28,7 +28,6 @@ echo "✅ Payload başarıyla indirildi ve doğrulandı."
 # --- Adım 2: Yardımcı Sayfaları Oluştur ---
 echo "📄 Yardımcı sayfalar oluşturuluyor..."
 "$SCRIPT_DIR/generate-colophon.sh" "$PAYLOAD_FILE" "$WORKDIR/colophon.xhtml"
-"$SCRIPT_DIR/generate-toc.sh" "$PAYLOAD_FILE" "$WORKDIR/toc.xhtml"
 
 # --- Adım 3: Kapak ve Stil Dosyasını İndir ---
 COVER_URL=$(get_book_value '.book.cover_url' '')
@@ -85,7 +84,7 @@ META_FILE="$WORKDIR/metadata.yaml"
   echo "..."
 } > "$META_FILE"
 
-PANDOC_INPUT_FILES=("$WORKDIR/colophon.xhtml" "$WORKDIR/toc.xhtml" "$CHAPTER_DIR"/*.html)
+PANDOC_INPUT_FILES=("$WORKDIR/colophon.xhtml" "$CHAPTER_DIR"/*.html)
 # Metadata'ları doğrudan Pandoc'a geçiriyoruz
 PANDOC_ARGS=(
   --from=html --to=epub3
@@ -97,6 +96,8 @@ PANDOC_ARGS=(
   --metadata="isbn=$(get_book_value '.book.isbn' '')"
   --metadata="date=$(get_book_value '.book.publish_year' '')"
   --metadata-file="$META_FILE"
+  --toc
+  --toc-depth=3
   --epub-title-page=false
 )
 [[ -n "$COVER_FILE" ]] && PANDOC_ARGS+=(--epub-cover-image="$COVER_FILE")
