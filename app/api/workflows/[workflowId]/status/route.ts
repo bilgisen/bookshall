@@ -63,11 +63,16 @@ export async function GET(
     const statusMap: Record<string, 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled'> = {
       pending: 'queued',
       'in-progress': 'in_progress',
+      'in_progress': 'in_progress', // Handle both formats
       completed: 'completed',
       failed: 'failed',
+      cancelled: 'cancelled',
+      queued: 'queued' // For completeness
     } as const;
 
-    const mappedStatus = statusMap[workflow.status as keyof typeof statusMap] || 'queued';
+    // Convert status to lowercase for case-insensitive matching
+    const statusKey = workflow.status.toLowerCase();
+    const mappedStatus = statusMap[statusKey] || 'queued';
 
     const resultTyped: WorkflowResult | null = (workflow.result as WorkflowResult | null) ?? null;
     return NextResponse.json({

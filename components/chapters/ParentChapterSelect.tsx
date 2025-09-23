@@ -59,18 +59,27 @@ function ParentChapterSelect({
   const selectValue = value ?? "none";
 
   const handleChange = (val: string) => {
-    console.log('ParentChapterSelect - onChange:', { 
-      oldValue: value, 
-      newValue: val,
-      parentChapters: parentChapters?.map(c => `${c.id}:${c.title}`) || []
-    });
+    console.log('ParentChapterSelect - onChange - Raw value:', val);
     
-    // Convert "none" to null, otherwise ensure it's a string
-    const newValue = val === "none" ? null : String(val);
-    console.log('ParentChapterSelect - Processed value:', newValue);
-    
-    // Update the form
-    onChange(newValue);
+    try {
+      const newValue = val === "none" ? null : String(val);
+      console.log('ParentChapterSelect - onChange - Processed value:', newValue);
+      
+      // Find the selected chapter for debugging
+      if (newValue) {
+        const selectedChapter = parentChapters?.find(c => String(c.id) === newValue);
+        console.log('ParentChapterSelect - Selected chapter:', selectedChapter);
+      }
+      
+      // Update the form
+      onChange(newValue);
+      
+      console.log('ParentChapterSelect - onChange - Value updated successfully');
+    } catch (error) {
+      console.error('ParentChapterSelect - Error in handleChange:', error);
+      // Fallback to null on error
+      onChange(null);
+    }
   };
 
   // Filter to only include top-level (level-0) chapters
@@ -80,22 +89,36 @@ function ParentChapterSelect({
       return [];
     }
     
-    // Debug log the raw input
     console.log('ParentChapterSelect - Raw parentChapters:', parentChapters);
     
     try {
+      // Ensure we have valid chapters with titles and IDs
+      const validChapters = parentChapters.filter(chapter => {
+        return chapter && 
+               chapter.id !== undefined && 
+               chapter.id !== null && 
+               chapter.title !== undefined && 
+               chapter.title !== null;
+      });
+      
+      console.log('ParentChapterSelect - Valid chapters:', validChapters);
+      
       // Filter for top-level chapters (level 0 or undefined)
-      const topLevelChapters = parentChapters.filter(chapter => {
+      const topLevelChapters = validChapters.filter(chapter => {
         const level = typeof chapter.level === 'number' ? chapter.level : 0;
-        return level === 0; // Get top-level chapters (level 0)
+        const isTopLevel = level === 0; // Get top-level chapters (level 0)
+        console.log(`Chapter ${chapter.id} (${chapter.title}): level=${level}, isTopLevel=${isTopLevel}`);
+        return isTopLevel;
       });
       
       // Sort by title
       const sorted = [...topLevelChapters].sort((a, b) => {
-        return String(a.title).localeCompare(String(b.title));
+        const titleA = String(a.title || '').toLowerCase();
+        const titleB = String(b.title || '').toLowerCase();
+        return titleA.localeCompare(titleB);
       });
       
-      console.log('ParentChapterSelect - Top level chapters:', sorted);
+      console.log('ParentChapterSelect - Sorted top level chapters:', sorted);
       return sorted;
     } catch (error) {
       console.error('ParentChapterSelect - Error processing chapters:', error);
@@ -103,15 +126,16 @@ function ParentChapterSelect({
     }
   }, [parentChapters]);
   
-  // Log when the component renders
+  // Log when the component renders or updates
   React.useEffect(() => {
-    console.log('ParentChapterSelect - Component rendered with:', {
-      props: { value, disabled, placeholder },
-      selectValue,
-      parentChaptersCount: parentChapters?.length || 0,
-      sortedChaptersCount: sortedChapters.length
-    });
-  }, [value, disabled, placeholder, parentChapters, sortedChapters, selectValue]);
+    console.group('ParentChapterSelect - Render/Update');
+    console.log('Current value:', value);
+    console.log('Select value:', selectValue);
+    console.log('Parent chapters count:', parentChapters?.length || 0);
+    console.log('Sorted chapters count:', sortedChapters.length);
+    console.log('Sorted chapters:', sortedChapters);
+    console.groupEnd();
+  }, [value, selectValue, parentChapters, sortedChapters]);
 
   return (
     <Select 

@@ -208,25 +208,58 @@ export default function ChapterForm({
   };
   
   // Ensure parentChapters is always an array and properly formatted
-  const safeParentChapters = React.useMemo(() => {
-    return (Array.isArray(parentChapters) ? parentChapters : []).map(chapter => {
-      // Only disable the current chapter (if it exists)
-      const isCurrentChapter = initialData?.id !== undefined && 
-                             String(chapter.id) === String(initialData.id);
+  const safeParentChapters: ChapterOption[] = React.useMemo(() => {
+    try {
+      const chapters = Array.isArray(parentChapters) ? parentChapters : [];
+      console.log('ChapterForm - Raw parent chapters:', chapters);
       
-      return {
-        ...chapter,
-        id: String(chapter.id), // Ensure ID is always a string for consistency
-        disabled: isCurrentChapter, // Only disable the current chapter
-        level: chapter.level || 0
-      };
-    });
+      // First filter out any invalid chapters
+      const validChapters = chapters.filter(chapter => 
+        chapter && 
+        chapter.id !== undefined && 
+        chapter.id !== null &&
+        chapter.title !== undefined
+      );
+      
+      console.log('ChapterForm - Valid parent chapters:', validChapters);
+      
+      // Then process the valid chapters
+      return validChapters.map(chapter => {
+        // Only disable the current chapter (if it exists)
+        const isCurrentChapter = initialData?.id !== undefined && 
+                               String(chapter.id) === String(initialData.id);
+        
+        const processedChapter: ChapterOption = {
+          id: String(chapter.id),
+          title: String(chapter.title || 'Untitled Chapter'),
+          level: typeof chapter.level === 'number' ? chapter.level : 0,
+          disabled: isCurrentChapter
+        };
+        
+        console.log('Processed chapter:', {
+          id: processedChapter.id,
+          title: processedChapter.title,
+          level: processedChapter.level,
+          disabled: processedChapter.disabled
+        });
+        
+        return processedChapter;
+      });
+      
+    } catch (error) {
+      console.error('Error processing parent chapters:', error);
+      return [];
+    }
   }, [parentChapters, initialData?.id]);
   
   // Debug log to verify parent chapters
   React.useEffect(() => {
-    console.log('Parent chapters:', safeParentChapters);
-  }, [safeParentChapters]);
+    console.group('ChapterForm - Parent Chapters Update');
+    console.log('Initial Data ID:', initialData?.id);
+    console.log('Parent Chapters Count:', safeParentChapters.length);
+    console.log('Parent Chapters:', safeParentChapters);
+    console.groupEnd();
+  }, [safeParentChapters, initialData?.id]);
   
   // Wrap the async submit handler to match the expected type
   const handleFormSubmit = async (data: FormValues) => {
