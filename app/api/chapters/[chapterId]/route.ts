@@ -60,11 +60,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ chapterId: string }> }
 ) {
-  // Await the params promise
-  const { chapterId } = await params;
-  console.log('PATCH /api/chapters/[chapterId] called');
-  
   try {
+    const { chapterId } = await params;
+    console.log('PATCH /api/chapters/[chapterId] called');
+    
     const body = await request.json();
     
     const response = await auth.api.getSession({
@@ -78,6 +77,7 @@ export async function PATCH(
       );
     }
 
+    // Verify chapter exists and get current data
     const [chapter] = await db
       .select()
       .from(chapters)
@@ -91,12 +91,37 @@ export async function PATCH(
       );
     }
 
+    // Only allow specific fields to be updated
+    const { title, content, parentChapterId } = body;
+    const updateData: {
+      updatedAt: Date;
+      title?: string;
+      content?: string;
+      parentChapterId?: string | null;
+    } = { 
+      updatedAt: new Date() 
+    };
+
+    // Only update title if provided
+    if (title !== undefined) {
+      updateData.title = title;
+    }
+
+    // Only update content if provided
+    if (content !== undefined) {
+      updateData.content = content;
+    }
+
+    // Only update parentChapterId if explicitly provided
+    if (parentChapterId !== undefined) {
+      updateData.parentChapterId = parentChapterId;
+    }
+
+    console.log('Updating chapter with data:', updateData);
+    
     const [updatedChapter] = await db
       .update(chapters)
-      .set({
-        ...body,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(chapters.id, chapterId))
       .returning();
 

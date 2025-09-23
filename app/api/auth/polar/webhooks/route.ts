@@ -1,20 +1,20 @@
+import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Export the webhook handler from BetterAuth
+// This will handle webhook verification and processing based on the configuration in lib/auth.ts
+const handler = auth.handler;
 
-export async function POST() {
-  try {
-    // The auth middleware will handle the webhook verification and processing
-    // based on the configuration in lib/auth.ts
-    return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error('❌ Webhook error:', error instanceof Error ? error.message : 'Unknown error');
-    return NextResponse.json(
-      {
-        error: 'Webhook handler failed',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 400 }
-    );
-  }
+// Export the handler as POST
+// This is the correct way to expose the handler as a Next.js Route Handler
+export const POST = handler;
+
+// Ensure this route is not cached and runs on the edge
+// This is important for webhooks which need to respond quickly
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // seconds
+
+export async function GET() {
+  // Simple health check endpoint
+  return NextResponse.json({ status: 'ok' });
 }
