@@ -1,3 +1,4 @@
+// lib/auth.ts
 import { db } from "@/db/drizzle";
 import { account, session, subscription, user, verification } from "@/db/schema";
 import {

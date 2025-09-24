@@ -38,7 +38,7 @@ export function MyCarousel() {
   ];
 
   return (
-    <div className="w-full overflow-hidden py-6 bg-card/50">
+    <div className="w-full overflow-hidden py-12 my-12 bg-card/50">
       <div className="embla" ref={emblaRef}>
         <div className="embla__container space-x-6 round-lg flex">
           {slides.map((slide, index) => (

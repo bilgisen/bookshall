@@ -6,6 +6,7 @@ import AnimatedBeamDemo from "@/components/ab-block";
 import FAQ from "@/components/homepage/faq";
 import MyCarousel from "@/components/mycarouesel";
 import CTA from "@/components/homepage/cta";
+import WhyChooseUs from "@/components/homepage/why-choose-us" 
 
 export default function Home() {
   return (
@@ -13,10 +14,12 @@ export default function Home() {
       <HeroSection />
       <AnimatedBeamDemo />
       <Integrations />
-      <StepsSection />
+      <WhyChooseUs />
+  
       <MyCarousel />
-      <FAQ />
+      <StepsSection />
       <CTA />
+      <FAQ />
       <FooterSection />
     </>
   );

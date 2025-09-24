@@ -1,31 +1,24 @@
 import { Forward } from "lucide-react";
 import { Button } from "../ui/button";
-import { AnimatedGridPattern } from "../ui/animated-grid-pattern";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function CTABanner() {
   return (
-    <div className="px-6">
-      <div className="dark:border relative overflow-hidden my-20 w-full dark bg-background text-foreground max-w-screen-lg mx-auto rounded-2xl py-10 md:py-16 px-6 md:px-14">
-        <AnimatedGridPattern
-          numSquares={30}
-          maxOpacity={0.1}
-          duration={3}
-          className={cn(
-            "[mask-image:radial-gradient(400px_circle_at_right,white,rgba(255,255,255,0.6),transparent)]",
-            "inset-x-0 inset-y-[-30%] h-[200%] skew-y-12"
-          )}
-        />
-        <AnimatedGridPattern
-          numSquares={30}
-          maxOpacity={0.1}
-          duration={3}
-          className={cn(
-            "[mask-image:radial-gradient(400px_circle_at_top_left,white,rgba(255,255,255,0.6),transparent)]",
-            "inset-x-0 inset-y-0 h-[200%] skew-y-12"
-          )}
-        />
+    <div className="relative px-6">
+      <div className="relative overflow-hidden my-20 w-full dark bg-primary text-foreground max-w-screen-lg mx-auto rounded-2xl py-10 md:py-16 px-6 md:px-14">
+        
+      <Image
+  src="/globe.svg"
+  alt="Background Globe"
+  fill
+  className="object-fit opacity-20 pt-4" // Opaklık ayarlandı
+  priority
+  style={{
+    filter: 'brightness(0) invert(1)' // Bu, SVG'yi beyaz yapar
+  }}
+/>
+       
         <div className="relative z-0 flex flex-col gap-3">
           <h3 className="text-3xl md:text-4xl font-semibold">
             Ready to Publish Your Books?
@@ -34,11 +27,11 @@ export default function CTABanner() {
           Are you ready to publish your first book with our modern, innovative BooksHall application? Try it for free and experience the difference — we are sure you will love it!
           </p>
         </div>
-        <div className="relative z-0 mt-14 flex flex-col sm:flex-row gap-4">
+        <div className="relative z-0 mt-8 flex flex-col sm:flex-row gap-4">
           
           <Link href="/signin">
             <Button size="lg" variant="outline">
-              Publish for free <Forward className="!h-5 !w-5" />
+              Publish first book for free <Forward className="!h-5 !w-5" />
             </Button>
           </Link>
         </div>

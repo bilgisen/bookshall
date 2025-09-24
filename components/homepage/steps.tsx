@@ -10,19 +10,19 @@ const steps = [
     icon: Package,
     title: "Enter Your Book Information",
     description:
-      "Start by entering your book's core information, such as the title, author, publisher, translator, series, description, and tags. Upload your book's cover to make the first impression that will capture readers' interest.",
+      "Start by entering your book's core information, such as the title, author, publisher, description, and upload your book's cover.",
   },
   {
     icon: CaseUpper,
     title: "Add Your Chapter Content",
     description:
-      "Use our powerful rich text editor to create your book chapters. Easily add images, footnotes, and rich text formatting. Arrange your chapter order and hierarchy with a simple drag-and-drop feature.",
+      "Use our powerful rich text editor to create your book chapters. Easily add images. Arrange your chapter order and hierarchy with a simple drag-and-drop feature.",
   },
   {
     icon: Paintbrush,
     title: "Choose Your Publishing Options",
     description:
-      "Select your desired output format from EPUB, MOBI, PDF, HTML, or audiobook. Complete any final additions like a table of contents or colophon, then launch the publishing process with a single click.",
+      "Select your desired output format from EPUB, PDF, HTML, or audiobook. Complete any final additions then launch the publishing process with a single click.",
   },
   {
     icon: Check,
@@ -56,8 +56,8 @@ export default function StepsSection() {
                 transition={{ delay: index * 0.15 }}
                 className="flex items-start gap-4"
               >
-                <Card className="p-3 rounded-full bg-primary/10 dark:bg-primary/20">
-                  <step.icon className="w-6 h-6 text-primary" />
+                <Card className="p-3 rounded-full bg-primary/50 dark:bg-primary/50">
+                  <step.icon className="w-6 h-6 text-white/80" />
                 </Card>
                 <CardContent className="p-0">
                   <h3 className="font-semibold text-xl">{step.title}</h3>

@@ -1,12 +1,10 @@
 "use client";
 
 import { CreditWidget } from "@/components/credits/credit-widget";
-import DashboardPricing from "@/components/DashboardPricing";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, HelpCircle } from "lucide-react";
-import UserGuide from "@/components/guide";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { BookOpen } from "lucide-react";
 
 export function DashboardClient() {
   return (
@@ -45,29 +43,11 @@ export function DashboardClient() {
             </CardFooter>
           </Card>
 
-          {/* Guide Widget */}
-          <Card className="bg-card/20">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg">
-                  <HelpCircle className="h-5 w-5 text-primary" />
-                </div>
-                <CardTitle className="text-lg">Getting Started Guide</CardTitle>
-              </div>
-              <CardDescription>
-                Learn how to create and publish your book with our step-by-step guide.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UserGuide />
-            </CardContent>
-          </Card>
         </div>
 
         {/* Sidebar - 1/3 width */}
         <div className="w-full lg:w-1/3 space-y-6">
           <CreditWidget />
-          <DashboardPricing subscriptionDetails={{ hasSubscription: false }} />
         </div>
       </div>
     </div>
