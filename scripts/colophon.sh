@@ -139,12 +139,6 @@ BOOK_YEAR=$(jq -r '.book.metadata.publish_year // .book.publish_year // empty' "
   [ -n "$BOOK_YEAR" ] && echo "    <div>$BOOK_YEAR</div>"
   echo '  </div>'
 
-  # Copyright notice
-  current_year=$(date +'%Y')
-  echo '  <div class="copyright">'
-  echo "    &copy; $current_year $BOOK_AUTHOR<br/>"
-  echo '    All rights reserved'
-  echo '  </div>'
 
   echo '  </body>'
   echo '</html>'

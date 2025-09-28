@@ -96,6 +96,9 @@ export function CreditWidget() {
         <Button variant="outline" size="sm" asChild>
           <a href="/dashboard/credits">View All</a>
         </Button>
+        <Button variant="default" size="sm" asChild>
+          <a href="/pricing">Add Credit</a>
+        </Button>
       </div>
     </div>
   );

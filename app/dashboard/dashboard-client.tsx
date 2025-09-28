@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
+import { DashboardHelp } from "@/components/dashboard/dashboard-help";
 
 export function DashboardClient() {
   return (
@@ -43,6 +44,8 @@ export function DashboardClient() {
             </CardFooter>
           </Card>
 
+          {/* Help Section */}
+          <DashboardHelp />
         </div>
 
         {/* Sidebar - 1/3 width */}
