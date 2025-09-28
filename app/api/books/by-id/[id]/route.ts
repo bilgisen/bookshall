@@ -3,7 +3,8 @@ import { db } from '@/db/drizzle';
 import { books, chapters } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
-import { CreditService } from '@/lib/services/credit/credit.service';
+import { CreditService } from '@/lib/services/credit';
+import { CREDIT_COSTS } from '@/lib/config/credit_tariff';
 
 // Define the user type from your auth system
 type AuthUser = {
@@ -254,12 +255,18 @@ export async function DELETE(
       // Then delete the book
       await tx.delete(books).where(whereClause(id, userId));
       
-      // Refund the book creation cost (300 credits)
+      // Refund the book creation cost
       await CreditService.earnCredits(
         userId,
-        300, // Book creation cost
+        CREDIT_COSTS.BOOK_CREATION, // Use the same amount that was charged
         'REFUND_BOOK_DELETION',
-        { bookId: id }
+        { 
+          bookId: id,
+          action: 'BOOK_CREATION_REFUND',
+          originalAction: 'BOOK_CREATION',
+          bookTitle: book.title,
+          bookSlug: book.slug
+        }
       );
     });
 

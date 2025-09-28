@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { generateUniqueSlug } from "@/lib/utils/slugify";
 import { BookForm } from "@/components/books/book-form";
+import { BooksMenu } from "@/components/books/books-menu";
+import { BooksHelp } from "@/components/books/books-help";
+import { Separator } from "@/components/ui/separator";
 
 type BookFormValues = {
   title: string;
@@ -143,13 +146,20 @@ export default function NewBookPage() {
     }
   };
 
+
   return (
     <div className="container mx-auto p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Create New Book</h1>
-        <p className="text-muted-foreground">
-          Fill in the details below to add a new book to your collection.
-        </p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Create New Book</h1>
+            <p className="text-muted-foreground">
+              Fill in the details below to add a new book to your collection.
+            </p>
+          </div>
+          <BooksMenu />
+        </div>
+        <Separator className="mt-4" />
       </div>
       <BookForm 
         defaultValues={defaultValues}
@@ -158,6 +168,10 @@ export default function NewBookPage() {
         onGenerateSlug={(title) => generateUniqueSlug(title, [])}
         redirectPath="/dashboard/books"
       />
+      
+      <div className="mt-12">
+        <BooksHelp />
+      </div>
     </div>
   );
 }

@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { BookHeader } from '@/components/books/book-header';
 import { EpubOptionsForm } from '@/components/epub/epub-options-form';
 import { EpubStatusDisplay } from '@/components/epub/epub-status-display';
 import { EpubSidebar } from '@/components/epub/epub-sidebar';
@@ -36,9 +35,9 @@ export function EpubGenerator() {
   } = useEpubGeneration(book?.id);
 
   const [options, setOptions] = useState<PublishOptions>({
-    includeMetadata: true,
-    includeCover: true,
-    includeTOC: true,
+    includeMetadata: true,  // Set to true to have 'Include Imprint' checked by default
+    includeCover: false,
+    includeTOC: false,
     tocLevel: 2,
   });
 
@@ -95,7 +94,7 @@ export function EpubGenerator() {
 
   return (
     <motion.div
-      className="container w-full p-8"
+      className="container w-full"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -105,12 +104,6 @@ export function EpubGenerator() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <BookHeader 
-          title="Generate EPUB"
-          description="Configure and generate an EPUB version of your book"
-          slug={slug}
-          showEditButton={false}
-        />
       </motion.div>
 
       <motion.div

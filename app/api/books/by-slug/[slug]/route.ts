@@ -4,6 +4,7 @@ import { db } from "@/db/drizzle";
 import { books } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { CreditService } from "@/lib/services/credit";
+import { CREDIT_COSTS } from "@/lib/config/credit_tariff";
 
 // -----------------
 // GET /api/books/by-slug/[slug]
@@ -191,13 +192,20 @@ export async function DELETE(
         )
       );
 
-    // Refund the book creation cost (300 credits)
+    // Refund the book creation cost
     try {
       await CreditService.earnCredits(
         userId,
-        300,
+        CREDIT_COSTS.BOOK_CREATION,
         'REFUND_BOOK_DELETION',
-        { bookId: book.id, slug }
+        { 
+          bookId: book.id, 
+          bookSlug: book.slug,
+          bookTitle: book.title,
+          action: 'BOOK_CREATION_REFUND',
+          originalAction: 'BOOK_CREATION',
+          refundReason: 'BOOK_DELETED'
+        }
       );
     } catch (refundErr) {
       console.error('Refund on delete by slug failed:', refundErr);

@@ -1,8 +1,14 @@
-import { Library } from 'lucide-react';
+import Image from 'next/image';
 
 export const Logo = () => (
-  <div className="flex items-center space-x-2">
-    <Library className="h-6 w-6 ml-2 text-foreground" />
-    <span className="text-lg font-bold text-foreground">BooksHall</span>
+  <div className="flex items-center">
+    <Image 
+      src="/bookshall-w.svg" 
+      alt="BooksHall Logo" 
+      width={120} 
+      height={32}
+      className="h-4 w-auto"
+      priority
+    />
   </div>
 );

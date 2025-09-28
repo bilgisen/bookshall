@@ -1,3 +1,4 @@
+// lib/subscription.ts
 import { db } from "@/db/drizzle";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";

@@ -4,7 +4,6 @@ import React, { forwardRef, useRef, useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
-import { Library } from "lucide-react";
 
 interface CircleProps {
   className?: string;
@@ -77,9 +76,9 @@ export default function AnimatedBeamDemo() {
   return (
     <div
       ref={containerRef}
-      className="relative flex h-[400px] w-full md:max-w-2xl sm:max-w-[360px] mx-auto items-center justify-center overflow-hidden"
+      className="relative flex h-[400px] w-full md:max-w-2xl sm:max-w-[360px] mx-auto items-center justify-center overflow-hidden px-4"
     >
-      <div className="flex items-center justify-between w-full">
+      <div className="flex items-center justify-between w-full max-w-[90%] mx-auto">
         {/* Left side logos */}
         <div className="flex flex-col items-center gap-6">
           <Circle ref={div1} src="/kobo.svg" alt="Kobo" size={48} />
@@ -89,12 +88,15 @@ export default function AnimatedBeamDemo() {
 
         {/* Center icon */}
         <div
-          className="mx-4 z-20 flex items-center justify-center rounded-full w-20 h-20 sm:w-20 sm:h-20 border bg-primary/70 backdrop-blur-sm shadow-lg"
+          className="z-20 flex items-center justify-center rounded-full w-24 h-24 sm:w-24 sm:h-24 border bg-background backdrop-blur-sm shadow-lg"
           ref={centerRef}
         >
-          <Library
-            className="w-10 h-10 sm:w-10 sm:h-10"
-            strokeWidth={1}
+          <Image
+            src="/bookshall-icon.svg"
+            alt="Bookshall"
+            width={56}
+            height={56}
+            className="object-contain"
           />
         </div>
 

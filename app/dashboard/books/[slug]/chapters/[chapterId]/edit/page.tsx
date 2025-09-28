@@ -6,8 +6,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ChapterHeader } from '@/components/chapters/chapter-header';
-import { AlertCircle, ArrowLeft, Loader2, RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { BookHeader } from '@/components/books/book-header';
+import { BooksMenu } from '@/components/books/books-menu';
+import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import type { ChapterOption } from '@/components/chapters/ParentChapterSelect';
 import debounce from 'lodash/debounce';
 import { format } from 'date-fns';
@@ -568,49 +569,25 @@ function ClientSideChapterEditor() {
   }
 
   return (
-    <div className="container w-full pt-8 p-4 md:p-8 max-w-6xl mx-auto">
-      {/* Header with chapter info and actions */}
-      <ChapterHeader
-        title={chapter?.title || 'Edit Chapter'}
-        bookName={chapter?.book?.title || ''}
-        bookSlug={slug}
-        chapterId={chapterId}
-        action={
-          <div className="flex items-center gap-2">
-            
-            <Button 
-              variant="outline" 
-              size="icon" 
-              asChild
-              title="View Chapter"
-            >
-              <Link href={`/dashboard/books/${slug}/chapters/${chapterId}/view`}>
-                <Eye className="h-4 w-4" />
-                <span className="sr-only">View Chapter</span>
-              </Link>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              title="Delete Chapter"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">Delete Chapter</span>
-            </Button>
-          </div>
-        }
-      />
-
-      {/* Save Status */}
-      <div className="mt-2 mb-4 text-xs text-muted-foreground">
+    <div className="container w-full p-8 space-y-6">
+      <div className="space-y-2">
+        <BookHeader 
+          title={chapter?.title || 'Edit Chapter'}
+          description={chapter?.book?.title || ''}
+        >
+          <BooksMenu bookSlug={slug} />
+        </BookHeader>
+        
+        {/* Save Status */}
+        <div className="text-xs text-muted-foreground">
         {isSaving && <span>Saving…</span>}
         {!isSaving && lastSavedAt && (
           <span>All changes saved at {format(lastSavedAt, 'HH:mm')}</span>
         )}
-        {!isSaving && !lastSavedAt && hasUnsavedChanges && (
-          <span>Unsaved changes</span>
-        )}
+          {!isSaving && !lastSavedAt && hasUnsavedChanges && (
+            <span>Unsaved changes</span>
+          )}
+        </div>
       </div>
 
       {error && (

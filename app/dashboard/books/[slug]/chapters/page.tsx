@@ -3,7 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChapterHeader } from '@/components/chapters/chapter-header';
+import { BookHeader } from '@/components/books/book-header';
+import { BooksMenu } from '@/components/books/books-menu';
 import { ChapterTreeArborist } from '@/components/chapters/ChapterTreeArborist';
 import { SingleBookView } from '@/components/books/single-book-view';
 import { authClient } from '@/lib/auth-client';
@@ -47,16 +48,13 @@ export default function BookChaptersPage() {
   }
 
   return (
-    <div className="container w-full p-8 space-y-8">
-      <div className="w-full">
-        <ChapterHeader 
-          title="Chapters" 
-          bookName={book.title}
-          bookSlug={book.slug}
-          chapterId=""
-        />
-        
-      </div>
+    <div className="container w-full p-8 space-y-6">
+      <BookHeader 
+        title="Chapters"
+        description={book.title}
+      >
+        <BooksMenu bookSlug={book.slug} />
+      </BookHeader>
       
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content */}

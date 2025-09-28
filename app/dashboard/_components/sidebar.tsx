@@ -10,13 +10,13 @@ import {
   SquareLibrary,
   CreditCard,
   Settings,
-  Library,
   Banknote,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 interface NavItem {
   label: string;
@@ -54,8 +54,25 @@ export default function DashboardSideBar() {
             )}
             href="/"
           >
-            <Library className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>BooksHall</span>}
+            {collapsed ? (
+              <Image 
+                src="/bookshall-icon.svg" 
+                alt="BooksHall" 
+                width={24} 
+                height={24} 
+                className="h-5 w-5 shrink-0"
+                priority
+              />
+            ) : (
+              <Image 
+                src="/bookshall-w.svg" 
+                alt="BooksHall" 
+                width={120} 
+                height={32} 
+                className="h-4 w-auto"
+                priority
+              />
+            )}
           </Link>
 
           <Button

@@ -1,17 +1,11 @@
 "use client";
 
-import { Pencil, ListOrdered, Plus, Printer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 interface BookHeaderProps {
   title: string;
   description?: string;
-  slug?: string;
   author?: string;
-  onEdit?: () => void;
-  showEditButton?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
@@ -19,9 +13,7 @@ interface BookHeaderProps {
 export function BookHeader({
   title,
   description,
-  slug,
   author,
-  showEditButton = true,
   className = "",
   children,
 }: BookHeaderProps) {
@@ -37,54 +29,7 @@ export function BookHeader({
             <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">{description}</p>
           )}
         </div>
-        
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
-            {children}
-            
-            {/* Add Chapter Button */}
-            {slug && (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/dashboard/books/${slug}/chapters/new`} className="flex items-center gap-1">
-                  <Plus className="h-4 w-4 mr-1" />
-                  <span>Add Chapter</span>
-                </Link>
-              </Button>
-            )}
-            
-            {/* Table of Contents Button */}
-            {slug && (
-              <Button variant="outline" size="icon" asChild>
-                <Link href={`/dashboard/books/${slug}/chapters`} title="Table of Contents">
-                  <ListOrdered className="h-4 w-4" />
-                  <span className="sr-only">Table of Contents</span>
-                </Link>
-              </Button>
-            )}
-            
-            {/* Print Button */}
-            {slug && showEditButton && (
-              <Button variant="outline" size="icon" asChild>
-                <Link href={`/dashboard/books/${slug}/publish`} title="Print">
-                  <Printer className="h-4 w-4" />
-                  <span className="sr-only">Print</span>
-                </Link>
-              </Button>
-            )}
-            
-            {/* Edit Button */}
-            {showEditButton && slug && (
-              <Button variant="outline" size="icon" asChild>
-                <Link href={`/dashboard/books/${slug}/edit`} title="Edit">
-                  <Pencil className="h-4 w-4" />
-                  <span className="sr-only">Edit</span>
-                </Link>
-              </Button>
-            )}
-            
-            {/* Kebab Menu Removed */}
-          </div>
-        </div>
+        {children}
       </div>
       <Separator />
     </div>

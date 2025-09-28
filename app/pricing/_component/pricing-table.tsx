@@ -68,16 +68,23 @@ export default function PricingTable({
     }
   };
 
-  const STARTER_TIER = process.env.NEXT_PUBLIC_STARTER_TIER;
-  const STARTER_SLUG = process.env.NEXT_PUBLIC_STARTER_SLUG;
-  const PUBLISHER_TIER = process.env.NEXT_PUBLIC_PUBLISHER_TIER;
-  const PUBLISHER_SLUG = process.env.NEXT_PUBLIC_PUBLISHER_SLUG;
-  const PRO_PUBLISHER_TIER = process.env.NEXT_PUBLIC_PRO_PUBLISHER_TIER;
-  const PRO_PUBLISHER_SLUG = process.env.NEXT_PUBLIC_PRO_PUBLISHER_SLUG;
+  // Default values for development
+  const defaultPricing = {
+    STARTER_TIER: 'price_starter',
+    STARTER_SLUG: 'starter',
+    PUBLISHER_TIER: 'price_publisher',
+    PUBLISHER_SLUG: 'publisher',
+    PRO_PUBLISHER_TIER: 'price_pro_publisher',
+    PRO_PUBLISHER_SLUG: 'pro-publisher'
+  };
 
-  if (!STARTER_TIER || !STARTER_SLUG || !PUBLISHER_TIER || !PUBLISHER_SLUG || !PRO_PUBLISHER_TIER || !PRO_PUBLISHER_SLUG) {
-    throw new Error("Missing required environment variables for pricing tiers");
-  }
+  // Use environment variables if available, otherwise use defaults
+  const STARTER_TIER = process.env.NEXT_PUBLIC_STARTER_TIER || defaultPricing.STARTER_TIER;
+  const STARTER_SLUG = process.env.NEXT_PUBLIC_STARTER_SLUG || defaultPricing.STARTER_SLUG;
+  const PUBLISHER_TIER = process.env.NEXT_PUBLIC_PUBLISHER_TIER || defaultPricing.PUBLISHER_TIER;
+  const PUBLISHER_SLUG = process.env.NEXT_PUBLIC_PUBLISHER_SLUG || defaultPricing.PUBLISHER_SLUG;
+  const PRO_PUBLISHER_TIER = process.env.NEXT_PUBLIC_PRO_PUBLISHER_TIER || defaultPricing.PRO_PUBLISHER_TIER;
+  const PRO_PUBLISHER_SLUG = process.env.NEXT_PUBLIC_PRO_PUBLISHER_SLUG || defaultPricing.PRO_PUBLISHER_SLUG;
 
   // Check if the current plan is active
   const isCurrentPlan = (planId: string) => {

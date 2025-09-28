@@ -8,8 +8,8 @@ import ChapterForm from '@/components/chapters/ChapterForm';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { BookHeader } from "@/components/books/book-header";
+import { BooksMenu } from "@/components/books/books-menu";
 
 export default function NewChapterPage() {
   const router = useRouter();
@@ -149,49 +149,33 @@ export default function NewChapterPage() {
     );
   }
 
-  return (
-    <div className="space-y-6 p-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Add Chapter</h1>
-          <p className="text-muted-foreground">Create a new chapter for your book</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2"
-            onClick={() => router.push(`/dashboard/books/${slug}/chapters`)}
-          >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              className="h-4 w-4"
-            >
-              <path d="m12 19-7-7 7-7"/>
-              <path d="M19 12H5"/>
-            </svg>
-            Chapters
-          </Button>
-        </div>
+  if (!book) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Loading book data...</p>
       </div>
-      <Separator />
+    );
+  }
+
+  return (
+    <div className="container w-full p-8 space-y-6">
+      <div className="space-y-2">
+        <BookHeader 
+          title="Add New Chapter"
+          description={book.title}
+        >
+          <BooksMenu bookSlug={slug} />
+        </BookHeader>
+      </div>
       
-      
+      <div className="pt-4">
         <ChapterForm 
           bookId={Number(book.id)}
           slug={params.slug}
           parentChapters={parentChapters}
           onSuccess={handleSuccess}
         />
-      
+      </div>
     </div>
   );
 }

@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { BookHeader } from "@/components/books/book-header";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
 import { Download, Loader2 } from "lucide-react";
+import { BooksMenu } from "@/components/books/books-menu";
+import { Separator } from "@/components/ui/separator";
 
 interface Book {
   id: string;
@@ -153,15 +154,17 @@ export default function ViewBookPage() {
   return (
     <div className="flex flex-col min-h-screen p-8">
       {/* Full-width header */}
-      <div>
-        <div className="container mx-auto">
-          <BookHeader 
-            title={book.title} 
-    
-            author={book.author}
-            slug={book.slug}
-          />
+      <div className="container mx-auto mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{book.title}</h1>
+            {book.author && (
+              <p className="text-muted-foreground">{book.author}</p>
+            )}
+          </div>
+          <BooksMenu bookSlug={book.slug} />
         </div>
+        <Separator className="my-4" />
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-8">

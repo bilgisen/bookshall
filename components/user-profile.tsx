@@ -78,38 +78,44 @@ export default function UserProfile({ mini }: { mini?: boolean }) {
     );
   }
 
+  // Extract the user avatar component to ensure consistent rendering
+  const userAvatar = (
+    <div className="flex gap-2 justify-start items-center w-full rounded">
+      <Avatar>
+        {loading ? (
+          <div className="flex items-center justify-center w-full h-full">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : (
+          <>
+            {userInfo?.image ? (
+              <AvatarImage src={userInfo.image} alt="User Avatar" />
+            ) : (
+              <AvatarFallback>
+                {userInfo?.name ? userInfo.name.charAt(0).toUpperCase() : ''}
+              </AvatarFallback>
+            )}
+          </>
+        )}
+      </Avatar>
+      {!mini && userInfo?.name && (
+        <div className="text-left">
+          <p className="text-sm font-medium leading-none">{userInfo.name}</p>
+          <p className="text-xs text-muted-foreground">{userInfo.email}</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div
-          className={`flex gap-2 justify-start items-center w-full rounded ${mini ? "" : "px-4 pt-2 pb-3"}`}
+        <button
+          className={`flex w-full text-left ${mini ? '' : 'px-4 pt-2 pb-3'}`}
+          type="button"
         >
-          <Avatar>
-            {loading ? (
-              <div className="flex items-center justify-center w-full h-full">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            ) : (
-              <>
-                {userInfo?.image ? (
-                  <AvatarImage src={userInfo?.image} alt="User Avatar" />
-                ) : (
-                  <AvatarFallback>
-                    {userInfo?.name && userInfo.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </>
-            )}
-          </Avatar>
-          {mini ? null : (
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-md">
-                {loading ? "Loading..." : userInfo?.name || "User"}
-              </p>
-              {loading && <Loader2 className="h-3 w-3 animate-spin" />}
-            </div>
-          )}
-        </div>
+          {userAvatar}
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>

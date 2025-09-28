@@ -2,7 +2,8 @@
 
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ChapterHeader } from '@/components/chapters/chapter-header';
+import { BookHeader } from '@/components/books/book-header';
+import { BooksMenu } from '@/components/books/books-menu';
 import { ChapterContentRenderer } from '@/components/chapters/new_renderer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,17 +12,6 @@ import { BookOpen, Calendar, Clock, FileText, Bookmark } from 'lucide-react';
 import { SingleBookView } from '@/components/books/single-book-view';
 import Link from 'next/link';
 import { JSONContent } from '@tiptap/core';
-
-interface BookInfo {
-  id: number;
-  title: string;
-  slug: string;
-  author?: string | null;
-  coverImageUrl?: string | null;
-  isPublished: boolean;
-  publishedAt?: string | null;
-  description?: string | null;
-}
 
 interface ChapterWithBook {
   id: string;
@@ -38,7 +28,14 @@ interface ChapterWithBook {
   publishedAt?: string | null;
   parentChapterId: string | null;
   bookId: string;
-  book: BookInfo;
+  book: {
+    id: string;
+    title: string;
+    slug: string;
+    author?: string | null;
+    coverImageUrl?: string | null;
+    description?: string | null;
+  };
 }
 
 async function fetchChapter(slug: string, chapterId: string): Promise<ChapterWithBook> {
@@ -61,7 +58,7 @@ export default function ChapterViewPage() {
   const slug = params?.slug as string;
   const chapterId = params?.chapterId as string;
 
-  const { data: chapter, isLoading, error, isError } = useQuery<ChapterWithBook, Error>({
+  const { data: chapter, isLoading, error, isError } = useQuery<ChapterWithBook | null, Error>({
     queryKey: ['chapter', slug, chapterId],
     queryFn: async () => {
       if (!slug || !chapterId) throw new Error('Missing book slug or chapter ID');
@@ -73,12 +70,13 @@ export default function ChapterViewPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <div className="bg-background border-b">
-          <div className="container mx-auto px-4 py-6">
-            <ChapterHeader title="" bookName="" bookSlug={slug} chapterId={chapterId} />
-          </div>
-        </div>
+      <div className="container w-full p-8 space-y-6">
+        <BookHeader 
+          title="Chapter"
+          description="Loading..."
+        >
+          <BooksMenu bookSlug={slug} />
+        </BookHeader>
       </div>
     );
   }
@@ -86,8 +84,13 @@ export default function ChapterViewPage() {
   if (isError || !chapter) {
     const errorMessage = error?.message || 'Failed to load chapter';
     return (
-      <div className="container w-full p-8">
-        <ChapterHeader title="Error Loading Chapter" bookName="" bookSlug={slug} chapterId={chapterId} />
+      <div className="container w-full p-8 space-y-6">
+        <BookHeader 
+          title="Error Loading Chapter"
+          description=""
+        >
+          <BooksMenu bookSlug={slug} />
+        </BookHeader>
         <div className="mt-8">
           <Card>
             <CardContent className="pt-6">
@@ -110,29 +113,20 @@ export default function ChapterViewPage() {
   const formattedDate = chapter.updatedAt ? format(new Date(chapter.updatedAt), 'MMM d, yyyy') : 'Not available';
 
   return (
-    <div className="container w-full p-8">
-      <ChapterHeader 
-        title={chapter.title} 
-        bookName={chapter.book?.title || ''} 
-        bookSlug={chapter.book?.slug || ''} 
-        chapterId={chapter.id}
-        action={
-          <Button asChild>
-            <Link href={`/dashboard/books/${chapter.book?.slug || slug}/chapters/${chapter.id}/edit`}>
-              Edit Chapter
-            </Link>
-          </Button>
-        }
-      />
-
-      <div className="flex flex-col lg:flex-row gap-8 mt-8">
+    <div className="container w-full p-8 space-y-6">
+      <BookHeader 
+        title={chapter.title}
+        description={chapter.book?.title || ''}
+      >
+        <BooksMenu bookSlug={slug} />
+      </BookHeader>
+      
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content */}
         <div className="flex-1">
           <div className="bg-card/30 rounded-lg p-6">
             {chapter.content ? (
               <div className="max-w-4xl mx-auto">
-                <h1 className="text-4xl font-bold pb-8 tracking-tight">{chapter.title}</h1>
-                <ChapterContentRenderer content={chapter.content} />
                 <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center">
                     <Calendar className="mr-1 h-4 w-4" />
@@ -151,6 +145,7 @@ export default function ChapterViewPage() {
                     </div>
                   )}
                 </div>
+                <ChapterContentRenderer content={chapter.content} />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">

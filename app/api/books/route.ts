@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/db/drizzle';
 import { books } from '@/db/schema';
 import { CreditService } from '@/lib/services/credit';
+import { CREDIT_COSTS } from '@/lib/config/credit_tariff';
 import slugify from 'slugify';
 import { eq } from 'drizzle-orm';
 
@@ -75,11 +76,16 @@ export async function POST(request: Request) {
       uniqueSlug = `${slug}-${++counter}`;
     }
 
-    // Spend credits for creating a book (300 credits)
-    const spend = await CreditService.spendCredits(String(userId), 300, 'Create book', {
-      title,
-      slug: uniqueSlug,
-    });
+    // Spend credits for creating a book
+    const spend = await CreditService.spendCredits(
+      String(userId), 
+      CREDIT_COSTS.BOOK_CREATION, 
+      'Create book', 
+      {
+        title,
+        slug: uniqueSlug,
+      }
+    );
 
     if (!spend.success) {
       const code = spend.code === 'INSUFFICIENT_CREDITS' ? 402 : 400;

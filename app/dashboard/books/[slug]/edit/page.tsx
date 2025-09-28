@@ -6,9 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { BookForm } from '@/components/books/book-form';
-import { BookHeader } from '@/components/books/book-header';
-import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
+import { BooksMenu } from '@/components/books/books-menu';
 import type { Book } from '@/types/book';
 import { BOOK_GENRES } from '@/lib/validation/book';
 import type { BookFormValues } from '@/lib/validation/book';
@@ -321,19 +321,23 @@ export default function EditBookPage() {
     epubUrl: book.epubUrl || undefined
   };
 
+
   return (
-    <div className="space-y-6 p-8">
-      <BookHeader
-        title="Edit Book"
-        description="Update book details"
-      >
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/dashboard/books/${book.slug}/view`)}
-        >
-          View Book
-        </Button>
-      </BookHeader>
+    <div className="container mx-auto p-8">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Edit Book</h1>
+            <p className="text-muted-foreground">
+              Update book details
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <BooksMenu bookSlug={book.slug} />
+          </div>
+        </div>
+        <Separator className="mt-4" />
+      </div>
       <BookForm 
         defaultValues={formValues}
         onSubmit={handleSubmit}
