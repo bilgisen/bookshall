@@ -22,7 +22,6 @@ import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { chapterFormSchema, type ChapterFormValues } from '@/lib/validation/chapter';
-import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import type { InferInsertModel } from 'drizzle-orm';
 import { chapters } from '@/db/schema';
@@ -267,68 +266,11 @@ export default function ChapterForm({
       // Process content before submission
       const processedData = { ...data };
       
-      // Ensure content is properly formatted
-      if (processedData.content) {
-        // If it's already HTML, leave it as is
-        if (typeof processedData.content === 'string' && 
-            processedData.content.trim().startsWith('<')) {
-          // No transformation needed for HTML content
-        } 
-        // If it's a JSON string, parse it to ensure it's valid
-        else if (typeof processedData.content === 'string') {
-          try {
-            const parsed = JSON.parse(processedData.content);
-            if (parsed && typeof parsed === 'object') {
-              processedData.content = JSON.stringify(parsed);
-            }
-          } catch (error) {
-            // If it's not valid JSON, leave as is (treat as plain text)
-            console.log('Content is not JSON, treating as plain text', error);
-          }
-        }
-      }
-      
-      await onSubmit(processedData);
-    } catch (error) {
-      console.error('Error in form submission:', error);
-      toast.error('Failed to save chapter. Please try again.');
-    }
-  };
-
-  // Handle form submission with proper typing
-  const onSubmit = async (data: ChapterFormValues) => {
-    try {
-      setIsLoading(true);
-      
-      // Process content before submission
-      let processedContent = data.content;
-      
-      // If content is a string that's not HTML, try to parse it as JSON
-      if (typeof processedContent === 'string' && !processedContent.trim().startsWith('<')) {
-        try {
-          const parsed = JSON.parse(processedContent);
-          if (parsed && typeof parsed === 'object') {
-            processedContent = JSON.stringify(parsed);
-          }
-        } catch (error) {
-          // If it's not valid JSON, leave as is (treat as plain text)
-          console.log('Content is not JSON, treating as plain text', error);
-        }
-      }
-      
-      // Prepare the form data
-      const formData = {
-        ...data,
-        content: processedContent,
-        bookId: Number(bookId),
-        parentChapterId: data.parentChapterId ? Number(data.parentChapterId) : null,
-      };
-      
       // Ensure content is properly formatted and upload any blob: images at save time
-      if (formData.content) {
+      if (data.content) {
         // If content is an HTML string, scan for blob: images and upload them
-        if (typeof formData.content === 'string' && formData.content.trim().startsWith('<')) {
-          const html = formData.content;
+        if (typeof data.content === 'string' && data.content.trim().startsWith('<')) {
+          const html = data.content;
           // Only do work if blob: URLs are present
           if (html.includes('src="blob:') || html.includes("src='blob:")) {
             const parser = new DOMParser();
@@ -361,34 +303,54 @@ export default function ChapterForm({
               }
             }
             // Serialize the updated HTML back
-            formData.content = doc.body.innerHTML;
+            data.content = doc.body.innerHTML;
           }
           // else leave HTML as is
-        } else if (typeof formData.content === 'object') {
+        } else if (typeof data.content === 'object') {
           // If it's an object, stringify it
-          formData.content = JSON.stringify(formData.content);
+          data.content = JSON.stringify(data.content);
         }
       }
       
-      const session = await authClient.getSession();
-      const sessionId = session?.data?.session?.id;
-      if (!sessionId) {
-        throw new Error('Not authenticated');
-      }
+      await onSubmit(processedData);
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast.error('Failed to save chapter. Please try again.');
+    }
+  };
 
-      if (!slug) {
-        throw new Error('Book slug is required');
+  // Handle form submission with proper typing
+  const onSubmit = async (data: ChapterFormValues) => {
+    try {
+      setIsLoading(true);
+      
+      // Process content before submission
+      let processedContent = data.content;
+      
+      // If content is a string that's not HTML, try to parse it as JSON
+      if (typeof processedContent === 'string' && !processedContent.trim().startsWith('<')) {
+        try {
+          const parsed = JSON.parse(processedContent);
+          if (parsed && typeof parsed === 'object') {
+            processedContent = JSON.stringify(parsed);
+          }
+        } catch (error) {
+          // If it's not valid JSON, leave as is (treat as plain text)
+          console.log('Content is not JSON, treating as plain text', error);
+        }
       }
       
       // Prepare the chapter data for the API
       const chapterPayload = {
-        ...formData,
-        order: Number(formData.order) || 0,
-        level: Number(formData.level) || 1,
-        wordCount: Number(formData.wordCount) || 0,
-        readingTime: formData.readingTime ? Number(formData.readingTime) : null,
-        uuid: formData.uuid,
-        ...(formData.id && { id: String(formData.id) }),
+        ...data,
+        order: (typeof data.order === 'number' && data.order !== undefined && data.order !== null)
+          ? data.order
+          : (initialData?.order ?? 0), // Edit modunda order kaybolursa initialData.order kullan
+        level: Number(data.level) || 1,
+        wordCount: Number(data.wordCount) || 0,
+        readingTime: data.readingTime ? Number(data.readingTime) : null,
+        uuid: data.uuid,
+        ...(data.id && { id: String(data.id) }),
       };
       
       // For PATCH requests, we should have an ID from initialData
@@ -406,9 +368,9 @@ export default function ChapterForm({
       console.log('Making API request:', {
         method: initialData ? 'PATCH' : 'POST',
         url: apiUrl,
-        hasId: !!formData.id,
+        hasId: !!data.id,
         slug,
-        chapterId: formData.id
+        chapterId: data.id
       });
 
       const response = await fetch(apiUrl, {

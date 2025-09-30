@@ -23,18 +23,19 @@ const corsHeaders = {
 const PublishOptionsSchema = z.object({
   format: z.enum(['epub']).default('epub'),
   includeMetadata: z.coerce.boolean().default(true),
-  includeCover: z.coerce.boolean().default(true),
-  includeTOC: z.coerce.boolean().default(true),
-  tocLevel: z.coerce.number().int().min(1).max(5).default(3),
+  includeCover: z.coerce.boolean().default(false), // default false
+  includeTOC: z.coerce.boolean().default(false),   // default false
+  includeImprint: z.coerce.boolean().default(true), // default true
   language: z.string().default('en'),
   generate_toc: z.coerce.boolean().optional(),
-  toc_depth: z.coerce.number().int().min(1).max(5).optional(),
+  // toc_depth kaldırıldı
 }).transform(data => ({
   format: data.format,
   includeMetadata: data.includeMetadata,
   includeCover: data.includeCover,
   includeTOC: data.generate_toc ?? data.includeTOC,
-  tocLevel: data.toc_depth ?? data.tocLevel,
+  includeImprint: data.includeImprint,
+  tocLevel: 2, // her zaman 2
   language: data.language,
 }));
 
@@ -81,6 +82,7 @@ interface EbookPayload {
     toc_depth: number;
     embed_metadata: boolean;
     cover: boolean;
+    imprint: boolean; // eklendi
   };
   metadata: {
     generated_at: string;
@@ -333,8 +335,8 @@ console.log('Request URL:', request.url);
     const queryParams = Object.fromEntries(request.nextUrl.searchParams);
     const options = PublishOptionsSchema.parse({
       ...queryParams,
-      toc_depth: queryParams.toc_depth || queryParams.tocLevel,
       generate_toc: queryParams.generate_toc || queryParams.includeTOC,
+      includeImprint: queryParams.includeImprint || queryParams.include_metadata || queryParams.includeMetadata,
     });
 
     // Get the book with all necessary fields
@@ -424,9 +426,10 @@ console.log('Request URL:', request.url);
         },
         options: {
           generate_toc: options.includeTOC,
-          toc_depth: options.tocLevel,
+          toc_depth: 2, // sabit
           embed_metadata: options.includeMetadata,
-          cover: true,
+          cover: options.includeCover,
+          imprint: options.includeImprint, // yeni eklendi
         },
         metadata: {
           generated_at: new Date().toISOString(),

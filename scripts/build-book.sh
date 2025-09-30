@@ -26,8 +26,13 @@ if ! jq -e '.book.id' "$PAYLOAD_FILE" >/dev/null 2>&1; then die "İndirilen payl
 echo "✅ Payload başarıyla indirildi ve doğrulandı."
 
 # --- Adım 2: Yardımcı Sayfaları Oluştur ---
-echo "📄 Yardımcı sayfalar oluşturuluyor..."
-"$SCRIPT_DIR/generate-colophon.sh" "$PAYLOAD_FILE" "$WORKDIR/colophon.xhtml"
+IMPRINT_ENABLED=$(jq -r '.options.imprint // false' "$PAYLOAD_FILE")
+if [[ "$IMPRINT_ENABLED" == "true" ]]; then
+  echo "📄 Colophon (imprint) sayfası oluşturuluyor..."
+  "$SCRIPT_DIR/generate-colophon.sh" "$PAYLOAD_FILE" "$WORKDIR/colophon.xhtml"
+else
+  echo "ℹ️ Colophon (imprint) sayfası atlandı."
+fi
 
 # --- Adım 3: Kapak ve Stil Dosyasını İndir ---
 COVER_URL=$(get_book_value '.book.cover_url' '')
